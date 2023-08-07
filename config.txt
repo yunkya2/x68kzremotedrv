@@ -1,0 +1,12 @@
+#
+# WiFi, Windows ファイル共有の設定ファイル
+#
+
+# WiFi 接続先の SSID と パスワードを設定
+set(WIFI_SSID ssid_name)
+set(WIFI_PASSWORD wifi_name)
+
+# Windows ファイル共有の URL とユーザ名、パスワードを設定
+set(SMB2_URL smb://myserver.lan/myshare/path/hdsfile.hds)
+set(SMB2_USERNAME username)
+set(SMB2_PASSWORD password)
