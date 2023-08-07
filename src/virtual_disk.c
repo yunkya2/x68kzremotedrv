@@ -142,8 +142,8 @@ static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 8];
 
-static struct smb2fh *sfh;
-static size_t filesz;
+static struct smb2fh *sfh = NULL;
+static size_t filesz = 0;
 
 static char *pscsiini = "[pscsi]\r\nID0=disk0.hds\r\n";
 
@@ -154,17 +154,19 @@ int vd_init(const char *path)
 
     /* Open HDS file */
 
-    struct smb2_stat_64 st;
-    if (smb2_stat(smb2, path, &st) < 0) {
-        printf("File %s not found.\n", path);
-        return -1;
-    }
-    printf("File %s size=%lld\n", path, st.smb2_size);
-    filesz = st.smb2_size;
+    if (path) {
+        struct smb2_stat_64 st;
+        if (smb2_stat(smb2, path, &st) < 0) {
+            printf("File %s not found.\n", path);
+        } else {
+            printf("File %s size=%lld\n", path, st.smb2_size);
+            filesz = st.smb2_size;
 
-    if ((sfh = smb2_open(smb2, path, O_RDWR)) == NULL) {
-        printf("File %s open failure.\n", path);
-        return -1;
+            if ((sfh = smb2_open(smb2, path, O_RDWR)) == NULL) {
+                printf("File %s open failure.\n", path);
+                sfh = NULL;
+            }
+        }
     }
 
     /* Initialize FAT */
@@ -273,7 +275,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         return 0;
     }
 
-    if (lba >= 0x00803fa0) {
+    if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file read
         lba -= 0x00803fa0;
         uint64_t cur;
@@ -288,7 +290,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
 int vd_write_block(uint32_t lba, uint8_t *buf)
 {
-    if (lba >= 0x00803fa0) {
+    if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file write
         lba -= 0x00803fa0;
         uint64_t cur;

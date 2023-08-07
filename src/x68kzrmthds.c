@@ -68,6 +68,7 @@ static void log_out_init(void)
 
 struct smb2_context *smb2;
 struct smb2fh *sfh;
+static const char *vd_path;
 
 static void service_main(void)
 {
@@ -125,26 +126,23 @@ static void service_main(void)
     }
 
     printf("SMB2 connection established.\n");
-
-    /* USB MSC main loop */
-
-    if (vd_init(url->path) < 0) {
-        printf("Virtual disk setup failure.\n");
-        return;
-    }
-
-    printf("Start USB MSC device.\n");
-
-    while (1) {
-        tud_task();
-        taskYIELD();
-    }
+    vd_path = url->path;
 }
 
 static void main_task(void *params)
 {
     service_main();
-    vTaskDelete(NULL);
+
+    printf("Start USB MSC device.\n");
+
+    vd_init(vd_path);
+
+    /* USB MSC main loop */
+
+    while (1) {
+        tud_task();
+        taskYIELD();
+    }
 }
 
 //****************************************************************************
