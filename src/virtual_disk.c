@@ -31,12 +31,14 @@
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
 #include <string.h>
+#include "hardware/watchdog.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
 
 #include "x68kzrmthds.h"
 #include "virtual_disk.h"
+#include "config_file.h"
 
 //****************************************************************************
 // BPB
@@ -174,10 +176,11 @@ int vd_init(const char *path)
     memset(fat, 0, sizeof(fat));
     fat[0] = 0x0fffff00u | MEDIA_TYPE;
     fat[1] = 0x0fffffff;
-    fat[2] = 0x0ffffff8;    /* sector 2: root directory */
-    fat[3] = 0x0fffffff;    /* sector 3: X68000Z directory */
-    fat[4] = 0x0fffffff;    /* pscsi.ini */
-    fat[5] = 0x0fffffff;    /* log.txt */
+    fat[2] = 0x0ffffff8;    /* cluster 2: root directory */
+    fat[3] = 0x0fffffff;    /* cluster 3: X68000Z directory */
+    fat[4] = 0x0fffffff;    /* cluster 4: pscsi.ini */
+    fat[5] = 0x0fffffff;    /* cluster 5: log.txt */
+    fat[6] = 0x0fffffff;    /* cluster 6: config.txt */
 
     /* Initialize root directory */
 
@@ -185,6 +188,7 @@ int vd_init(const char *path)
     dirent = (struct dir_entry *)rootdir;
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
+    init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
 
     /* Initialize "X68000Z" directory */
 
@@ -275,6 +279,12 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         return 0;
     }
 
+    if (lba == 0x4120) {
+        // "config.txt" file
+        memcpy(buf, configtxt, SECTOR_SIZE);
+        return 0;
+    }
+
     if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file read
         lba -= 0x00803fa0;
@@ -290,6 +300,16 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
 int vd_write_block(uint32_t lba, uint8_t *buf)
 {
+    if (lba == 0x4120) {
+        // "config.txt" file update
+        config_parse(buf);
+        config_write();
+
+        watchdog_enable(1, 1);
+        while (1)
+            ;
+    }
+
     if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file write
         lba -= 0x00803fa0;

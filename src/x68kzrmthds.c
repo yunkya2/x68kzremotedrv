@@ -36,6 +36,7 @@
 
 #include "x68kzrmthds.h"
 #include "virtual_disk.h"
+#include "config_file.h"
 
 //****************************************************************************
 // for debug log
@@ -85,7 +86,7 @@ static void service_main(void)
 
     printf("Connecting to WiFi...\n");
 
-    if (cyw43_arch_wifi_connect_timeout_ms(WIFI_SSID, WIFI_PASSWORD,
+    if (cyw43_arch_wifi_connect_timeout_ms(config_wifi_ssid, config_wifi_passwd,
                                            CYW43_AUTH_WPA2_AES_PSK, 30000)) {
         printf("Failed to connect.\n");
         return;
@@ -93,7 +94,7 @@ static void service_main(void)
 
     ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
     printf("Connected to %s as %d.%d.%d.%d as host %s\n",
-           WIFI_SSID,
+           config_wifi_ssid,
            ip4_addr1_16(address), ip4_addr2_16(address), ip4_addr3_16(address), ip4_addr4_16(address),
            cyw43_state.netif[0].hostname);
 
@@ -107,10 +108,12 @@ static void service_main(void)
         return;
     }
 
-    smb2_set_user(smb2, SMB2_USERNAME);
-    smb2_set_password(smb2, SMB2_PASSWORD);
+    if (strlen(config_smb2_user))
+        smb2_set_user(smb2, config_smb2_user);
+    if (strlen(config_smb2_passwd))
+        smb2_set_password(smb2, config_smb2_passwd);
 
-    url = smb2_parse_url(smb2, SMB2_URL);
+    url = smb2_parse_url(smb2, config_smb2_url);
     if (url == NULL) {
         printf("Failed to parse url: %s\n", smb2_get_error(smb2));
         return;
@@ -178,6 +181,7 @@ int main(void)
     board_init();
     stdio_init_all();
     log_out_init();
+    config_read();
 
     printf("X68000Z remote HDS service\n");
 

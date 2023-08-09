@@ -1,0 +1,13 @@
+[X68000Z Remote HDS service configuration]
+
+# WiFi 接続先の SSID
+WIFI_SSID: %s
+# WiFi 接続先のパスワード
+WIFI_PASSWORD: ********
+
+# Windows ファイル共有の URL
+SMB2_URL: %s
+# Windows ファイル共有のユーザ名
+SMB2_USERNAME: %s
+# Windows ファイル共有のパスワード
+SMB2_PASSWORD: ********

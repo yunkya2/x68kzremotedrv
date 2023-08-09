@@ -1,8 +1,5 @@
 cmake_minimum_required(VERSION 3.24)
 
-# Include user configuration
-include(config.txt)
-
 # Get the Pico SDK from https://github.com/raspberrypi/pico-sdk.git tested on TAG 1.4.0
 # Get FreeRTOS from https://github.com/FreeRTOS/FreeRTOS-Kernel.git tested on TAG V10.5.0
 set(PICO_SDK_PATH ${CMAKE_CURRENT_LIST_DIR}/pico-sdk)
@@ -30,11 +27,13 @@ add_executable(
         src/x68kzrmthds.c
         src/msc_disk.c
         src/virtual_disk.c
+        src/config_file.c
         src/usb_descriptors.c
 )
 
 # Build the app
 include_directories(
+        ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
         ${FREERTOS_KERNEL_PATH}/include
         ${LIBSMB2_PATH}/include
@@ -47,11 +46,6 @@ pico_enable_stdio_uart(${PROJECT_NAME} 1)
 pico_enable_stdio_semihosting(${PROJECT_NAME} 0)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-        WIFI_SSID=\"${WIFI_SSID}\"
-        WIFI_PASSWORD=\"${WIFI_PASSWORD}\"
-        SMB2_URL=\"${SMB2_URL}\"
-        SMB2_USERNAME=\"${SMB2_USERNAME}\"
-        SMB2_PASSWORD=\"${SMB2_PASSWORD}\"
         PICO_HEAP_SIZE=0x10000
         NO_SYS=0            # don't want NO_SYS (generally this would be in your lwipopts.h)
 )
