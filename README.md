@@ -15,37 +15,29 @@ X68000Z 本体に加えて以下が必要です。
   * Pico W (ヘッダピンなし)、Pico WH (ヘッダピン付き) のどちらでも使用できます
 * USB micro-B ケーブル
   * ラズパイ Pico W を X68000Z に接続したり、ファームウェア書き込みのため PC に接続したりするために必要です
-* Raspberry Pi Pico SDK のセットアップ
-  * 現バージョンは WiFi の接続情報やネットワーク共有の情報がソースコード埋め込みになっているため、各自の環境に合わせてソースコードからのビルドが必要です
-  * [Getting started with Raspberry Pi Pico](https://datasheets.raspberrypi.com/pico/getting-started-with-pico.pdf) (PDFファイル) に従って、SDK 環境のセットアップを行います
-  * 日本語版のドキュメントもあるようです。[Raspberry Pi Pico をセットアップしよう](https://datasheets.raspberrypi.com/pico/getting-started-with-pico-JP.pdf) (PDFファイル)
 
-## ビルドと書き込み
+## 使用方法
 
-1. Pico SDK をセットアップした PC に本リポジトリを clone します。
-2. `config.txt` ファイルを編集して、WiFi 接続情報や利用したい HDS ファイルの場所を設定します。
+1. ラズパイ Pico W の BOOTSEL ボタンを押しながら PC に接続すると USB メモリとして認識され、ファームウェア書き込みモードになります。`x68kzrmthds.uf2` を認識されたドライブにドロップするとファームウェアが書き込まれます。
+2. 書き込みが完了すると、再び USB メモリとして認識されます。認識されたドライブには `X68000Z` フォルダと ファイル `config.txt` と `log.txt` があるはずです。このうち `config.txt` をメモ帳などで開きます。
     ```
-    #
-    # WiFi, Windows ファイル共有の設定ファイル
-    #
+    [X68000Z Remote HDS service configuration]
     
-    # WiFi 接続先の SSID と パスワードを設定
-    set(WIFI_SSID ssid_name)
-    set(WIFI_PASSWORD wifi_name)
+    # WiFi 接続先の SSID
+    WIFI_SSID: <ssid>
+    # WiFi 接続先のパスワード
+    WIFI_PASSWORD: ********
     
-    # Windows ファイル共有の URL とユーザ名、パスワードを設定
-    set(SMB2_URL smb://myserver.lan/myshare/path/hdsfile.hds)
-    set(SMB2_USERNAME username)
-    set(SMB2_PASSWORD password)
+    # Windows ファイル共有の URL
+    SMB2_URL: \\<server>\<share>\<path>\<file>.HDS
+    # Windows ファイル共有のユーザ名
+    SMB2_USERNAME: <user>
+    # Windows ファイル共有のパスワード
+    SMB2_PASSWORD: ********
     ```
-3. 設定した HDS ファイルは、事前に Windows 側で適切にネットワーク共有設定を行ってファイル共有できるようにしておきます。
-4. `make` を実行すると、追加で必要なリポジトリを clone してビルドを開始します。
-5. ビルドが完了すると生成されるファイルのうち、`build/x68kzrmthds.uf2` をラズパイ Pico W に書き込みます。本体の BOOTSEL ボタンを押しながら PC に接続すると USB メモリとして認識されるので、そこに UF2 ファイルをコピーすれば OK です。
-
-## 実行
-
-1. まずは正常にネットワークにつながることを確認するため、PC に接続します。UF2 ファイル書き込み後、BOOTSEL ボタンを押さずに PC に接続してしばらくすると、USB メモリとして認識されます。
-2. 認識されたドライブの中には `X68000Z` フォルダと `log.txt` ファイルがあるはずです。`log.txt` をメモ帳などで開いて、以下のような内容が書かれていれば正常に認識されています。
+3. ファイルを編集して、WiFi 接続情報や利用したい HDS ファイルの場所を設定します。
+    * HDS ファイルは、事前に Windows 側で適切にネットワーク共有設定を行ってファイル共有できるようにしておきます。
+4. ファイルを上書き保存すると、USB メモリの認識が一度解除された後、設定を反映して再度認識されるようになります。`log.txt` をメモ帳などで開いて、以下のような内容が書かれていれば正常に認識されています。
     ```
     X68000Z remote HDS service
     Connecting to WiFi...
@@ -55,9 +47,17 @@ X68000Z 本体に加えて以下が必要です。
     Start USB MSC device.
     File <HDSファイル名> size=<ファイルサイズ>
     ```
-    * エラーが記録されている場合は、`config.txt` の設定内容を確認して再度ビルドを行ってください。
-3. `X68000Z` フォルダの中には `pscsi.ini` ファイルと `disk0.hds` ファイルがあります。`disk0.hds` ファイルはネットワーク共有先の HDS ファイルと同じサイズ、同じ内容になっているはずです。
-4. 正常な接続を確認できたら、ラズパイ Pico W を X68000Z 本体のUSB に接続して X68000Z を起動します。後は通常の SCSI イメージファイルと同じ使い方になります。
+    * エラーが記録されている場合は、`config.txt` の設定内容を確認して修正を行ってください。
+5. `X68000Z` フォルダの中には `pscsi.ini` ファイルと `disk0.hds` ファイルがあります。`disk0.hds` ファイルはネットワーク共有先の HDS ファイルと同じサイズ、同じ内容になっているはずです。
+6. 正常な接続を確認できたら、ラズパイ Pico W を X68000Z 本体のUSB に接続して X68000Z を起動します。後は通常の SCSI イメージファイルと同じ使い方になります。
+
+## ビルド方法
+
+ソースコードからのビルドを行う際には、事前に Raspberry Pi Pico SDK のセットアップが必要です。
+
+1. Pico SDK をセットアップした PC に本リポジトリを clone します。
+2. `make` を実行すると、追加で必要なリポジトリを clone してビルドを開始します。
+3. ビルドが完了すると生成されるファイル、`build/x68kzrmthds.uf2` がラズパイ Pico W へ書き込むファイルとなります。
 
 ## 注意
 
