@@ -19,4 +19,10 @@ build: FreeRTOS-Kernel/.git libsmb2/.git pico-sdk/.git
 FreeRTOS-Kernel/.git libsmb2/.git pico-sdk/.git update:
 	git submodule update --init --recursive
 
-.PHONY: all clean update
+RELFILE := x68kzrmthds-$(shell date +%Y%m%d)
+
+release: build
+	cp README.md build/README.txt
+	(cd build; zip -r $(RELFILE).zip *.uf2 README.txt)
+
+.PHONY: all clean update release
