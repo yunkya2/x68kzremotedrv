@@ -65,17 +65,20 @@ char config_smb2_url[256];
 char config_smb2_user[16];
 char config_smb2_passwd[16];
 
+#define CF_HIDDEN   1
+#define CF_URL      2
+
 const struct config_item {
     const char *item;
     char *value;
     size_t valuesz;
-    bool hidden;
+    int flag;
 } config_items[] = {
-    { "WIFI_SSID: ",     config_wifi_ssid,   sizeof(config_wifi_ssid),   false },
-    { "WIFI_PASSWORD: ", config_wifi_passwd, sizeof(config_wifi_passwd), true  },
-    { "SMB2_URL: ",      config_smb2_url,    sizeof(config_smb2_url),    false },
-    { "SMB2_USERNAME: ", config_smb2_user,   sizeof(config_smb2_user),   false },
-    { "SMB2_PASSWORD: ", config_smb2_passwd, sizeof(config_smb2_passwd), true  },
+    { "WIFI_SSID:",     config_wifi_ssid,   sizeof(config_wifi_ssid),   0 },
+    { "WIFI_PASSWORD:", config_wifi_passwd, sizeof(config_wifi_passwd), CF_HIDDEN },
+    { "SMB2_URL:",      config_smb2_url+4,  sizeof(config_smb2_url)-4,  CF_URL },
+    { "SMB2_USERNAME:", config_smb2_user,   sizeof(config_smb2_user),   0 },
+    { "SMB2_PASSWORD:", config_smb2_passwd, sizeof(config_smb2_passwd), CF_HIDDEN },
 };
 
 char configtxt[SECTOR_SIZE];
@@ -92,16 +95,19 @@ char configtxt[SECTOR_SIZE];
 
 void config_read(void)
 {
+    char url[256];
+
     for (int i = 0; i < CONFIG_ITEMS; i++) {
         const struct config_item *c = &config_items[i];
         memset(c->value, 0, c->valuesz);
     }
+    strcpy(config_smb2_url, "smb:");
 
     const uint8_t *config_flash_addr = CONFIG_FLASH_ADDR;
     if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC)) != 0) {
-//        strcpy(config_wifi_ssid, "<ssid>");
-//        strcpy(config_smb2_url, "smb://<server>/<share>/<path>/<file>.HDS");
-//        strcpy(config_smb2_user, "<user>");
+        strcpy(config_wifi_ssid, "<ssid>");
+        strcpy(config_smb2_url, "smb://<server>/<share>/<path>/<file>.HDS");
+        strcpy(config_smb2_user, "<user>");
     } else {
         const char *p = &config_flash_addr[32];
         for (int i = 0; i < CONFIG_ITEMS; i++) {
@@ -111,9 +117,20 @@ void config_read(void)
         }
     }
 
+    char *p = url;
+    char *q = config_smb2_url + 4;
+    while (1) {
+        char c = *q++;
+        if (c == 0)
+            break;
+        c = (c == '/') ? '\\' : c;
+        *p++ = c;
+    }
+    *p = '\0';
+
     memset(configtxt, 0, sizeof(configtxt));
-    snprintf(configtxt, sizeof(configtxt) -1 , config_template,
-             config_wifi_ssid, config_smb2_url, config_smb2_user);
+    snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
+             config_wifi_ssid, url, config_smb2_user);
 }
 
 void config_write(void)
@@ -154,8 +171,10 @@ void config_parse(uint8_t *buf)
             const struct config_item *c = &config_items[i];
             if (strncmp(p, c->item, strlen(c->item)) == 0) {
                 p += strlen(c->item);
+                while (*p == ' ')
+                    p++;
                 char *q = c->value;
-                if (c->hidden) {
+                if (c->flag & CF_HIDDEN) {
                     char *r = p;
                     while (*r == '*')
                         r++;
@@ -165,7 +184,14 @@ void config_parse(uint8_t *buf)
                 for (int j = 0; j < c->valuesz - 1; j++) {
                     if (*p < ' ')
                         break;
-                    *q++ = *p++;
+                    if (c->flag & CF_URL) {
+                        char c = *p++;
+                        if (c == '"')
+                            continue;
+                        *q++ = (c == '\\') ? '/' : c;
+                    } else {
+                        *q++ = *p++;
+                    }
                 }
                 *q = '\0';
                 p++;
@@ -179,10 +205,4 @@ void config_parse(uint8_t *buf)
                 p++;
         }
     }
-
-    printf("WIFI_SSID: %s\r\n",     config_wifi_ssid);
-    printf("WIFI_PASSWORD: %s\r\n", config_wifi_passwd);
-    printf("SMB2_URL: %s\r\n",      config_smb2_url);
-    printf("SMB2_USERNAME: %s\r\n", config_smb2_user);
-    printf("SMB2_PASSWORD: %s\r\n", config_smb2_passwd);
 }
