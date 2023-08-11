@@ -41,6 +41,14 @@
 #include "config_file.h"
 
 //****************************************************************************
+// static variables
+//****************************************************************************
+
+static struct smb2fh *sfh = NULL;
+static size_t filesz = 0;
+static size_t filesects = 0;
+
+//****************************************************************************
 // BPB
 //****************************************************************************
 
@@ -137,15 +145,79 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
 }
 
 //****************************************************************************
+// Disk cache
+//****************************************************************************
+
+#define DISK_CACHE_SECTS    8
+#define DISK_CACHE_SIZE     (DISK_CACHE_SECTS * SECTOR_SIZE)
+#define DISK_CACHE_SETS     2
+
+static struct cache {
+    uint8_t data[DISK_CACHE_SIZE];
+    uint32_t lba;
+    size_t sects;
+} cache[DISK_CACHE_SETS];
+static int cache_lru = 0;
+
+static void cache_init(void)
+{
+    for (int i = 0; i < DISK_CACHE_SETS; i++) {
+        cache[i].lba = 0xffffffff;
+        cache[i].sects = 0;
+    }
+}
+
+int cache_read(uint32_t lba, uint8_t *buf)
+{
+    for (int i = 0; i < DISK_CACHE_SETS; i++) {
+        struct cache *c = &cache[i];
+        if (lba >= c->lba && lba < c->lba + c->sects) {
+            memcpy(buf, &c->data[(lba - c->lba) * SECTOR_SIZE], SECTOR_SIZE);
+            return 0;
+        }
+    }
+
+    struct cache *c = &cache[cache_lru];
+    uint64_t cur;
+    if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+        return -1;
+    c->sects = 0;
+    int sz = smb2_read(smb2, sfh, c->data, DISK_CACHE_SIZE);
+    if (sz < 0)
+        return -1;
+    c->lba = lba;
+    c->sects = sz / SECTOR_SIZE;
+    cache_lru = (cache_lru + 1) % DISK_CACHE_SETS;
+    memcpy(buf, c->data, SECTOR_SIZE);
+    return 0;
+}
+
+int cache_write(uint32_t lba, uint8_t *buf)
+{
+    for (int i = 0; i < DISK_CACHE_SETS; i++) {
+        struct cache *c = &cache[i];
+        if (lba >= c->lba && lba < c->lba + c->sects) {
+            memcpy(&c->data[(lba - c->lba) * SECTOR_SIZE], buf, SECTOR_SIZE);
+            break;
+        }
+    }
+
+    uint64_t cur;
+    if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+        return -1;
+    int sz = smb2_write(smb2, sfh, buf, SECTOR_SIZE);
+    if (sz < 0)
+        return -1;
+    return 0;
+}
+
+//****************************************************************************
 // Virtual FAT32 functions
 //****************************************************************************
 
 static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 8];
-
-static struct smb2fh *sfh = NULL;
-static size_t filesz = 0;
 
 static char *pscsiini = "[pscsi]\r\nID0=disk0.hds\r\n";
 
@@ -163,6 +235,7 @@ int vd_init(const char *path)
         } else {
             printf("File %s size=%lld\n", path, st.smb2_size);
             filesz = st.smb2_size;
+            filesects = filesz / SECTOR_SIZE;
 
             if ((sfh = smb2_open(smb2, path, O_RDWR)) == NULL) {
                 printf("File %s open failure.\n", path);
@@ -288,10 +361,10 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file read
         lba -= 0x00803fa0;
-        uint64_t cur;
-        if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+        if (lba >= filesects)
             return -1;
-        smb2_read(smb2, sfh, buf, SECTOR_SIZE);
+        if (cache_read(lba, buf) < 0)
+            return -1;
         xTaskNotify(blink_th, 2, eSetBits);
         return 0;
     }
@@ -314,10 +387,10 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
     if (lba >= 0x00803fa0 && sfh != NULL) {
         // "disk0.hds" file write
         lba -= 0x00803fa0;
-        uint64_t cur;
-        if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+        if (lba >= filesects)
             return -1;
-        smb2_write(smb2, sfh, buf, SECTOR_SIZE);
+        if (cache_write(lba, buf) < 0)
+            return -1;
         xTaskNotify(blink_th, 2, eSetBits);
         return 0;
     }
