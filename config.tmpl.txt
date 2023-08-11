@@ -1,13 +1,13 @@
 [X68000Z Remote HDS service configuration]
 
-# WiFi Ú‘±æ‚Ì SSID
+# WiFi æŽ¥ç¶šå…ˆã® SSID
 WIFI_SSID: %s
-# WiFi Ú‘±æ‚ÌƒpƒXƒ[ƒh
+# WiFi æŽ¥ç¶šå…ˆã®ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰
 WIFI_PASSWORD: ********
 
-# Windows ƒtƒ@ƒCƒ‹‹¤—L‚Ì URL
+# Windows ãƒ•ã‚¡ã‚¤ãƒ«å…±æœ‰ã® URL
 SMB2_URL: %s
-# Windows ƒtƒ@ƒCƒ‹‹¤—L‚Ìƒ†[ƒU–¼
+# Windows ãƒ•ã‚¡ã‚¤ãƒ«å…±æœ‰ã®ãƒ¦ãƒ¼ã‚¶å
 SMB2_USERNAME: %s
-# Windows ƒtƒ@ƒCƒ‹‹¤—L‚ÌƒpƒXƒ[ƒh
+# Windows ãƒ•ã‚¡ã‚¤ãƒ«å…±æœ‰ã®ãƒ‘ã‚¹ãƒ¯ãƒ¼ãƒ‰
 SMB2_PASSWORD: ********
