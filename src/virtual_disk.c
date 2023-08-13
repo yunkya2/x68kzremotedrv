@@ -292,6 +292,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
             return -1;
         smb2_read(smb2, sfh, buf, SECTOR_SIZE);
+        xTaskNotify(blink_th, 2, eSetBits);
         return 0;
     }
 
@@ -317,6 +318,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
             return -1;
         smb2_write(smb2, sfh, buf, SECTOR_SIZE);
+        xTaskNotify(blink_th, 2, eSetBits);
         return 0;
     }
     return 0;

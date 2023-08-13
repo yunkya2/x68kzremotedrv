@@ -29,6 +29,7 @@
 #include "pico/stdio/driver.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "timers.h"
 #include "smb2.h"
 #include "libsmb2.h"
 #include "bsp/board.h"
@@ -64,12 +65,49 @@ static void log_out_init(void)
 }
 
 //****************************************************************************
+// LED blinking task
+//****************************************************************************
+
+TaskHandle_t blink_th;
+TimerHandle_t blink_tm;
+
+static void blink_timer_cb(TimerHandle_t th)
+{
+    xTaskNotifyFromISR(blink_th, 1, eSetBits, NULL);
+}
+
+static void blink_task(void *params)
+{
+    static bool led_state = true;
+    uint32_t nvalue;
+
+    blink_tm = xTimerCreate("BlinkTimer", pdMS_TO_TICKS(150), pdTRUE, NULL, blink_timer_cb);
+    xTimerStart(blink_tm, 0);
+
+    while (1) {
+        xTaskNotifyWait(3, 0, &nvalue, portMAX_DELAY);
+        if (nvalue & 2)
+            break;
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
+        led_state = 1 - led_state;
+    }
+    xTimerDelete(blink_tm, 0);
+    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+
+    while (1) {
+        xTaskNotifyWait(3, 0, &nvalue, portMAX_DELAY);
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, true);
+        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
+    }
+}
+
+//****************************************************************************
 // Main task
 //****************************************************************************
 
 struct smb2_context *smb2;
 struct smb2fh *sfh;
-static const char *vd_path;
+static const char *vd_path = NULL;
 
 static void service_main(void)
 {
@@ -91,6 +129,8 @@ static void service_main(void)
         printf("Failed to connect.\n");
         return;
     }
+
+    xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(500), 0);
 
     ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
     printf("Connected to %s as %d.%d.%d.%d as host %s\n",
@@ -130,10 +170,14 @@ static void service_main(void)
 
     printf("SMB2 connection established.\n");
     vd_path = url->path;
+
+    xTaskNotify(blink_th, 2, eSetBits);
 }
 
 static void main_task(void *params)
 {
+    xTaskCreate(blink_task, "BlinkThread", configMINIMAL_STACK_SIZE, NULL, 2, &blink_th);
+
     service_main();
 
     printf("Start USB MSC device.\n");

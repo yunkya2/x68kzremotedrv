@@ -28,10 +28,14 @@
 
 #include "smb2.h"
 #include "libsmb2.h"
+#include "FreeRTOS.h"
+#include "task.h"
 
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 
 extern struct smb2_context *smb2;
+
+extern TaskHandle_t blink_th;
 
 #endif /* _X68KZRMTHDS_H_ */
