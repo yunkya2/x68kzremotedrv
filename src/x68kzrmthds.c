@@ -183,7 +183,7 @@ int main(void)
     log_out_init();
     config_read();
 
-    printf("X68000Z remote HDS service\n");
+    printf("X68000Z remote HDS service (version %s)\n", GIT_REPO_VERSION);
 
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &task);
     vTaskStartScheduler();

@@ -45,6 +45,12 @@ pico_enable_stdio_usb(${PROJECT_NAME} 0)
 pico_enable_stdio_uart(${PROJECT_NAME} 1)
 pico_enable_stdio_semihosting(${PROJECT_NAME} 0)
 
+execute_process(COMMAND git describe --tags --always
+        OUTPUT_VARIABLE GIT_REPO_VERSION
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+)
+add_compile_definitions(-DGIT_REPO_VERSION="${GIT_REPO_VERSION}")
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE
         PICO_HEAP_SIZE=0x10000
         NO_SYS=0            # don't want NO_SYS (generally this would be in your lwipopts.h)
