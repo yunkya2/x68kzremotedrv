@@ -21,7 +21,7 @@ FreeRTOS-Kernel/.git libsmb2/.git pico-sdk/.git update:
 
 RELFILE := x68kzrmthds-$(shell date +%Y%m%d)
 
-release: build
+release: all
 	cp README.md build/README.txt
 	(cd build; zip -r $(RELFILE).zip *.uf2 README.txt)
 
