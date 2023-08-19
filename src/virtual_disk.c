@@ -31,8 +31,6 @@
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
 #include <string.h>
-#include "hardware/resets.h"
-#include "hardware/watchdog.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -383,7 +381,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         config_parse(buf);
         config_write();
 
-        watchdog_reboot(0, 0, 0);
+        // reboot by watchdog
         while (1)
             ;
     }

@@ -27,6 +27,7 @@
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
+#include "hardware/watchdog.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
@@ -188,7 +189,10 @@ static void main_task(void *params)
 
     /* USB MSC main loop */
 
+    watchdog_enable(500, 1);
+
     while (1) {
+        watchdog_update();
         tud_task();
         taskYIELD();
     }
