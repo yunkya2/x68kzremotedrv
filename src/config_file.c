@@ -64,6 +64,7 @@ char config_wifi_passwd[16];
 char config_smb2_url[256];
 char config_smb2_user[16];
 char config_smb2_passwd[16];
+char config_smb2_workgroup[16];
 
 #define CF_HIDDEN   1
 #define CF_URL      2
@@ -79,6 +80,7 @@ const struct config_item {
     { "SMB2_URL:",      config_smb2_url+4,  sizeof(config_smb2_url)-4,  CF_URL },
     { "SMB2_USERNAME:", config_smb2_user,   sizeof(config_smb2_user),   0 },
     { "SMB2_PASSWORD:", config_smb2_passwd, sizeof(config_smb2_passwd), CF_HIDDEN },
+    { "SMB2_WORKGROUP:", config_smb2_workgroup, sizeof(config_smb2_workgroup), 0 },
 };
 
 char configtxt[SECTOR_SIZE];
@@ -91,7 +93,7 @@ char configtxt[SECTOR_SIZE];
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote HDS Config"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote HDS Config v2"
 
 void config_read(void)
 {
@@ -108,6 +110,7 @@ void config_read(void)
         strcpy(config_wifi_ssid, "<ssid>");
         strcpy(config_smb2_url, "smb://<server>/<share>/<path>/<file>.HDS");
         strcpy(config_smb2_user, "<user>");
+        strcpy(config_smb2_workgroup, "WORKGROUP");
     } else {
         const char *p = &config_flash_addr[32];
         for (int i = 0; i < CONFIG_ITEMS; i++) {
@@ -130,7 +133,7 @@ void config_read(void)
 
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
-             config_wifi_ssid, url, config_smb2_user);
+             config_wifi_ssid, url, config_smb2_user, config_smb2_workgroup);
 }
 
 void config_write(void)

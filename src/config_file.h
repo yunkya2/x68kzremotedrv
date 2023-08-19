@@ -35,6 +35,7 @@ extern char config_wifi_passwd[16];
 extern char config_smb2_url[256];
 extern char config_smb2_user[16];
 extern char config_smb2_passwd[16];
+extern char config_smb2_workgroup[16];
 
 extern char configtxt[SECTOR_SIZE];
 

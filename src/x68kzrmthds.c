@@ -152,6 +152,8 @@ static void service_main(void)
         smb2_set_user(smb2, config_smb2_user);
     if (strlen(config_smb2_passwd))
         smb2_set_password(smb2, config_smb2_passwd);
+    if (strlen(config_smb2_workgroup))
+        smb2_set_workstation(smb2, config_smb2_passwd);
 
     url = smb2_parse_url(smb2, config_smb2_url);
     if (url == NULL) {
@@ -227,7 +229,7 @@ int main(void)
     log_out_init();
     config_read();
 
-    printf("X68000Z remote HDS service (version %s)\n", GIT_REPO_VERSION);
+    printf("\nX68000Z remote HDS service (version %s)\n", GIT_REPO_VERSION);
 
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &task);
     vTaskStartScheduler();

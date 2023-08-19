@@ -11,3 +11,5 @@ SMB2_URL: %s
 SMB2_USERNAME: %s
 # Windows ファイル共有のパスワード
 SMB2_PASSWORD: ********
+# Windows のワークグループ名
+SMB2_WORKGROUP: %s
