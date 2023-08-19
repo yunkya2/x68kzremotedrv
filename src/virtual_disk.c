@@ -31,6 +31,7 @@
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
 #include <string.h>
+#include "hardware/resets.h"
 #include "hardware/watchdog.h"
 
 #include "smb2.h"
@@ -259,18 +260,21 @@ int vd_init(const char *path)
 
     memset(rootdir, 0, sizeof(rootdir));
     dirent = (struct dir_entry *)rootdir;
-    init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
+    if (sfh)
+        init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
 
     /* Initialize "X68000Z" directory */
 
     memset(x68zdir, 0,  sizeof(x68zdir));
-    dirent = (struct dir_entry *) x68zdir;
-    init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
-    init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
-    init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
-    init_dir_entry(dirent++, "DISK0   HDS", 0, 0x18, 0x20000, filesz);
+    if (sfh) {
+        dirent = (struct dir_entry *) x68zdir;
+        init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
+        init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+        init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
+        init_dir_entry(dirent++, "DISK0   HDS", 0, 0x18, 0x20000, filesz);
+    }
 
     return 0;
 }
@@ -379,7 +383,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         config_parse(buf);
         config_write();
 
-        watchdog_enable(1, 1);
+        watchdog_reboot(0, 0, 0);
         while (1)
             ;
     }
