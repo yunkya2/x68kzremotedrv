@@ -23,6 +23,6 @@ RELFILE := x68kzrmthds-$(shell date +%Y%m%d)
 
 release: all
 	cp README.md build/README.txt
-	(cd build; zip -r $(RELFILE).zip *.uf2 README.txt)
+	(cd build; zip -r ../$(RELFILE).zip *.uf2 README.txt)
 
 .PHONY: all clean update release
