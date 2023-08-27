@@ -1,0 +1,90 @@
+[BPB]
+JmpBoot     3
+OEMName     8
+BytePerSec  2   0x0200      512bytes/sector
+SecPerClus  1   0x40        32768/512=64
+RsvdSecCnt  2   0x20        32sectors (0x4000)
+NumFATs     1   0x02
+RootEntCnt  2   0x0000
+TotSec16    2   0x0000
+Media       1   0xf8
+FATSz16     2   0x0000
+SecPerTrk   2   0x003f
+NumHeads    2   0x00ff
+HiddSec     4   0x00000000
+TotSec32    4   0x04003fa0  (32GB disk)
+FATSz32     4   0x00002000  8192*(512/4)*32kB = 32GB
+ExtFlags    2   0x0000
+FSVer       2   0x0000
+RootClus    4   0x00000002
+FSInfo      2   0x0001
+BkBootSec   2   0x0006
+Reserved    12
+DrvNum      1   0x80
+Reserved    1   0x00
+BootSig     1   0x29
+VolID       4   0xXXXXXXXX
+VolLab      11  "NO NAME    "
+FilSysType  8   "FAT32   "
+BootCode32  420
+BootSign    2   0xaa55
+
+
+[DISK]
+off         sect        clus
+0x000000000 0x0000000               BPB
+0x000000200 0x0000001               FSINFO
+0x000000c00 0x0000006               BPB2
+0x000000e00 0x0000007               FSINFO2
+
+                                    (Reserved)
+0x000004000 0x0000020               FAT1    (for cluster# 2～)
+0x000084000 0x0000420                       (for cluster# 0x020000～)
+0x000104000 0x0000820                       (for cluster# 0x040000～)
+0x000184000 0x0000c20                       (for cluster# 0x060000～)
+0x000204000 0x0001020                       (for cluster# 0x080000～)
+0x000284000 0x0001420                       (for cluster# 0x0a0000～)
+0x000304000 0x0001820                       (for cluster# 0x0c0000～)
+0x000384000 0x0001c20                       (for cluster# 0x0e0000～)
+0x000404000 0x0002020               FAT2
+                                        :
+(0x007f4000 0x0003fa0   0x000000)
+0x000804000 0x0004020   0x000002    RootDir
+0x00080c000 0x0004060   0x000003    "X68000Z" subdir
+0x000814000 0x00040a0   0x000004    pscsi.ini
+0x00081c000 0x00040e0   0x000005    log.txt
+0x000824000 0x0004120   0x000006    config.txt
+                                    (update時: write 0x4020～0x4027 -> 0x4120)
+
+0x1007f4000 0x0803fa0   0x020000    image-0
+0x2007f4000 0x1003fa0   0x040000    image-1
+0x3007f4000 0x1803fa0   0x060000    image-2
+0x4007f4000 0x2003fa0   0x080000    image-3
+0x5007f4000 0x2803fa0   0x0a0000    image-4
+0x6007f4000 0x3003fa0   0x0c0000    image-5
+0x7007f4000 0x3803fa0   0x0e0000    image-6
+0x8007f4000 0x4003fa0   0x100000    max
+
+
+4GB file  = 131072 clusters (0x20000) = 0x800000 sectors
+FAT 1sector = 128 entries (4MB分)
+pscsi.ini   0x00000-
+image-0     0x20000 cluster  (1024sector)
+image-1     0x40000
+image-2     0x60000
+image-3     0x80000
+image-4     0xa0000
+image-5     0xc0000
+image-6     0xe0000
+max         0x100000    約32GB分のHDD image
+
+[Remote image]
+0x000000000 0x0000000   signature
+0x000000400 0x0000002   boot loader
+0x000000800 0x0000004   partition table
+0x000000c00 0x0000006   SCSI device driver
+0x000004000 0x0000020   remote command area
+0x000008000 0x0000040   HUMAN.SYS
+0x000020000 0x0000100
+0x000400000 0x0200000   remote response area
+0x000800000 0x0400000
