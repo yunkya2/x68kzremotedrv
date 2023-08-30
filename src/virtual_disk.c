@@ -31,6 +31,7 @@
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
 #include <string.h>
+#include "hardware/watchdog.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -46,6 +47,9 @@
 static struct smb2fh *sfh = NULL;
 static size_t filesz = 0;
 static size_t filesects = 0;
+
+static struct smb2fh *sfh_d = NULL;
+static struct smb2fh *sfh_h = NULL;
 
 //****************************************************************************
 // BPB
@@ -218,12 +222,14 @@ static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 8];
 
-static char *pscsiini = "[pscsi]\r\nID0=disk0.hds\r\n";
+static char *pscsiini = "[pscsi]\r\nID0=disk0.hds\r\nID6=disk6.hds\r\n";
 
 int vd_init(const char *path)
 {
     struct dir_entry *dirent;
     int len;
+
+    setenv("TZ", "JST-9", true);
 
     /* Open HDS file */
 
@@ -241,6 +247,12 @@ int vd_init(const char *path)
                 sfh = NULL;
             }
         }
+    }
+    if ((sfh_d = smb2_open(smb2, "HFS/driver.bin", O_RDONLY)) == NULL) {
+        printf("driver open failure.\n");
+    }
+    if ((sfh_h = smb2_open(smb2, "HFS/HUMAN.SYS", O_RDONLY)) == NULL) {
+        printf("human.sys open failure.\n");
     }
 
     /* Initialize FAT */
@@ -272,10 +284,25 @@ int vd_init(const char *path)
         init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
         init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
         init_dir_entry(dirent++, "DISK0   HDS", 0, 0x18, 0x20000, filesz);
+        init_dir_entry(dirent++, "DISK6   HDS", 0, 0x18, 0xe0000, 0x80000000);
     }
 
     return 0;
 }
+
+
+uint8_t vdbuf_read[(512 - 16) * 7];
+uint8_t vdbuf_write[(512 - 16) * 7];
+int vdbuf_rpages;
+int vdbuf_wpages;
+
+// vdbuf header
+//   0.. 3  "X68Z" signature
+//   4.. 7  session ID
+//   8..11  sequence count
+//  12      max page (0..6)
+//  13..15  reserved
+uint8_t vdbuf_header[12];
 
 int vd_read_block(uint32_t lba, uint8_t *buf)
 {
@@ -329,6 +356,31 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 lbuf[fatmod] = 0x0fffffff;      // クラスタ末尾
             }
             return 0;
+        } else if (lba >= 0x1c00 && lba < 0x2000) {
+            // "disk6.hds"ファイル用のFATデータを作る
+            uint32_t *lbuf = (uint32_t *)buf;
+            lba -= 0x1c00;
+            // 1セクタ分のFAT領域(512/4=128エントリ)が占めるディスク領域 (128*32kB = 4MB)
+            int fatdsz = FATENTS_SECT * CLUSTER_SIZE;
+            // ファイルに使用するFAT領域のセクタ数(1セクタ未満切り捨て)
+            int fatsects = 0x80000000 / fatdsz;
+            // 1セクタに満たない分のFATエントリ数
+            int fatmod = (0x80000000 % fatdsz) / CLUSTER_SIZE;
+            // アクセスしようとしているFAT領域先頭のクラスタ番号
+            int clsno = 0xe0000 + FATENTS_SECT * lba;
+            if (lba < fatsects) {
+                // アクセスしようとしているFAT領域のセクタはすべて使用中
+                for (int i = 0; i < FATENTS_SECT; i++) {
+                    lbuf[i] = clsno + i + 1;    // クラスタチェインを作る
+                }
+            } else if (lba == fatsects) {
+                // アクセスしようとしているFAT領域のセクタは部分的に使われている
+                for (int i = 0; i < fatmod; i++) {
+                    lbuf[i] = clsno + i + 1;    // クラスタチェインを作る
+                }
+                lbuf[fatmod] = 0x0fffffff;      // クラスタ末尾
+            }
+            return 0;
         }
     }
 
@@ -360,14 +412,69 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         return 0;
     }
 
-    if (lba >= 0x00803fa0 && sfh != NULL) {
+    if (lba >= 0x00803fa0 && lba < 0x01003fa0 && sfh != NULL) {
         // "disk0.hds" file read
         lba -= 0x00803fa0;
+goto aaa;
         if (lba >= filesects)
             return -1;
         if (cache_read(lba, buf) < 0)
             return -1;
         xTaskNotify(blink_th, 2, eSetBits);
+        return 0;
+    }
+
+    if (lba >= 0x03803fa0) {
+        // "disk6.hds" file read
+        lba -= 0x03803fa0;
+aaa:
+        printf("disk6: read 0x%x\n", lba);
+
+        if (lba == 0) {
+            memcpy(buf, "X68SCSI1", 8);
+        } else if (lba == 2) {
+            // boot loader
+            static uint16_t boot[] = {
+                0x6000, 0x0006, 0x0000, 0x0000, 0x7420, 0x263c, 0x0000, 0x0080,
+                0x7806, 0x7a01, 0x327c, 0x67c0, 0x203c, 0x0000, 0x00f5, 0x7226,
+                0x4e4f, 0x4ef8, 0x6800
+            };
+            for (int i = 0; i < sizeof(boot) / 2; i++) {
+                buf[i * 2] = boot[i] >> 8;
+                buf[i * 2 + 1] = boot[i] & 0xff;
+            }
+        } else if (lba == 4) {
+            memcpy(buf, "X68K", 4);
+            memcpy(buf + 16 , "Human68k", 8);
+            memcpy(buf + 256, "X68K", 4);
+        } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
+            lba -= 0xc00 / 512;
+            uint64_t cur;
+            if (smb2_lseek(smb2, sfh_d, lba * 512, SEEK_SET, &cur) >= 0) {
+                smb2_read(smb2, sfh_d, buf, 512);
+            }
+        } else if (lba >= (0x4000 / 512) && lba < (0x14000 / 512)) {
+            lba -= 0x4000 / 512;
+            uint64_t cur;
+            if (smb2_lseek(smb2, sfh_h, lba * 512, SEEK_SET, &cur) >= 0) {
+                smb2_read(smb2, sfh_h, buf, 512);
+            }
+        } else {
+        int page = lba % 8;
+        if (page == 7)
+            return -1;
+
+        memcpy(buf, vdbuf_header, 12);
+        buf[12] = vdbuf_rpages;
+        memcpy(buf + 16, &vdbuf_read[page * (512 - 16)], 512 - 16);
+
+#if 0
+            for (int i = 0; i < 64; i++) {
+                printf("%02x ", buf[i]);
+                if ((i % 16) == 15) printf("\n");
+            }
+#endif
+        }
         return 0;
     }
 
@@ -382,13 +489,15 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         config_write();
 
         // reboot by watchdog
+        watchdog_enable(500, 1);
         while (1)
             ;
     }
 
-    if (lba >= 0x00803fa0 && sfh != NULL) {
+    if (lba >= 0x00803fa0 && lba < 0x01003fa0 && sfh != NULL) {
         // "disk0.hds" file write
         lba -= 0x00803fa0;
+goto bbb;
         if (lba >= filesects)
             return -1;
         if (cache_write(lba, buf) < 0)
@@ -396,5 +505,51 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         xTaskNotify(blink_th, 2, eSetBits);
         return 0;
     }
+
+    if (lba >= 0x03803fa0) {
+        // "disk6.hds" file write
+        lba -= 0x03803fa0;
+bbb:
+        printf("disk6: write 0x%x\n", lba);
+        int page = lba % 8;
+        if (page == 7)
+            return -1;
+        if (page == 0) {
+            memcpy(vdbuf_header, buf, 12);
+            vdbuf_wpages = buf[12];
+        } else {
+            if (memcmp(vdbuf_header, buf, 12) != 0) {
+                printf("skip\n");
+                return -1;
+            }
+        }
+
+        memcpy(&vdbuf_write[page * (512 - 16)], buf + 16, 512 - 16);
+        if (page == vdbuf_wpages) {
+            // last page copy
+
+#if 0
+            for (int i = 0; i < 64; i++) {
+                printf("%02x ", buf[i]);
+                if ((i % 16) == 15) printf("\n");
+            }
+            printf("\n");
+#endif
+
+            int remote_serv(uint8_t *wbuf, uint8_t *rbuf);
+            int rsize = remote_serv(vdbuf_write, vdbuf_read);
+            vdbuf_rpages = (rsize - 1) / (512 - 16);
+            printf("vdbuf_rpages=%d\n", vdbuf_rpages);
+
+#if 0
+            for (int i = 0; i < 48; i++) {
+                printf("%02x ", vdbuf_read[i]);
+                if ((i % 16) == 15) printf("\n");
+            }
+#endif
+        }
+        return 0;
+    }
+
     return 0;
 }

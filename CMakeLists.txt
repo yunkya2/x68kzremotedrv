@@ -29,12 +29,18 @@ add_executable(
         src/virtual_disk.c
         src/config_file.c
         src/usb_descriptors.c
+        src/x68kremote.c
+        x68kserremote/service/remoteserv.c
+        iconv/iconv_mini.c
 )
 
 # Build the app
 include_directories(
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/iconv
+        ${CMAKE_CURRENT_LIST_DIR}/x68kserremote/include
+        ${CMAKE_CURRENT_LIST_DIR}/x68kserremote/service
         ${FREERTOS_KERNEL_PATH}/include
         ${LIBSMB2_PATH}/include
         ${LIBSMB2_PATH}/include/smb2

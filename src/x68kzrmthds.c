@@ -189,10 +189,7 @@ static void main_task(void *params)
 
     /* USB MSC main loop */
 
-    watchdog_enable(500, 1);
-
     while (1) {
-        watchdog_update();
         tud_task();
         taskYIELD();
     }
@@ -233,7 +230,7 @@ int main(void)
     log_out_init();
     config_read();
 
-    printf("\nX68000Z remote HDS service (version %s)\n", GIT_REPO_VERSION);
+    printf("\nX68000Z Remote Drive Service (version %s)\n", GIT_REPO_VERSION);
 
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &task);
     vTaskStartScheduler();
