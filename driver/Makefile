@@ -27,6 +27,7 @@ AS = $(CROSS)gcc
 LD = $(CROSS)gcc
 AR = $(CROSS)ar
 RANLIB = $(CROSS)ranlib
+OBJCOPY = $(CROSS)objcopy
 
 GIT_REPO_VERSION=$(shell git describe --tags --always)
 
@@ -49,7 +50,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: SCSIREMOTE.SYS
+all: SCSIREMOTE.SYS bootloader.bin
 
 SCSIREMOTE.SYS: head.o remotedrv.o scsiremote.o
 	$(LD) -o $@ $^ -nostartfiles -s
@@ -58,6 +59,9 @@ head.o:       config.h
 remotedrv.o:  config.h remotedrv.h x68kremote.h
 scsiremote.o: config.h remotedrv.h x68kremote.h
 
+bootloader.bin: bootloader.o
+	$(OBJCOPY) -O binary $< $@
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -65,6 +69,6 @@ scsiremote.o: config.h remotedrv.h x68kremote.h
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
 clean:
-	-rm -f *.o *.SYS *.elf*
+	-rm -f *.o *.SYS *.elf* *.bin
 
 .PHONY: all clean
