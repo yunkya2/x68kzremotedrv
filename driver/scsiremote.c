@@ -40,9 +40,7 @@
 // Global variables
 //****************************************************************************
 
-bool recovery = false;  //エラー回復モードフラグ
-int timeout = 500;      //コマンド受信タイムアウト(5sec)
-int resmode = 0;        //登録モード (0:常に登録 / 1:起動時にサーバと通信できたら登録)
+int scsiid;
 
 #ifdef DEBUG
 int debuglevel = 0;
@@ -118,14 +116,14 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     }
   }
 
-  _iocs_s_writeext(0, wcnt + 1, 6, 1, vdbuf_write);
+  _iocs_s_writeext(0, wcnt + 1, scsiid, 1, vdbuf_write);
   sect &= ~7;
   sect = (sect - 8) % 0x200000;
 
   while (1) {
     int i;
     DPRINTF1("sect=0x%x %d\r\n", sect, rcnt);
-    _iocs_s_readext(sect, rcnt + 1, 6, 1, vdbuf_read);
+    _iocs_s_readext(sect, rcnt + 1, scsiid, 1, vdbuf_read);
 
     for (i = 0; i <= rcnt; i++) {
       uint8_t *rp = &vdbuf_read[512 * i];
@@ -171,14 +169,6 @@ static int my_atoi(char *p)
 
 void com_timeout(struct dos_req_header *req)
 {
-  if (resmode == 1) {     // 起動時にサーバが応答しなかった
-    _dos_print("リモートドライブサービスが応答しないため組み込みません\r\n");
-  }
-  DPRINTF1("command timeout\r\n");
-  req->errh = 0x10;
-  req->errl = 0x02;
-  req->status = -1;
-  recovery = true;
 }
 
 int com_init(struct dos_req_header *req)
@@ -188,7 +178,27 @@ int com_init(struct dos_req_header *req)
 #else
   _dos_print
 #endif
-    ("\r\nX68000Z Remote Drive Driver (version " GIT_REPO_VERSION ")\r\n");
+    ("\r\nX68000Z Remote Drive Driver (version " GIT_REPO_VERSION ") ID=");
+
+  extern uint8_t scsiidd2;
+  scsiid = scsiidd2 - 1;
+
+  volatile uint8_t *scsidrvflg = (volatile uint8_t *)0x000cec;
+  *scsidrvflg |= (1 << scsiid);
+
+#ifdef CONFIG_BOOTDRIVER
+  _iocs_b_putc
+#else
+  _dos_putchar
+#endif
+    ('0' + scsiid);
+
+#ifdef CONFIG_BOOTDRIVER
+  _iocs_b_print
+#else
+  _dos_print
+#endif
+    ("\r\n");
 
 #ifndef CONFIG_BOOTDRIVER
   char *p = (char *)req->status;
@@ -202,35 +212,12 @@ int com_init(struct dos_req_header *req)
         debuglevel++;
         break;
 #endif
-      case 'r':         // /r<mode> .. 登録モード
-        p++;
-        resmode = my_atoi(p);
-        break;
-      case 't':         // /t<timeout> .. タイムアウト設定
-        p++;
-        timeout = my_atoi(p) * 100;
-        if (timeout == 0)
-          timeout = 500;
-        break;
-      }
-    } else if (*p >= '0' && *p <= '9') {
-      baudrate = my_atoi(p);
-      baudstr = p;
     }
     p += strlen(p) + 1;
   }
 #endif
 
 #ifndef CONFIG_BOOTDRIVER
-  if (resmode != 0) {     // サーバが応答するか確認する
-    struct cmd_check cmd;
-    struct res_check res;
-    cmd.command = 0x40; /* init */
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    DPRINTF1("CHECK:\r\n");
-  }
-  resmode = 0;  // 応答を確認できたのでモードを戻す
-
   _dos_print("ドライブ");
   _dos_putchar('A' + *(char *)&req->fcb);
   _dos_print(":でRS-232Cに接続したリモートドライブが利用可能です (");
