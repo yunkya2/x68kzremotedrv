@@ -50,9 +50,12 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: SCSIREMOTE.SYS bootloader.bin
+all: scsiremote.bin bootloader.bin
 
-SCSIREMOTE.SYS: head.o remotedrv.o scsiremote.o
+scsiremote.bin: scsiremote.sys
+	./fixupsys.py $< $@
+
+scsiremote.sys: head.o remotedrv.o scsiremote.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
 head.o:       config.h
@@ -69,6 +72,6 @@ bootloader.bin: bootloader.o
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
 clean:
-	-rm -f *.o *.SYS *.elf* *.bin
+	-rm -f *.o *.elf* *.sys *.bin
 
 .PHONY: all clean
