@@ -479,9 +479,9 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 if (lba <= scsiremote_size / 512) {
                     memcpy(buf, &scsiremote_data[lba * 512], 512);
                 }
-            } else if (lba >= (0x4000 / 512) && lba < (0x14000 / 512)) {
+            } else if (lba >= (0x8000 / 512) && lba < (0x18000 / 512)) {
                 // HUMAN.SYS
-                lba -= 0x4000 / 512;
+                lba -= 0x8000 / 512;
                 uint64_t cur;
                 if (smb2_lseek(smb2, sfh_h, lba * 512, SEEK_SET, &cur) >= 0) {
                     smb2_read(smb2, sfh_h, buf, 512);
@@ -540,6 +540,10 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             int page = lba % 8;
             if (page == 7)
                 return -1;
+            if (memcmp(buf, "X68Z", 4) != 0) {
+                printf("skip\n");
+                return -1;
+            }
             if (page == 0) {
                 memcpy(vdbuf_header, buf, 12);
                 vdbuf_wpages = buf[12];

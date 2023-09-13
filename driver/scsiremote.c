@@ -116,7 +116,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     }
   }
 
-  _iocs_s_writeext(0, wcnt + 1, scsiid, 1, vdbuf_write);
+  _iocs_s_writeext(0x20, wcnt + 1, scsiid, 1, vdbuf_write);
   sect &= ~7;
   sect = (sect - 8) % 0x200000;
 

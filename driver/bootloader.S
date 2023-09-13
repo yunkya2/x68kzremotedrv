@@ -29,7 +29,7 @@
 entry:
     bra.w   1f
 1:
-    move.l  #(0x4000/512),%d2
+    move.l  #(0x8000/512),%d2
     moveq.l #1,%d3
     moveq.l #1,%d5
     movea.w #0x67c0.w,%a1
