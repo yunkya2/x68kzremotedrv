@@ -50,7 +50,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: scsiremote.bin bootloader.bin
+all: scsiremote.inc bootloader.inc
 
 scsiremote.bin: scsiremote.sys
 	./fixupsys.py $< $@
@@ -71,7 +71,10 @@ bootloader.bin: bootloader.o
 %.o: %.S
 	$(AS) $(ASFLAGS) -c -o $@ $<
 
+%.inc: %.bin
+	./bindump.py $< $(basename $@) > $@
+
 clean:
-	-rm -f *.o *.elf* *.sys *.bin
+	-rm -f *.o *.elf* *.sys *.bin *.inc
 
 .PHONY: all clean

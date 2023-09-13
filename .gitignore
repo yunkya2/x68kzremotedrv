@@ -4,3 +4,4 @@ build/
 *.sys
 *.elf*
 *.bin
+*.inc

@@ -34,6 +34,11 @@ add_executable(
         iconv/iconv_mini.c
 )
 
+add_custom_target(driver make
+        WORKING_DIRECTORY ../driver
+)
+add_dependencies(${PROJECT_NAME} driver)
+
 # Build the app
 include_directories(
         ${CMAKE_CURRENT_LIST_DIR}

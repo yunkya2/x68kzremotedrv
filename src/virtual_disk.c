@@ -40,6 +40,9 @@
 #include "virtual_disk.h"
 #include "config_file.h"
 
+#include "scsiremote.inc"
+#include "bootloader.inc"
+
 //****************************************************************************
 // static variables
 //****************************************************************************
@@ -49,41 +52,6 @@ static size_t filesz = 0;
 static size_t filesects = 0;
 
 static struct smb2fh *sfh_h = NULL;
-
-//****************************************************************************
-// binary data
-//****************************************************************************
-
-__asm__ (
-    ".section .rodata\n"
-    ".balign 4\n"
-    ".global scsiremote_data\n"
-    "scsiremote_data:\n"
-    ".incbin \"scsiremote.bin\"\n"
-    ".global scsiremote_size\n"
-    ".balign 4\n"
-    "scsiremote_size:\n"
-    ".word . - scsiremote_data\n"
-    ".section .text\n"
-);
-
-__asm__ (
-    ".section .rodata\n"
-    ".balign 4\n"
-    ".global bootloader_data\n"
-    "bootloader_data:\n"
-    ".incbin \"bootloader.bin\"\n"
-    ".global bootloader_size\n"
-    ".balign 4\n"
-    "bootloader_size:\n"
-    ".word . - bootloader_data\n"
-    ".section .text\n"
-);
-
-extern uint8_t scsiremote_data[];
-extern uint32_t scsiremote_size;
-extern uint8_t bootloader_data[];
-extern uint32_t bootloader_size;
 
 //****************************************************************************
 // BPB
@@ -467,7 +435,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 memcpy(buf, "X68SCSI1", 8);
             } else if (lba == 2) {
                 // boot loader
-                memcpy(buf, bootloader_data, bootloader_size);
+                memcpy(buf, bootloader, sizeof(bootloader));
             } else if (lba == 4) {
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);
@@ -476,8 +444,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
                 // SCSI device driver
                 lba -= 0xc00 / 512;
-                if (lba <= scsiremote_size / 512) {
-                    memcpy(buf, &scsiremote_data[lba * 512], 512);
+                if (lba <= sizeof(scsiremote) / 512) {
+                    memcpy(buf, &scsiremote[lba * 512], 512);
                 }
             } else if (lba >= (0x8000 / 512) && lba < (0x18000 / 512)) {
                 // HUMAN.SYS
