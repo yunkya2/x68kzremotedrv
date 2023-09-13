@@ -186,6 +186,11 @@ int com_init(struct dos_req_header *req)
   volatile uint8_t *scsidrvflg = (volatile uint8_t *)0x000cec;
   *scsidrvflg |= (1 << scsiid);
 
+  seqtim = _iocs_bindateget();
+  seqtim ^= _iocs_timeget() << 8;
+  struct iocs_time it = _iocs_ontime();
+  seqtim ^= it.sec;
+
 #ifdef CONFIG_BOOTDRIVER
   _iocs_b_putc
 #else
