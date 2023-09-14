@@ -156,33 +156,39 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
 #define DISK_CACHE_SECTS    8
 #define DISK_CACHE_SIZE     (DISK_CACHE_SECTS * SECTOR_SIZE)
 #define DISK_CACHE_SETS     2
+#define DISK_CACHE_IDS      7
 
 static struct cache {
     uint8_t data[DISK_CACHE_SIZE];
     uint32_t lba;
     size_t sects;
-} cache[DISK_CACHE_SETS];
-static int cache_lru = 0;
+} cache[DISK_CACHE_IDS][DISK_CACHE_SETS];
+static int cache_lru[DISK_CACHE_IDS];
 
 static void cache_init(void)
 {
-    for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        cache[i].lba = 0xffffffff;
-        cache[i].sects = 0;
+    for (int i = 0; i < DISK_CACHE_IDS; i++) {
+        for (int j = 0; j < DISK_CACHE_SETS; j++) {
+            cache[i][j].lba = 0xffffffff;
+            cache[i][j].sects = 0;
+        }
     }
 }
 
-int cache_read(uint32_t lba, uint8_t *buf)
+int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
 {
+    if (id >= DISK_CACHE_IDS)
+        return -1;
+
     for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        struct cache *c = &cache[i];
+        struct cache *c = &cache[id][i];
         if (lba >= c->lba && lba < c->lba + c->sects) {
             memcpy(buf, &c->data[(lba - c->lba) * SECTOR_SIZE], SECTOR_SIZE);
             return 0;
         }
     }
 
-    struct cache *c = &cache[cache_lru];
+    struct cache *c = &cache[id][cache_lru[id]];
     uint64_t cur;
     if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
         return -1;
@@ -192,15 +198,18 @@ int cache_read(uint32_t lba, uint8_t *buf)
         return -1;
     c->lba = lba;
     c->sects = sz / SECTOR_SIZE;
-    cache_lru = (cache_lru + 1) % DISK_CACHE_SETS;
+    cache_lru[id] = (cache_lru + 1)[id] % DISK_CACHE_SETS;
     memcpy(buf, c->data, SECTOR_SIZE);
     return 0;
 }
 
-int cache_write(uint32_t lba, uint8_t *buf)
+int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
 {
+    if (id >= DISK_CACHE_IDS)
+        return -1;
+
     for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        struct cache *c = &cache[i];
+        struct cache *c = &cache[id][i];
         if (lba >= c->lba && lba < c->lba + c->sects) {
             memcpy(&c->data[(lba - c->lba) * SECTOR_SIZE], buf, SECTOR_SIZE);
             break;
@@ -427,7 +436,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return -1;
         printf("disk %d: read 0x%x\n", id, lba);
         if (diskinfo[id].sfh) {
-            if (cache_read(lba, buf) < 0)   /* TBD: id */
+            if (cache_read(id, lba, buf) < 0)
                 return -1;
             xTaskNotify(blink_th, 2, eSetBits);
             return 0;
@@ -515,7 +524,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             return -1;
         printf("disk %d: write 0x%x\n", id, lba);
         if (diskinfo[id].sfh) {
-            if (cache_write(lba, buf) < 0)      /* TBD: id */
+            if (cache_write(id, lba, buf) < 0)
                 return -1;
             xTaskNotify(blink_th, 2, eSetBits);
             return 0;
