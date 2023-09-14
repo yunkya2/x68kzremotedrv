@@ -65,22 +65,34 @@ char config_smb2_url[256];
 char config_smb2_user[16];
 char config_smb2_passwd[16];
 char config_smb2_workgroup[16];
+char config_tz[16];
 
 #define CF_HIDDEN   1
 #define CF_URL      2
 
 const struct config_item {
     const char *item;
+    const char *defval;
     char *value;
     size_t valuesz;
     int flag;
 } config_items[] = {
-    { "WIFI_SSID:",     config_wifi_ssid,   sizeof(config_wifi_ssid),   0 },
-    { "WIFI_PASSWORD:", config_wifi_passwd, sizeof(config_wifi_passwd), CF_HIDDEN },
-    { "SMB2_URL:",      config_smb2_url+4,  sizeof(config_smb2_url)-4,  CF_URL },
-    { "SMB2_USERNAME:", config_smb2_user,   sizeof(config_smb2_user),   0 },
-    { "SMB2_PASSWORD:", config_smb2_passwd, sizeof(config_smb2_passwd), CF_HIDDEN },
-    { "SMB2_WORKGROUP:", config_smb2_workgroup, sizeof(config_smb2_workgroup), 0 },
+    { "WIFI_SSID:",                 "<ssid>",
+      config_wifi_ssid,             sizeof(config_wifi_ssid),       0 },
+    { "WIFI_PASSWORD:",             NULL,
+      config_wifi_passwd,           sizeof(config_wifi_passwd),     CF_HIDDEN },
+
+    { "SMB2_URL:",                  "//<server>/<share>/<path>/<file>.HDS",
+      config_smb2_url+4,            sizeof(config_smb2_url)-4,      CF_URL },
+    { "SMB2_USERNAME:",             "<user>",
+      config_smb2_user,             sizeof(config_smb2_user),       0 },
+    { "SMB2_PASSWORD:",             NULL,
+      config_smb2_passwd,           sizeof(config_smb2_passwd),     CF_HIDDEN },
+    { "SMB2_WORKGROUP:",            "WORKGROUP",
+      config_smb2_workgroup,        sizeof(config_smb2_workgroup),  0 },
+
+    { "TZ:",                        "JST-9",
+      config_tz,                    sizeof(config_tz),              0 },
 };
 
 char configtxt[SECTOR_SIZE];
@@ -93,7 +105,7 @@ char configtxt[SECTOR_SIZE];
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote HDS Config v2"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v1"
 
 void config_read(void)
 {
@@ -107,10 +119,11 @@ void config_read(void)
 
     const uint8_t *config_flash_addr = CONFIG_FLASH_ADDR;
     if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC)) != 0) {
-        strcpy(config_wifi_ssid, "<ssid>");
-        strcpy(config_smb2_url, "smb://<server>/<share>/<path>/<file>.HDS");
-        strcpy(config_smb2_user, "<user>");
-        strcpy(config_smb2_workgroup, "WORKGROUP");
+        for (int i = 0; i < CONFIG_ITEMS; i++) {
+            const struct config_item *c = &config_items[i];
+            if (c->defval)
+                strcpy(c->value, c->defval);
+        }
     } else {
         const char *p = &config_flash_addr[32];
         for (int i = 0; i < CONFIG_ITEMS; i++) {
@@ -133,7 +146,8 @@ void config_read(void)
 
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
-             config_wifi_ssid, url, config_smb2_user, config_smb2_workgroup);
+             config_wifi_ssid, url, config_smb2_user, config_smb2_workgroup,
+             config_tz);
 }
 
 void config_write(void)

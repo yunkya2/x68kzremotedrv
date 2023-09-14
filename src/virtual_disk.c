@@ -237,7 +237,7 @@ int vd_init(const char *path)
     struct dir_entry *dirent;
     int len;
 
-    setenv("TZ", "JST-9", true);
+    setenv("TZ", config_tz, true);
 
     /* Open HDS file */
 

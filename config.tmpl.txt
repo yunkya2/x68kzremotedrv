@@ -13,3 +13,6 @@ SMB2_USERNAME: %s
 SMB2_PASSWORD: ********
 # Windows のワークグループ名
 SMB2_WORKGROUP: %s
+
+# タイムゾーン設定
+TZ: %s
