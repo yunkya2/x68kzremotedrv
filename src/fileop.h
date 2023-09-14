@@ -193,10 +193,23 @@ static inline ssize_t FUNC_READ(int *err, TYPE_FD fd, void *buf, size_t count)
 }
 static inline ssize_t FUNC_WRITE(int *err, TYPE_FD fd, const void *buf, size_t count)
 {
-  ssize_t r = smb2_write(smb2, fd, buf, count);
+  ssize_t res = 0;
+  while (count > 0) {
+    int c = count > 1024 ? 1024 : count;
+    ssize_t r = smb2_write(smb2, fd, buf, c);
+    if (r < 0) {
+      res = r;
+      break;
+    }
+    if (r == 0)
+      break;
+    buf += r;
+    count -= r;
+    res += r;
+  }
   if (err)
-    *err = -r;
-  return r;
+    *err = -res;
+  return res;
 }
 static inline int FUNC_FTRUNCATE(int *err, TYPE_FD fd, off_t length)
 {
