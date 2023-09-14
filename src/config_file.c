@@ -95,8 +95,6 @@ const struct config_item {
       config_tz,                    sizeof(config_tz),              0 },
 };
 
-char configtxt[SECTOR_SIZE];
-
 //****************************************************************************
 // Configuration functions
 //****************************************************************************

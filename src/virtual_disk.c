@@ -232,6 +232,9 @@ static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 16];
 static uint8_t pscsiini[256];
 
+char configtxt[2048];
+static int configtxtlen = 0;
+
 int vd_init(const char *path)
 {
     struct dir_entry *dirent;
@@ -409,9 +412,9 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         return 0;
     }
 
-    if (lba == 0x4120) {
+    if (lba >= 0x4120 && lba < 0x4124) {
         // "config.txt" file
-        memcpy(buf, configtxt, SECTOR_SIZE);
+        memcpy(buf, &configtxt[(lba - 0x4120) * SECTOR_SIZE], SECTOR_SIZE);
         return 0;
     }
 
@@ -440,7 +443,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);
                 memcpy(buf + 16 , "Human68k", 8);
-                memcpy(buf + 256, "X68K", 4);
             } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
                 // SCSI device driver
                 lba -= 0xc00 / 512;
@@ -479,15 +481,29 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
 int vd_write_block(uint32_t lba, uint8_t *buf)
 {
-    if (lba == 0x4120) {
-        // "config.txt" file update
-        config_parse(buf);
-        config_write();
+    if (lba == 0x4020) {
+        // Root directory
+        if (memcmp(&buf[32], "CONFIG  TXT", 11) == 0) {
+            configtxtlen = *(uint32_t *)&buf[60];
+        }
+        return 0;
+    }
 
-        // reboot by watchdog
-        watchdog_enable(500, 1);
-        while (1)
-            ;
+    if (lba >= 0x4120 && lba < 0x4124) {
+        // "config.txt" file update
+        memcpy(&configtxt[(lba - 0x4120) * SECTOR_SIZE], buf, SECTOR_SIZE);
+        if (configtxtlen > 0 &&
+            (lba - 0x4120) == (configtxtlen - 1) / SECTOR_SIZE) {
+                configtxt[configtxtlen] = '\0';
+                configtxt[sizeof(configtxt) - 1] = '\0';
+            config_parse(buf);
+            config_write();
+
+            // reboot by watchdog
+            watchdog_enable(500, 1);
+            while (1)
+                ;
+        }
     }
 
     if (lba >= 0x00803fa0) {
