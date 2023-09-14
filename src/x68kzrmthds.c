@@ -107,8 +107,6 @@ static void blink_task(void *params)
 //****************************************************************************
 
 struct smb2_context *smb2;
-struct smb2fh *sfh;
-static const char *vd_path = NULL;
 
 static void service_main(void)
 {
@@ -141,8 +139,6 @@ static void service_main(void)
 
     /* Start SMB2 client */
 
-    struct smb2_url *url;
-
     smb2 = smb2_init_context();
     if (smb2 == NULL) {
         printf("Failed to init SMB2 context\n");
@@ -156,23 +152,18 @@ static void service_main(void)
     if (strlen(config_smb2_workgroup))
         smb2_set_workstation(smb2, config_smb2_passwd);
 
-    url = smb2_parse_url(smb2, config_smb2_url);
-    if (url == NULL) {
-        printf("Failed to parse url: %s\n", smb2_get_error(smb2));
-        return;
-    }
-
     smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-    printf("SMB2 connection server:%s share:%s\n", url->server, url->share);
+    printf("SMB2 connection server:%s share:%s\n", config_smb2_server, config_smb2_share);
 
-    if (smb2_connect_share(smb2, url->server, url->share, url->user) < 0) {
+    if (smb2_connect_share(smb2, config_smb2_server, config_smb2_share, config_smb2_user) < 0) {
         printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
+        smb2_destroy_context(smb2);
+        smb2 = NULL;
         return;
     }
 
     printf("SMB2 connection established.\n");
-    vd_path = url->path;
 
     xTaskNotify(blink_th, 2, eSetBits);
 }
@@ -185,7 +176,7 @@ static void main_task(void *params)
 
     printf("Start USB MSC device.\n");
 
-    vd_init(vd_path);
+    vd_init();
 
     /* USB MSC main loop */
 

@@ -45,26 +45,29 @@ __asm__ (
     ".global config_template\n"
     "config_template:\n"
     ".incbin \"config.tmpl.txt\"\n"
-    "config_template_end:\n"
+    ".byte 0\n"
     ".balign 4\n"
-    ".global config_template_size\n"
-    "config_template_size:\n"
-    ".word config_template_end - config_template\n"
 );
 
 extern char config_template[];
-extern int config_template_size;
 
 //****************************************************************************
 // Configuration data
 //****************************************************************************
 
+char configtxt[2048];
+
 char config_wifi_ssid[32];
 char config_wifi_passwd[16];
-char config_smb2_url[256];
+
 char config_smb2_user[16];
 char config_smb2_passwd[16];
 char config_smb2_workgroup[16];
+
+char config_smb2_server[32];
+char config_smb2_share[32];
+char config_id[7][128];
+
 char config_tz[16];
 
 #define CF_HIDDEN   1
@@ -82,14 +85,31 @@ const struct config_item {
     { "WIFI_PASSWORD:",             NULL,
       config_wifi_passwd,           sizeof(config_wifi_passwd),     CF_HIDDEN },
 
-    { "SMB2_URL:",                  "//<server>/<share>/<path>/<file>.HDS",
-      config_smb2_url+4,            sizeof(config_smb2_url)-4,      CF_URL },
     { "SMB2_USERNAME:",             "<user>",
       config_smb2_user,             sizeof(config_smb2_user),       0 },
     { "SMB2_PASSWORD:",             NULL,
       config_smb2_passwd,           sizeof(config_smb2_passwd),     CF_HIDDEN },
     { "SMB2_WORKGROUP:",            "WORKGROUP",
       config_smb2_workgroup,        sizeof(config_smb2_workgroup),  0 },
+
+    { "SMB2_SERVER:",               "<server>",
+      config_smb2_server,           sizeof(config_smb2_server),     0 },
+    { "SMB2_SHARE:",                "<share>",
+      config_smb2_share,            sizeof(config_smb2_share),      0 },
+    { "ID0:",                       NULL,
+      config_id[0],                 sizeof(config_id[0]),           CF_URL },
+    { "ID1:",                       NULL,
+      config_id[1],                 sizeof(config_id[1]),           CF_URL },
+    { "ID2:",                       NULL,
+      config_id[2],                 sizeof(config_id[2]),           CF_URL },
+    { "ID3:",                       NULL,
+      config_id[3],                 sizeof(config_id[3]),           CF_URL },
+    { "ID4:",                       NULL,
+      config_id[4],                 sizeof(config_id[4]),           CF_URL },
+    { "ID5:",                       NULL,
+      config_id[5],                 sizeof(config_id[5]),           CF_URL },
+    { "ID6:",                       NULL,
+      config_id[6],                 sizeof(config_id[6]),           CF_URL },
 
     { "TZ:",                        "JST-9",
       config_tz,                    sizeof(config_tz),              0 },
@@ -107,13 +127,10 @@ const struct config_item {
 
 void config_read(void)
 {
-    char url[256];
-
     for (int i = 0; i < CONFIG_ITEMS; i++) {
         const struct config_item *c = &config_items[i];
         memset(c->value, 0, c->valuesz);
     }
-    strcpy(config_smb2_url, "smb:");
 
     const uint8_t *config_flash_addr = CONFIG_FLASH_ADDR;
     if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC)) != 0) {
@@ -131,26 +148,38 @@ void config_read(void)
         }
     }
 
-    char *p = url;
-    char *q = config_smb2_url + 4;
-    while (1) {
-        char c = *q++;
-        if (c == 0)
-            break;
-        c = (c == '/') ? '\\' : c;
-        *p++ = c;
+    for (int i = 0; i < 7; i++) {
+        for (char *p = config_id[i]; *p != '\0'; p++) {
+            if (*p == '/')
+                *p = '\\';
+        }
     }
-    *p = '\0';
 
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
-             config_wifi_ssid, url, config_smb2_user, config_smb2_workgroup,
+             config_wifi_ssid,
+             config_smb2_user, config_smb2_workgroup,
+             config_smb2_server, config_smb2_share,
+             config_id[0],
+             config_id[1],
+             config_id[2],
+             config_id[3],
+             config_id[4],
+             config_id[5],
+             config_id[6],
              config_tz);
+
+    for (int i = 0; i < 7; i++) {
+        for (char *p = config_id[i]; *p != '\0'; p++) {
+            if (*p == '\\')
+                *p = '/';
+        }
+    }
 }
 
 void config_write(void)
 {
-    uint8_t flash_data[SECTOR_SIZE];
+    uint8_t flash_data[SECTOR_SIZE * 4];
     memcpy(&flash_data[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC));
     char *p = &flash_data[32];
     for (int i = 0; i < CONFIG_ITEMS; i++) {
@@ -160,7 +189,7 @@ void config_write(void)
     }
 
     uint32_t stat = save_and_disable_interrupts();
-    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE * 4);
     flash_range_program(CONFIG_FLASH_OFFSET, flash_data, sizeof(flash_data));
     restore_interrupts(stat);
 }
@@ -168,14 +197,13 @@ void config_write(void)
 void config_erase(void)
 {
     uint32_t stat = save_and_disable_interrupts();
-    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE);
+    flash_range_erase(CONFIG_FLASH_OFFSET, FLASH_SECTOR_SIZE * 4);
     restore_interrupts(stat);
 }
 
 void config_parse(uint8_t *buf)
 {
     char *p = buf;
-    buf[SECTOR_SIZE - 1] = '\0';
     while (*p != '\0') {
         int i;
         if (*p < ' ') {

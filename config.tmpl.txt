@@ -1,18 +1,28 @@
-[X68000Z Remote HDS service configuration]
+[X68000Z Remote Drive Service Configuration]
 
-# WiFi 接続先の SSID
+# WiFi 接続先の SSID、パスワード
 WIFI_SSID: %s
-# WiFi 接続先のパスワード
 WIFI_PASSWORD: ********
 
-# Windows ファイル共有の URL
-SMB2_URL: %s
-# Windows ファイル共有のユーザ名
+# Windows ファイル共有のユーザ名、パスワード、ワークグループ名
 SMB2_USERNAME: %s
-# Windows ファイル共有のパスワード
 SMB2_PASSWORD: ********
-# Windows のワークグループ名
 SMB2_WORKGROUP: %s
+# Windows ファイル共有のサーバ名、共有名
+SMB2_SERVER: %s
+SMB2_SHARE: %s
+
+# X68000Z に見せるリモートドライブ/HDSの場所
+# SCSI ID 0～6 について Windows ファイル共有のパスを指定する
+# HDS ファイル名を指定した場合はリモートHDS
+# ディレクトリ名を指定した場合はリモートドライブとして扱う
+ID0: %s
+ID1: %s
+ID2: %s
+ID3: %s
+ID4: %s
+ID5: %s
+ID6: %s
 
 # タイムゾーン設定
 TZ: %s

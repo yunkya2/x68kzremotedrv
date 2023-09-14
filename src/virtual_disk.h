@@ -43,7 +43,7 @@
 
 /* virtual disk function prototypes */
 
-int vd_init(const char *path);
+int vd_init();
 int vd_read_block(uint32_t lba, uint8_t *buf);
 int vd_write_block(uint32_t lba, uint8_t *buf);
 

@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <sys/stat.h>
 #include <sys/unistd.h>
@@ -39,19 +40,43 @@
 #include "x68kzrmthds.h"
 #include "virtual_disk.h"
 #include "config_file.h"
+#include "remoteserv.h"
+#include "fileop.h"
 
 #include "scsiremote.inc"
 #include "bootloader.inc"
 
 //****************************************************************************
-// static variables
+// Global variables
 //****************************************************************************
 
-static struct smb2fh *sfh = NULL;
-static size_t filesz = 0;
-static size_t filesects = 0;
+const char *rootpath;
+int debuglevel = 3;
 
-static struct smb2fh *sfh_h = NULL;
+//****************************************************************************
+// Static variables
+//****************************************************************************
+
+static struct diskinfo {
+    const char *rootpath;
+    struct smb2fh *sfh;
+    uint32_t size;
+    int sects;
+} diskinfo[7];
+
+//****************************************************************************
+// for debugging
+//****************************************************************************
+
+void DPRINTF(int level, char *fmt, ...)
+{
+  if (debuglevel >= level) {
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+  }
+}
 
 //****************************************************************************
 // BPB
@@ -177,7 +202,7 @@ static void cache_init(void)
 
 int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
 {
-    if (id >= DISK_CACHE_IDS)
+    if (id >= DISK_CACHE_IDS || diskinfo[id].sfh == NULL)
         return -1;
 
     for (int i = 0; i < DISK_CACHE_SETS; i++) {
@@ -190,10 +215,10 @@ int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
 
     struct cache *c = &cache[id][cache_lru[id]];
     uint64_t cur;
-    if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+    if (smb2_lseek(smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
         return -1;
     c->sects = 0;
-    int sz = smb2_read(smb2, sfh, c->data, DISK_CACHE_SIZE);
+    int sz = smb2_read(smb2, diskinfo[id].sfh, c->data, DISK_CACHE_SIZE);
     if (sz < 0)
         return -1;
     c->lba = lba;
@@ -205,7 +230,7 @@ int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
 
 int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
 {
-    if (id >= DISK_CACHE_IDS)
+    if (id >= DISK_CACHE_IDS || diskinfo[id].sfh == NULL)
         return -1;
 
     for (int i = 0; i < DISK_CACHE_SETS; i++) {
@@ -217,9 +242,9 @@ int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
     }
 
     uint64_t cur;
-    if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+    if (smb2_lseek(smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
         return -1;
-    int sz = smb2_write(smb2, sfh, buf, SECTOR_SIZE);
+    int sz = smb2_write(smb2, diskinfo[id].sfh, buf, SECTOR_SIZE);
     if (sz < 0)
         return -1;
     return 0;
@@ -229,53 +254,52 @@ int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
 // Virtual FAT32 functions
 //****************************************************************************
 
-static struct {
-    uint32_t size;
-    int sects;
-    struct smb2fh *sfh;
-    struct smb2fh *sfh_h;
-} diskinfo[7];
-
 static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 16];
 static uint8_t pscsiini[256];
 
-char configtxt[2048];
-static int configtxtlen = 0;
-
-int vd_init(const char *path)
+int vd_init(void)
 {
     struct dir_entry *dirent;
     int len;
 
     setenv("TZ", config_tz, true);
 
-    /* Open HDS file */
+    /* Open HDS files */
 
-    if (path) {
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, path, &st) < 0) {
-            printf("File %s not found.\n", path);
-        } else {
-            printf("File %s size=%lld\n", path, st.smb2_size);
-            filesz = st.smb2_size;
-            filesects = filesz / SECTOR_SIZE;
+    if (smb2) {
+        for (int id = 0; id < 7; id++) {
+            struct diskinfo *d = &diskinfo[id];
+            if (strlen(config_id[id]) == 0)
+                continue;
 
-            if ((sfh = smb2_open(smb2, path, O_RDWR)) == NULL) {
-                printf("File %s open failure.\n", path);
-                sfh = NULL;
+            struct smb2_stat_64 st;
+            if (smb2_stat(smb2, config_id[id], &st) < 0) {
+                printf("File %s not found.\n", config_id[id]);
+                continue;
+            }
+
+            if (st.smb2_type == SMB2_TYPE_FILE) {
+                /* HDS file */
+                if ((d->sfh = smb2_open(smb2, config_id[id], O_RDWR)) == NULL) {
+                    printf("File %s open failure.\n", config_id[id]);
+                    continue;
+                }
+                d->size = st.smb2_size;
+                d->rootpath = NULL;
+                printf("ID=%d file:%s size:%lld\n", id, config_id[id], st.smb2_size);
+            } else {
+                if (rootpath == NULL) {
+                    /* Remote drive */
+                    d->size = 0x80000000;
+                    rootpath = d->rootpath = config_id[id];
+                    printf("ID=%d dir:%s\n", id, config_id[id]);
+                }
             }
         }
     }
-    if ((sfh_h = smb2_open(smb2, "HFS/HUMAN.SYS", O_RDONLY)) == NULL) {
-        printf("human.sys open failure.\n");
-    }
 
-    diskinfo[1].size = filesz;
-    diskinfo[1].sfh = sfh;
-    diskinfo[0].size = 0x80000000;
-    diskinfo[0].sfh_h = sfh_h;
     for (int i = 0; i < 7; i++) {
         diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     }
@@ -435,13 +459,13 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         if (lba >= diskinfo[id].sects)
             return -1;
         printf("disk %d: read 0x%x\n", id, lba);
-        if (diskinfo[id].sfh) {
+        if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_read(id, lba, buf) < 0)
                 return -1;
             xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
-        if (diskinfo[id].sfh_h) {
+        if (diskinfo[id].rootpath) {
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
@@ -462,8 +486,20 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
                 uint64_t cur;
-                if (smb2_lseek(smb2, sfh_h, lba * 512, SEEK_SET, &cur) >= 0) {
-                    smb2_read(smb2, sfh_h, buf, 512);
+                if (diskinfo[id].sfh == NULL) {
+                    char human[256];
+                    strcpy(human, config_id[id]);
+                    strcat(human, "/HUMAN.SYS");
+                    if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
+                        printf("HUMAN.SYS open failure.\n");
+                    }
+                }
+                if (smb2_lseek(smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
+                    if (smb2_read(smb2, diskinfo[id].sfh, buf, 512) != 512) {
+                        smb2_close(smb2, diskinfo[id].sfh);
+                        diskinfo[id].sfh = NULL;
+                        printf("HUMAN.SYS closed.\n");
+                    }
                 }
             } else {
                 int page = lba % 8;
@@ -488,6 +524,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     return -1;
 }
 
+static int configtxtlen = 0;
+
 int vd_write_block(uint32_t lba, uint8_t *buf)
 {
     if (lba == 0x4020) {
@@ -505,7 +543,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             (lba - 0x4120) == (configtxtlen - 1) / SECTOR_SIZE) {
                 configtxt[configtxtlen] = '\0';
                 configtxt[sizeof(configtxt) - 1] = '\0';
-            config_parse(buf);
+            config_parse(configtxt);
             config_write();
 
             // reboot by watchdog
@@ -523,13 +561,13 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         if (lba >= diskinfo[id].sects)
             return -1;
         printf("disk %d: write 0x%x\n", id, lba);
-        if (diskinfo[id].sfh) {
+        if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_write(id, lba, buf) < 0)
                 return -1;
             xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
-        if (diskinfo[id].sfh_h) {
+        if (diskinfo[id].rootpath) {
             int page = lba % 8;
             if (page == 7)
                 return -1;
@@ -557,7 +595,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 }
                 printf("\n");
 #endif
-                int remote_serv(uint8_t *wbuf, uint8_t *rbuf);
                 int rsize = remote_serv(vdbuf_write, vdbuf_read);
                 vdbuf_rpages = (rsize - 1) / (512 - 16);
                 printf("vdbuf_rpages=%d\n", vdbuf_rpages);

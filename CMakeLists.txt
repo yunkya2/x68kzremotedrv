@@ -29,7 +29,6 @@ add_executable(
         src/virtual_disk.c
         src/config_file.c
         src/usb_descriptors.c
-        src/x68kremote.c
         x68kserremote/service/remoteserv.c
         iconv/iconv_mini.c
 )
