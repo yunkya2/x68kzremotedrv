@@ -130,7 +130,7 @@ char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
   "X68000Z",                     // 1: Manufacturer
-  "Remote HDS Mass Storage",     // 2: Product
+  "Remote Drive Mass Storage",   // 2: Product
   "123456789012",                // 3: Serials, should use chip ID
 };
 

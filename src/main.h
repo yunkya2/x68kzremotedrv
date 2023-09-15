@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _X68KZRMTHDS_H_
-#define _X68KZRMTHDS_H_
+#ifndef _MAIN_H_
+#define _MAIN_H_
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -38,4 +38,4 @@ extern struct smb2_context *smb2;
 
 extern TaskHandle_t blink_th;
 
-#endif /* _X68KZRMTHDS_H_ */
+#endif /* _MAIN_H_ */

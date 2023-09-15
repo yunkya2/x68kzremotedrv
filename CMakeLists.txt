@@ -7,7 +7,7 @@ set(FREERTOS_KERNEL_PATH ${CMAKE_CURRENT_LIST_DIR}/FreeRTOS-Kernel)
 set(LIBSMB2_PATH ${CMAKE_CURRENT_LIST_DIR}/libsmb2)
 
 # Name the project and prepare it to be a pico_w project, using FreeRTOS and lwip
-set(PROJECT_NAME x68kzrmthds)
+set(PROJECT_NAME x68kzremotedrv)
 set(PICO_BOARD pico_w)
 include(${PICO_SDK_PATH}/pico_sdk_init.cmake)
 include(${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2040/FreeRTOS_Kernel_import.cmake)
@@ -24,7 +24,7 @@ add_subdirectory(${LIBSMB2_PATH} libsmb2)
 # Application, including in the FreeRTOS-Kernel
 add_executable(
         ${PROJECT_NAME}
-        src/x68kzrmthds.c
+        src/main.c
         src/msc_disk.c
         src/virtual_disk.c
         src/config_file.c

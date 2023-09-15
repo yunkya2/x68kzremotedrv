@@ -34,8 +34,8 @@
 #include <smb2.h>
 #include <libsmb2.h>
 
+#include "main.h"
 #include "iconv_mini.h"
-#include "x68kzrmthds.h"
 
 //****************************************************************************
 // Data types

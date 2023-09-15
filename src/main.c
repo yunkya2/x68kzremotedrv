@@ -36,7 +36,7 @@
 #include "bsp/board.h"
 #include "tusb.h"
 
-#include "x68kzrmthds.h"
+#include "main.h"
 #include "virtual_disk.h"
 #include "config_file.h"
 

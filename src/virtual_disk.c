@@ -37,7 +37,7 @@
 #include "smb2.h"
 #include "libsmb2.h"
 
-#include "x68kzrmthds.h"
+#include "main.h"
 #include "virtual_disk.h"
 #include "config_file.h"
 #include "remoteserv.h"
