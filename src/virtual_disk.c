@@ -351,7 +351,6 @@ int vd_init(void)
     return 0;
 }
 
-
 uint8_t vdbuf_read[(512 - 16) * 7];
 uint8_t vdbuf_write[(512 - 16) * 7];
 int vdbuf_rpages;
@@ -458,7 +457,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         lba %= 0x800000;
         if (lba >= diskinfo[id].sects)
             return -1;
-        printf("disk %d: read 0x%x\n", id, lba);
+        DPRINTF3("disk %d: read 0x%x\n", id, lba);
         if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_read(id, lba, buf) < 0)
                 return -1;
@@ -469,6 +468,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
+                memcpy(&buf[16], "X68000ZRemoteDrv", 16);
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
@@ -482,7 +482,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 if (lba <= sizeof(scsiremote) / 512) {
                     memcpy(buf, &scsiremote[lba * 512], 512);
                 }
-            } else if (lba >= (0x8000 / 512) && lba < (0x18000 / 512)) {
+            } else if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
                 uint64_t cur;
@@ -491,31 +491,23 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     strcpy(human, config_id[id]);
                     strcat(human, "/HUMAN.SYS");
                     if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
-                        printf("HUMAN.SYS open failure.\n");
+                        DPRINTF1("HUMAN.SYS open failure.\n");
                     }
                 }
                 if (smb2_lseek(smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
                     if (smb2_read(smb2, diskinfo[id].sfh, buf, 512) != 512) {
                         smb2_close(smb2, diskinfo[id].sfh);
                         diskinfo[id].sfh = NULL;
-                        printf("HUMAN.SYS closed.\n");
+                        DPRINTF1("HUMAN.SYS closed.\n");
                     }
                 }
             } else {
                 int page = lba % 8;
                 if (page == 7)
                     return -1;
-
                 memcpy(buf, vdbuf_header, 12);
                 buf[12] = vdbuf_rpages;
                 memcpy(buf + 16, &vdbuf_read[page * (512 - 16)], 512 - 16);
-
-#if 0
-                for (int i = 0; i < 64; i++) {
-                    printf("%02x ", buf[i]);
-                    if ((i % 16) == 15) printf("\n");
-                }
-#endif
             }
             return 0;
         }
@@ -560,7 +552,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         lba %= 0x800000;
         if (lba >= diskinfo[id].sects)
             return -1;
-        printf("disk %d: write 0x%x\n", id, lba);
+        DPRINTF3("disk %d: write 0x%x\n", id, lba);
         if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_write(id, lba, buf) < 0)
                 return -1;
@@ -572,7 +564,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             if (page == 7)
                 return -1;
             if (memcmp(buf, "X68Z", 4) != 0) {
-                printf("skip\n");
                 return -1;
             }
             if (page == 0) {
@@ -580,7 +571,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 vdbuf_wpages = buf[12];
             } else {
                 if (memcmp(vdbuf_header, buf, 12) != 0) {
-                    printf("skip\n");
                     return -1;
                 }
             }
@@ -588,22 +578,9 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             memcpy(&vdbuf_write[page * (512 - 16)], buf + 16, 512 - 16);
             if (page == vdbuf_wpages) {
                 // last page copy
-#if 0
-                for (int i = 0; i < 64; i++) {
-                    printf("%02x ", buf[i]);
-                    if ((i % 16) == 15) printf("\n");
-                }
-                printf("\n");
-#endif
                 int rsize = remote_serv(vdbuf_write, vdbuf_read);
                 vdbuf_rpages = (rsize - 1) / (512 - 16);
-                printf("vdbuf_rpages=%d\n", vdbuf_rpages);
-#if 0
-                for (int i = 0; i < 48; i++) {
-                    printf("%02x ", vdbuf_read[i]);
-                    if ((i % 16) == 15) printf("\n");
-                }
-#endif
+                DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
             }
             return 0;
         }
