@@ -87,65 +87,68 @@ void DNAMEPRINT(void *n, bool full, char *head)
 // Communication
 //****************************************************************************
 
-uint8_t vdbuf_read[512 * 7];
-uint8_t vdbuf_write[512 * 7];
+uint8_t vdbuf_read[512];
+uint8_t vdbuf_write[512];
 
 int seqno = 0;
 int seqtim = 0;
-int sect = 0x10000;
+int sect = 0x400000;
+
+struct vdbuf_header {
+    uint8_t signature[4];
+    uint32_t session;
+    uint32_t seqno;
+    uint8_t page;
+    uint8_t maxpage;
+    uint8_t reserved[2];
+};
 
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {
+  struct vdbuf_header *h;
   int wcnt = (wsize - 1) / (512 - 16);
   int rcnt = (rsize - 1) / (512 - 16);
 
+  h = (struct vdbuf_header *)vdbuf_write;
+  memcpy(h->signature, "X68Z", 4);
+  h->session = seqtim;
+  h->seqno = seqno;
+  h->maxpage = wcnt;
   for (int i = 0; i <= wcnt; i++) {
-    uint8_t *wp = &vdbuf_write[512 * i];
-    memcpy(&wp[0], "X68Z", 4);
-    *(uint32_t *)&wp[4] = seqno;
-    *(uint32_t *)&wp[8] = seqtim;
-    wp[12] = wcnt;
+    h->page = i;
     int s = wsize > (512 - 16) ? 512 - 16 : wsize;
-    memcpy(&wp[16], wbuf, s);
+    memcpy(&vdbuf_write[16], wbuf, s);
     wsize -= s;
     wbuf += s;
+    _iocs_s_writeext(0x20, 1, scsiid, 1, vdbuf_write);
     for (int i = 0; i < 128; i++) {
-      DPRINTF1("%02x ", wp[i]);
+      DPRINTF1("%02x ", vdbuf_write[i]);
       if ((i % 16) == 15)
         DPRINTF1("\r\n");
     }
   }
 
-  _iocs_s_writeext(0x20, wcnt + 1, scsiid, 1, vdbuf_write);
-  sect &= ~7;
-  sect = (sect - 8) % 0x200000;
+  sect = ((sect - 8) % 0x200000) + 0x200000;
+  h = (struct vdbuf_header *)vdbuf_read;
 
-  while (1) {
-    int i;
-    DPRINTF1("sect=0x%x %d\r\n", sect, rcnt);
-    _iocs_s_readext(sect, rcnt + 1, scsiid, 1, vdbuf_read);
-
-    for (i = 0; i <= rcnt; i++) {
-      uint8_t *rp = &vdbuf_read[512 * i];
+  for (int i = 0; i <= rcnt; i++) {
+    while (1) {
+      DPRINTF1("sect=0x%x\r\n", sect);
+      _iocs_s_readext(sect + i, 1, scsiid, 1, vdbuf_read);
       for (int i = 0; i < 64; i++) {
-        DPRINTF1("%02x ", rp[i]);
+        DPRINTF1("%02x ", vdbuf_read[i]);
         if ((i % 16) == 15)
           DPRINTF1("\r\n");
       }
-      if (memcmp(rp, vdbuf_write, 12) != 0)
+      if (memcmp(vdbuf_read, vdbuf_write, 12) == 0)
         break;
-#if 0
-      if (rp[12] != rcnt)
-        break;
-#endif
-      int s = rsize > (512 - 16) ? 512 - 16 : rsize;
-      memcpy(rbuf, &rp[16], s);
-      rsize -= s;
-      rbuf += s;
+      sect = ((sect - 0x10000) % 0x200000) + 0x200000;
     }
-    if (i > rcnt)
-      break;
-    sect = (sect - 8 * 8) % 0x200000;
+    int s = rsize > (512 - 16) ? 512 - 16 : rsize;
+    memcpy(rbuf, &vdbuf_read[16], s);
+    rcnt = h->maxpage;
+    rsize -= s;
+    rbuf += s;
   }
   seqno++;
 }
@@ -225,9 +228,7 @@ int com_init(struct dos_req_header *req)
 #ifndef CONFIG_BOOTDRIVER
   _dos_print("ドライブ");
   _dos_putchar('A' + *(char *)&req->fcb);
-  _dos_print(":でRS-232Cに接続したリモートドライブが利用可能です (");
-  _dos_print(baudstr);
-  _dos_print("bps)\r\n");
+  _dos_print(":でSCSIに接続したリモートドライブが利用可能です\r\n");
 #endif
   DPRINTF1("Debug level: %d\r\n", debuglevel);
 
