@@ -50,7 +50,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: scsiremote.inc bootloader.inc
+all: scsiremote.inc bootloader.inc clrconfig.uf2
 
 scsiremote.bin: scsiremote.sys
 	./fixupsys.py $< $@
@@ -65,6 +65,9 @@ scsiremote.o: ../src/config.h remotedrv.h x68kremote.h ../src/virtual_disk.h
 bootloader.bin: bootloader.o
 	$(OBJCOPY) -O binary $< $@
 
+clrconfig.uf2: clrconfig.py
+	./clrconfig.py $@
+
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -75,6 +78,6 @@ bootloader.bin: bootloader.o
 	./bindump.py $< $(basename $@) > $@
 
 clean:
-	-rm -f *.o *.elf* *.sys *.bin *.inc
+	-rm -f *.o *.elf* *.sys *.bin *.inc *.uf2
 
 .PHONY: all clean

@@ -5,3 +5,5 @@ build/
 *.elf*
 *.bin
 *.inc
+*.uf2
+*.HDS
