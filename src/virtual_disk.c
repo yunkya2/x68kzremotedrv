@@ -351,9 +351,10 @@ int vd_init(void)
     return 0;
 }
 
-uint8_t vdbuf_read[(512 - 16) * 7];
-uint8_t vdbuf_write[(512 - 16) * 7];
+uint8_t vdbuf_read[(512 - 16) * 8 * 4];
+uint8_t vdbuf_write[(512 - 16) * 8 * 4];
 int vdbuf_rpages;
+int vdbuf_rcnt;
 
 struct vdbuf_header vdbuf_header;
 
@@ -495,14 +496,15 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     }
                 }
             } else {
-                int page = lba % 8;
-                if (page == 7)
-                    return -1;
-                struct vdbuf_header *h = (struct vdbuf_header *)buf;
-                *h = vdbuf_header;
-                h->maxpage = vdbuf_rpages;
-                h->page = page;
-                memcpy(buf + 16, &vdbuf_read[page * (512 - 16)], 512 - 16);
+                int page = vdbuf_rcnt + (lba % 8);
+                struct vdbuf *b = (struct vdbuf *)buf;
+                b->header = vdbuf_header;
+                b->header.maxpage = vdbuf_rpages;
+                b->header.page = page;
+                memcpy(b->buf, &vdbuf_read[page * (512 - 16)], sizeof(b->buf));
+                if ((lba % 8) == 7) {
+                    vdbuf_rcnt += 8;
+                }
             }
             return 0;
         }
@@ -555,16 +557,17 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             return 0;
         }
         if (diskinfo[id].rootpath) {
-            struct vdbuf_header *h = (struct vdbuf_header *)buf;
-            if (memcmp(h->signature, "X68Z", 4) != 0) {
+            struct vdbuf *b = (struct vdbuf *)buf;
+            if (b->header.signature != 0x5a383658) {   /* "X68Z" (big endian) */
                 return -1;
             }
-            vdbuf_header = *h;
-            memcpy(&vdbuf_write[h->page * (512 - 16)], buf + 16, 512 - 16);
-            if (h->page == h->maxpage) {
+            vdbuf_header = b->header;
+            memcpy(&vdbuf_write[b->header.page * (512 - 16)], b->buf, sizeof(b->buf));
+            if (b->header.page == b->header.maxpage) {
                 // last page copy
                 int rsize = remote_serv(vdbuf_write, vdbuf_read);
                 vdbuf_rpages = (rsize - 1) / (512 - 16);
+                vdbuf_rcnt = 0;
                 DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
             }
             return 0;

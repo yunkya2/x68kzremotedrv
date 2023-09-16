@@ -31,7 +31,7 @@
 /* virtual disk buffer definition */
 
 struct vdbuf_header {
-    uint8_t signature[4];       // "X68Z" signature
+    uint32_t signature;         // "X68Z" signature
     uint32_t session;           // session ID
     uint32_t seqno;             // sequence count
     uint8_t page;               // page number
