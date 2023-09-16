@@ -48,8 +48,42 @@ static struct smb2fh *sfh = NULL;
 static size_t filesz = 0;
 static size_t filesects = 0;
 
-static struct smb2fh *sfh_d = NULL;
 static struct smb2fh *sfh_h = NULL;
+
+//****************************************************************************
+// binary data
+//****************************************************************************
+
+__asm__ (
+    ".section .rodata\n"
+    ".balign 4\n"
+    ".global scsiremote_data\n"
+    "scsiremote_data:\n"
+    ".incbin \"scsiremote.bin\"\n"
+    ".global scsiremote_size\n"
+    ".balign 4\n"
+    "scsiremote_size:\n"
+    ".word . - scsiremote_data\n"
+    ".section .text\n"
+);
+
+__asm__ (
+    ".section .rodata\n"
+    ".balign 4\n"
+    ".global bootloader_data\n"
+    "bootloader_data:\n"
+    ".incbin \"bootloader.bin\"\n"
+    ".global bootloader_size\n"
+    ".balign 4\n"
+    "bootloader_size:\n"
+    ".word . - bootloader_data\n"
+    ".section .text\n"
+);
+
+extern uint8_t scsiremote_data[];
+extern uint32_t scsiremote_size;
+extern uint8_t bootloader_data[];
+extern uint32_t bootloader_size;
 
 //****************************************************************************
 // BPB
@@ -254,9 +288,6 @@ int vd_init(const char *path)
             }
         }
     }
-    if ((sfh_d = smb2_open(smb2, "HFS/driver.bin", O_RDONLY)) == NULL) {
-        printf("driver open failure.\n");
-    }
     if ((sfh_h = smb2_open(smb2, "HFS/HUMAN.SYS", O_RDONLY)) == NULL) {
         printf("human.sys open failure.\n");
     }
@@ -432,29 +463,24 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         }
         if (diskinfo[id].sfh_h) {
             if (lba == 0) {
+                // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
             } else if (lba == 2) {
                 // boot loader
-                static uint16_t boot[] = {
-                    0x6000, 0x0006, 0x0000, 0x0000, 0x7420, 0x263c, 0x0000, 0x0080,
-                    0x7a01, 0x327c, 0x67c0, 0x203c, 0x0000, 0x00f5, 0x7226, 0x4e4f,
-                    0x4ef8, 0x6800
-                };
-                for (int i = 0; i < sizeof(boot) / 2; i++) {
-                    buf[i * 2] = boot[i] >> 8;
-                    buf[i * 2 + 1] = boot[i] & 0xff;
-                }
+                memcpy(buf, bootloader_data, bootloader_size);
             } else if (lba == 4) {
+                // SCSI partition signature
                 memcpy(buf, "X68K", 4);
                 memcpy(buf + 16 , "Human68k", 8);
                 memcpy(buf + 256, "X68K", 4);
             } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
+                // SCSI device driver
                 lba -= 0xc00 / 512;
-                uint64_t cur;
-                if (smb2_lseek(smb2, sfh_d, lba * 512, SEEK_SET, &cur) >= 0) {
-                    smb2_read(smb2, sfh_d, buf, 512);
+                if (lba <= scsiremote_size / 512) {
+                    memcpy(buf, &scsiremote_data[lba * 512], 512);
                 }
             } else if (lba >= (0x4000 / 512) && lba < (0x14000 / 512)) {
+                // HUMAN.SYS
                 lba -= 0x4000 / 512;
                 uint64_t cur;
                 if (smb2_lseek(smb2, sfh_h, lba * 512, SEEK_SET, &cur) >= 0) {

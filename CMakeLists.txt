@@ -38,6 +38,7 @@ add_executable(
 include_directories(
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/driver
         ${CMAKE_CURRENT_LIST_DIR}/iconv
         ${CMAKE_CURRENT_LIST_DIR}/x68kserremote/include
         ${CMAKE_CURRENT_LIST_DIR}/x68kserremote/service
