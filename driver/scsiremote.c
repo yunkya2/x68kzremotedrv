@@ -33,6 +33,7 @@
 #include <x68k/iocs.h>
 
 #include <config.h>
+#include <virtual_disk.h>
 #include <x68kremote.h>
 #include <remotedrv.h>
 
@@ -93,15 +94,6 @@ uint8_t vdbuf_write[512];
 int seqno = 0;
 int seqtim = 0;
 int sect = 0x400000;
-
-struct vdbuf_header {
-    uint8_t signature[4];
-    uint32_t session;
-    uint32_t seqno;
-    uint8_t page;
-    uint8_t maxpage;
-    uint8_t reserved[2];
-};
 
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {

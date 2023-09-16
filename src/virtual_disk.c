@@ -355,23 +355,6 @@ uint8_t vdbuf_read[(512 - 16) * 7];
 uint8_t vdbuf_write[(512 - 16) * 7];
 int vdbuf_rpages;
 
-// vdbuf header
-//   0.. 3  "X68Z" signature
-//   4.. 7  session ID
-//   8..11  sequence count
-//  12      page number
-//  13      max page (0..6)
-//  14..15  reserved
-//uint8_t vdbuf_header[12];
-
-struct vdbuf_header {
-    uint8_t signature[4];
-    uint32_t session;
-    uint32_t seqno;
-    uint8_t page;
-    uint8_t maxpage;
-    uint8_t reserved[2];
-};
 struct vdbuf_header vdbuf_header;
 
 int vd_read_block(uint32_t lba, uint8_t *buf)

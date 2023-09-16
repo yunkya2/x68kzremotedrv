@@ -39,12 +39,12 @@ vpath %.c $(RMTSRC)
 vpath %.S $(RMTSRC)
 
 CFLAGS = -g -m68000
-CFLAGS += -I.
+CFLAGS += -I. -I../src
 CFLAGS += -I $(RMTINC)
 CFLAGS += -I $(RMTSRC)
 CFLAGS +=  -Os -DGIT_REPO_VERSION=\"$(GIT_REPO_VERSION)\"
 CFLAGS += -finput-charset=utf-8 -fexec-charset=cp932
-ASFLAGS = -m68000 -I.
+ASFLAGS = -m68000 -I. -I../src
 
 ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
@@ -58,9 +58,9 @@ scsiremote.bin: scsiremote.sys
 scsiremote.sys: head.o remotedrv.o scsiremote.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
-head.o:       config.h
-remotedrv.o:  config.h remotedrv.h x68kremote.h
-scsiremote.o: config.h remotedrv.h x68kremote.h
+head.o:       ../src/config.h
+remotedrv.o:  ../src/config.h remotedrv.h x68kremote.h
+scsiremote.o: ../src/config.h remotedrv.h x68kremote.h ../src/virtual_disk.h
 
 bootloader.bin: bootloader.o
 	$(OBJCOPY) -O binary $< $@

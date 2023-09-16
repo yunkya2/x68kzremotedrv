@@ -28,6 +28,22 @@
 
 #include <stdint.h>
 
+/* virtual disk buffer definition */
+
+struct vdbuf_header {
+    uint8_t signature[4];       // "X68Z" signature
+    uint32_t session;           // session ID
+    uint32_t seqno;             // sequence count
+    uint8_t page;               // page number
+    uint8_t maxpage;            // max page
+    uint8_t reserved[2];
+};
+
+struct vdbuf {
+    struct vdbuf_header header;
+    uint8_t buf[512 - sizeof(struct vdbuf_header)];
+};
+
 /* virtual disk volume contstants */
 
 #define SECTOR_SIZE         512

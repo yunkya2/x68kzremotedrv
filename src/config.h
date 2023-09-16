@@ -28,6 +28,16 @@
 #define CONFIG_ALIGNED
 #define CONFIG_NFILEINFO    10
 #define CONFIG_DATASIZE     (1024 * 3)
+
+/* Remote drive config */
+
+#define CONFIG_BOOTDRIVER
+#define CONFIG_DEVNAME      "\x01ZREMOTE"
+#define CONFIG_NDCACHE      4
+#define CONFIG_NFCACHE      4
+
+/* Remote service config */
+
 #define CONFIG_DIRREVERSE
 
 #endif /* _CONFIG_H_ */
