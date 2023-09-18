@@ -63,7 +63,7 @@ execute_process(COMMAND git describe --tags --always
 add_compile_definitions(-DGIT_REPO_VERSION="${GIT_REPO_VERSION}")
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-        PICO_HEAP_SIZE=0x10000
+        PICO_HEAP_SIZE=0x18000
         NO_SYS=0            # don't want NO_SYS (generally this would be in your lwipopts.h)
 )
 
