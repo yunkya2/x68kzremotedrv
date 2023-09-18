@@ -480,18 +480,23 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
                 uint64_t cur;
-                if (diskinfo[id].sfh == NULL) {
+                static uint32_t humanlbamax = (uint32_t)-1;
+                if (lba <= humanlbamax && diskinfo[id].sfh == NULL) {
                     char human[256];
                     strcpy(human, config_id[id]);
                     strcat(human, "/HUMAN.SYS");
                     if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");
+                    } else {
+                        DPRINTF1("HUMAN.SYS opened.\n");
                     }
                 }
-                if (smb2_lseek(smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
+                if (diskinfo[id].sfh != NULL &&
+                    smb2_lseek(smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
                     if (smb2_read(smb2, diskinfo[id].sfh, buf, 512) != 512) {
                         smb2_close(smb2, diskinfo[id].sfh);
                         diskinfo[id].sfh = NULL;
+                        humanlbamax = lba;
                         DPRINTF1("HUMAN.SYS closed.\n");
                     }
                 }
