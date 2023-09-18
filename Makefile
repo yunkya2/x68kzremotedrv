@@ -24,7 +24,8 @@ RELFILE := x68kzremotedrv-$(shell date +%Y%m%d)
 
 release: all
 	cp README.md build/README.txt
+	cp QUICKSTART.pdf build
 	cp driver/*.uf2 build
-	(cd build; zip -r ../$(RELFILE).zip *.uf2 README.txt)
+	(cd build; zip -r ../$(RELFILE).zip *.uf2 README.txt *.pdf)
 
 .PHONY: all clean update release
