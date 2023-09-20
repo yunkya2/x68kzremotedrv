@@ -3,7 +3,7 @@
 	url = https://github.com/raspberrypi/pico-sdk.git
 [submodule "libsmb2"]
 	path = libsmb2
-	url = https://github.com/sahlberg/libsmb2.git
+	url = https://github.com/yunkya2/libsmb2.git
 [submodule "FreeRTOS-Kernel"]
 	path = FreeRTOS-Kernel
 	url = https://github.com/FreeRTOS/FreeRTOS-Kernel.git
