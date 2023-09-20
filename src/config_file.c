@@ -69,6 +69,7 @@ char config_smb2_share[32];
 char config_id[7][128];
 
 char config_tz[16];
+char config_tadjust[8];
 
 #define CF_HIDDEN   1
 #define CF_URL      2
@@ -113,6 +114,8 @@ const struct config_item {
 
     { "TZ:",                        "JST-9",
       config_tz,                    sizeof(config_tz),              0 },
+    { "TADJUST:",                   "2",
+      config_tadjust,               sizeof(config_tadjust),         0 },
 };
 
 //****************************************************************************
@@ -123,32 +126,45 @@ const struct config_item {
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v1"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v2"
+#define CONFIG_FLASH_MAGIC_v1   "X68000Z Remote Drive Config v1"
 
 void config_read(void)
 {
-    for (int i = 0; i < CONFIG_ITEMS; i++) {
+    int i;
+    for (i = 0; i < CONFIG_ITEMS; i++) {
         const struct config_item *c = &config_items[i];
         memset(c->value, 0, c->valuesz);
     }
 
     const uint8_t *config_flash_addr = CONFIG_FLASH_ADDR;
-    if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC)) != 0) {
-        for (int i = 0; i < CONFIG_ITEMS; i++) {
+    const char *p = &config_flash_addr[32];
+    if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC, sizeof(CONFIG_FLASH_MAGIC)) == 0) {
+        for (i = 0; i < CONFIG_ITEMS; i++) {
+            const struct config_item *c = &config_items[i];
+            memcpy(c->value, p, c->valuesz);
+            p += c->valuesz;
+        }
+    } else if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC_v1, sizeof(CONFIG_FLASH_MAGIC_v1)) == 0) {
+        for (i = 0; i < CONFIG_ITEMS - 1; i++) {
+            const struct config_item *c = &config_items[i];
+            memcpy(c->value, p, c->valuesz);
+            p += c->valuesz;
+        }
+        for (; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
             if (c->defval)
                 strcpy(c->value, c->defval);
         }
     } else {
-        const char *p = &config_flash_addr[32];
-        for (int i = 0; i < CONFIG_ITEMS; i++) {
+        for (i = 0; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
-            memcpy(c->value, p, c->valuesz);
-            p += c->valuesz;
+            if (c->defval)
+                strcpy(c->value, c->defval);
         }
     }
 
-    for (int i = 0; i < 7; i++) {
+    for (i = 0; i < 7; i++) {
         for (char *p = config_id[i]; *p != '\0'; p++) {
             if (*p == '/')
                 *p = '\\';
@@ -167,9 +183,10 @@ void config_read(void)
              config_id[4],
              config_id[5],
              config_id[6],
-             config_tz);
+             config_tz,
+             config_tadjust);
 
-    for (int i = 0; i < 7; i++) {
+    for (i = 0; i < 7; i++) {
         for (char *p = config_id[i]; *p != '\0'; p++) {
             if (*p == '\\')
                 *p = '/';

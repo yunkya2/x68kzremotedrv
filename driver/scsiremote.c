@@ -202,6 +202,17 @@ int com_init(struct dos_req_header *req)
 #endif
     ("\r\n");
 
+  {
+    struct cmd_gettime cmd;
+    struct res_gettime res;
+    cmd.command = CMD_GETTIME;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    if (res.year > 0) {
+      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
+      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+    }
+  }
+
 #ifndef CONFIG_BOOTDRIVER
   char *p = (char *)req->status;
   p += strlen(p) + 1;

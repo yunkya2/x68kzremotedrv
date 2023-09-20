@@ -23,10 +23,13 @@
  *
  */
 
+#include <time.h>
+
 #include "pico/cyw43_arch.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
+#include "pico/time.h"
 #include "hardware/watchdog.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -107,6 +110,7 @@ static void blink_task(void *params)
 //****************************************************************************
 
 struct smb2_context *smb2;
+uint64_t boottime = 0;
 
 static void service_main(void)
 {
@@ -162,6 +166,11 @@ static void service_main(void)
         smb2 = NULL;
         return;
     }
+
+    boottime = (smb2_get_system_time(smb2) / 10) - (11644473600 * 1000000) - to_us_since_boot(get_absolute_time());
+    time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
+    struct tm *tm = localtime(&tt);
+    printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 
     printf("SMB2 connection established.\n");
 

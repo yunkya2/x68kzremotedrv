@@ -35,6 +35,7 @@
 extern char log_txt[LOGSIZE];
 
 extern struct smb2_context *smb2;
+extern uint64_t boottime;
 
 extern TaskHandle_t blink_th;
 

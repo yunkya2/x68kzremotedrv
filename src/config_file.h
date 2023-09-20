@@ -44,6 +44,7 @@ extern char config_smb2_share[32];
 extern char config_id[7][128];
 
 extern char config_tz[16];
+extern char config_tadjust[8];
 
 /* configuration functions */
 

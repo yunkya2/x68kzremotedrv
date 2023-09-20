@@ -31,7 +31,9 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 #include <sys/fcntl.h>
+#include <sys/time.h>
 #include <string.h>
+#include "pico/time.h"
 #include "hardware/watchdog.h"
 
 #include "smb2.h"
@@ -572,7 +574,31 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             memcpy(&vdbuf_write[b->header.page * (512 - 16)], b->buf, sizeof(b->buf));
             if (b->header.page == b->header.maxpage) {
                 // last page copy
-                int rsize = remote_serv(vdbuf_write, vdbuf_read);
+                int rsize;
+                switch (vdbuf_write[0]) {
+                case CMD_GETTIME:
+                {
+                    struct res_gettime *r = (struct res_gettime *)vdbuf_read;
+                    rsize = sizeof(struct res_gettime);
+                    if (boottime == 0 || config_tadjust[0] == '\0') {
+                        r->year = 0;
+                    } else {
+                        time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
+                        tt += atoi(config_tadjust);
+                        struct tm *tm = localtime(&tt);
+                        r->year = htobe16(tm->tm_year + 1900);
+                        r->mon = tm->tm_mon + 1;
+                        r->day = tm->tm_mday;
+                        r->hour = tm->tm_hour;
+                        r->min = tm->tm_min;
+                        r->sec = tm->tm_sec;
+                    }
+                    break;
+                }
+                default:
+                    rsize = remote_serv(vdbuf_write, vdbuf_read);
+                    break;
+                }
                 vdbuf_rpages = (rsize - 1) / (512 - 16);
                 vdbuf_rcnt = 0;
                 DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
