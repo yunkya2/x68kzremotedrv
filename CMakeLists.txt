@@ -42,6 +42,7 @@ add_dependencies(${PROJECT_NAME} driver)
 include_directories(
         ${CMAKE_CURRENT_LIST_DIR}
         ${CMAKE_CURRENT_LIST_DIR}/src
+        ${CMAKE_CURRENT_LIST_DIR}/include
         ${CMAKE_CURRENT_LIST_DIR}/driver
         ${CMAKE_CURRENT_LIST_DIR}/iconv
         ${CMAKE_CURRENT_LIST_DIR}/x68kserremote/include

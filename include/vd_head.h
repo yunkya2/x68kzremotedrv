@@ -23,28 +23,25 @@
  *
  */
 
-#ifndef _VIRTUAL_DISK_H
-#define _VIRTUAL_DISK_H
+#ifndef _VD_HEAD_H_
+#define _VD_HEAD_H_
 
 #include <stdint.h>
 
-/* virtual disk volume contstants */
+/* virtual disk buffer definition */
 
-#define SECTOR_SIZE         512
-#define CLUSTER_SIZE        32768
+struct vdbuf_header {
+    uint32_t signature;         // "X68Z" signature
+    uint32_t session;           // session ID
+    uint32_t seqno;             // sequence count
+    uint8_t page;               // page number
+    uint8_t maxpage;            // max page
+    uint8_t reserved[2];
+};
 
-#define MAX_CLUSTER         0x100000
+struct vdbuf {
+    struct vdbuf_header header;
+    uint8_t buf[512 - sizeof(struct vdbuf_header)];
+};
 
-#define CLUS_PER_SECT       (CLUSTER_SIZE / SECTOR_SIZE)        // 64
-#define FATENTS_SECT        (SECTOR_SIZE / sizeof(uint32_t))    // 128
-#define FAT_SECTORS         (MAX_CLUSTER / FATENTS_SECT)        // 0x2000
-#define VOLUME_SECTOR_COUNT (0x20 + FAT_SECTORS * 2 + (MAX_CLUSTER - 2) * CLUS_PER_SECT)
-                                                                // 0x4003fa0
-
-/* virtual disk function prototypes */
-
-int vd_init();
-int vd_read_block(uint32_t lba, uint8_t *buf);
-int vd_write_block(uint32_t lba, uint8_t *buf);
-
-#endif  /* _VIRTUAL_DISK_H */
+#endif  /* _VD_HEAD_H_ */

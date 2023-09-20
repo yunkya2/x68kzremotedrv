@@ -33,7 +33,7 @@
 #include <x68k/iocs.h>
 
 #include <config.h>
-#include <virtual_disk.h>
+#include <vd_head.h>
 #include <x68kremote.h>
 #include <remotedrv.h>
 
