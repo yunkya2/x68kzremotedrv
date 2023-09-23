@@ -154,7 +154,7 @@ static void service_main(void)
     if (strlen(config_smb2_passwd))
         smb2_set_password(smb2, config_smb2_passwd);
     if (strlen(config_smb2_workgroup))
-        smb2_set_workstation(smb2, config_smb2_passwd);
+        smb2_set_workstation(smb2, config_smb2_workgroup);
 
     smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
