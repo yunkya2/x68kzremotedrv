@@ -53,7 +53,7 @@
 // Global variables
 //****************************************************************************
 
-const char *rootpath;
+const char *rootpath[8];
 int debuglevel = 0;
 
 //****************************************************************************
@@ -293,10 +293,10 @@ int vd_init(void)
                 d->rootpath = NULL;
                 printf("ID=%d file:%s size:%lld\n", id, config_id[id], st.smb2_size);
             } else {
-                if (rootpath == NULL) {
+                if (rootpath[0] == NULL) {
                     /* Remote drive */
                     d->size = 0x80000000;
-                    rootpath = d->rootpath = config_id[id];
+                    rootpath[0] = d->rootpath = config_id[id];
                     printf("ID=%d dir:%s\n", id, config_id[id]);
                 }
             }
