@@ -212,6 +212,12 @@ int com_init(struct dos_req_header *req)
       _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
     }
   }
+  {
+    struct cmd_init cmd;
+    struct res_init res;
+    cmd.command = 0x00; /* init */
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  }
 
 #ifndef CONFIG_BOOTDRIVER
   char *p = (char *)req->status;
