@@ -44,6 +44,8 @@ struct vdbuf {
     uint8_t buf[512 - sizeof(struct vdbuf_header)];
 };
 
+int vd_command(uint8_t *cbuf, uint8_t *rbuf);
+
 /* scsiremote.sys communication protocol definition */
 
 #define CMD_GETTIME     0x00

@@ -27,6 +27,7 @@ add_executable(
         src/main.c
         src/msc_disk.c
         src/virtual_disk.c
+        src/vd_command.c
         src/config_file.c
         src/usb_descriptors.c
         x68kserremote/service/remoteserv.c
