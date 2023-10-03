@@ -55,11 +55,11 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_gettime *res = (struct res_gettime *)rbuf;
       rsize = sizeof(*res);
 
-      if (boottime == 0 || config_tadjust[0] == '\0') {
+      if (boottime == 0 || config.tadjust[0] == '\0') {
         res->year = 0;
       } else {
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
-        tt += atoi(config_tadjust);
+        tt += atoi(config.tadjust);
         struct tm *tm = localtime(&tt);
         res->year = htobe16(tm->tm_year + 1900);
         res->mon = tm->tm_mon + 1;

@@ -46,6 +46,24 @@ struct vdbuf {
 
 int vd_command(uint8_t *cbuf, uint8_t *rbuf);
 
+/* configuration data structure */
+
+struct config_data {
+    char wifi_ssid[32];
+    char wifi_passwd[16];
+
+    char smb2_user[16];
+    char smb2_passwd[16];
+    char smb2_workgroup[16];
+
+    char smb2_server[32];
+    char smb2_share[32];
+    char id[7][128];
+
+    char tz[16];
+    char tadjust[8];
+};
+
 /* scsiremote.sys communication protocol definition */
 
 #define CMD_GETTIME     0x00

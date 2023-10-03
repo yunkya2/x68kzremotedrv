@@ -127,7 +127,7 @@ static void service_main(void)
 
     printf("Connecting to WiFi...\n");
 
-    if (cyw43_arch_wifi_connect_timeout_ms(config_wifi_ssid, config_wifi_passwd,
+    if (cyw43_arch_wifi_connect_timeout_ms(config.wifi_ssid, config.wifi_passwd,
                                            CYW43_AUTH_WPA2_AES_PSK, 30000)) {
         printf("Failed to connect.\n");
         return;
@@ -137,7 +137,7 @@ static void service_main(void)
 
     ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
     printf("Connected to %s as %d.%d.%d.%d as host %s\n",
-           config_wifi_ssid,
+           config.wifi_ssid,
            ip4_addr1_16(address), ip4_addr2_16(address), ip4_addr3_16(address), ip4_addr4_16(address),
            cyw43_state.netif[0].hostname);
 
@@ -149,18 +149,18 @@ static void service_main(void)
         return;
     }
 
-    if (strlen(config_smb2_user))
-        smb2_set_user(smb2, config_smb2_user);
-    if (strlen(config_smb2_passwd))
-        smb2_set_password(smb2, config_smb2_passwd);
-    if (strlen(config_smb2_workgroup))
-        smb2_set_workstation(smb2, config_smb2_workgroup);
+    if (strlen(config.smb2_user))
+        smb2_set_user(smb2, config.smb2_user);
+    if (strlen(config.smb2_passwd))
+        smb2_set_password(smb2, config.smb2_passwd);
+    if (strlen(config.smb2_workgroup))
+        smb2_set_workstation(smb2, config.smb2_workgroup);
 
     smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-    printf("SMB2 connection server:%s share:%s\n", config_smb2_server, config_smb2_share);
+    printf("SMB2 connection server:%s share:%s\n", config.smb2_server, config.smb2_share);
 
-    if (smb2_connect_share(smb2, config_smb2_server, config_smb2_share, config_smb2_user) < 0) {
+    if (smb2_connect_share(smb2, config.smb2_server, config.smb2_share, config.smb2_user) < 0) {
         printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
         smb2_destroy_context(smb2);
         smb2 = NULL;

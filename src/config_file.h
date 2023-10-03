@@ -27,24 +27,12 @@
 #define _CONFIG_FILE_H
 
 #include <stdint.h>
+#include "vd_command.h"
 
 /* configuration data */
 
 extern char configtxt[2048];
-
-extern char config_wifi_ssid[32];
-extern char config_wifi_passwd[16];
-
-extern char config_smb2_user[16];
-extern char config_smb2_passwd[16];
-extern char config_smb2_workgroup[16];
-
-extern char config_smb2_server[32];
-extern char config_smb2_share[32];
-extern char config_id[7][128];
-
-extern char config_tz[16];
-extern char config_tadjust[8];
+extern struct config_data config;
 
 /* configuration functions */
 

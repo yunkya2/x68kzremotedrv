@@ -266,37 +266,37 @@ int vd_init(void)
     struct dir_entry *dirent;
     int len;
 
-    setenv("TZ", config_tz, true);
+    setenv("TZ", config.tz, true);
 
     /* Open HDS files */
 
     if (smb2) {
         for (int id = 0; id < 7; id++) {
             struct diskinfo *d = &diskinfo[id];
-            if (strlen(config_id[id]) == 0)
+            if (strlen(config.id[id]) == 0)
                 continue;
 
             struct smb2_stat_64 st;
-            if (smb2_stat(smb2, config_id[id], &st) < 0) {
-                printf("File %s not found.\n", config_id[id]);
+            if (smb2_stat(smb2, config.id[id], &st) < 0) {
+                printf("File %s not found.\n", config.id[id]);
                 continue;
             }
 
             if (st.smb2_type == SMB2_TYPE_FILE) {
                 /* HDS file */
-                if ((d->sfh = smb2_open(smb2, config_id[id], O_RDWR)) == NULL) {
-                    printf("File %s open failure.\n", config_id[id]);
+                if ((d->sfh = smb2_open(smb2, config.id[id], O_RDWR)) == NULL) {
+                    printf("File %s open failure.\n", config.id[id]);
                     continue;
                 }
                 d->size = st.smb2_size;
                 d->rootpath = NULL;
-                printf("ID=%d file:%s size:%lld\n", id, config_id[id], st.smb2_size);
+                printf("ID=%d file:%s size:%lld\n", id, config.id[id], st.smb2_size);
             } else {
                 if (rootpath[0] == NULL) {
                     /* Remote drive */
                     d->size = 0x80000000;
-                    rootpath[0] = d->rootpath = config_id[id];
-                    printf("ID=%d dir:%s\n", id, config_id[id]);
+                    rootpath[0] = d->rootpath = config.id[id];
+                    printf("ID=%d dir:%s\n", id, config.id[id]);
                 }
             }
         }
@@ -485,7 +485,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 static uint32_t humanlbamax = (uint32_t)-1;
                 if (lba <= humanlbamax && diskinfo[id].sfh == NULL) {
                     char human[256];
-                    strcpy(human, config_id[id]);
+                    strcpy(human, config.id[id]);
                     strcat(human, "/HUMAN.SYS");
                     if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");

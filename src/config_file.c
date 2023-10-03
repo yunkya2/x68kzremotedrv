@@ -32,6 +32,7 @@
 #include <hardware/flash.h>
 
 #include "main.h"
+#include "vd_command.h"
 #include "virtual_disk.h"
 #include "config_file.h"
 
@@ -56,20 +57,7 @@ extern char config_template[];
 //****************************************************************************
 
 char configtxt[2048];
-
-char config_wifi_ssid[32];
-char config_wifi_passwd[16];
-
-char config_smb2_user[16];
-char config_smb2_passwd[16];
-char config_smb2_workgroup[16];
-
-char config_smb2_server[32];
-char config_smb2_share[32];
-char config_id[7][128];
-
-char config_tz[16];
-char config_tadjust[8];
+struct config_data config;
 
 #define CF_HIDDEN   1
 #define CF_URL      2
@@ -82,40 +70,40 @@ const struct config_item {
     int flag;
 } config_items[] = {
     { "WIFI_SSID:",                 "<ssid>",
-      config_wifi_ssid,             sizeof(config_wifi_ssid),       0 },
+      config.wifi_ssid,             sizeof(config.wifi_ssid),       0 },
     { "WIFI_PASSWORD:",             NULL,
-      config_wifi_passwd,           sizeof(config_wifi_passwd),     CF_HIDDEN },
+      config.wifi_passwd,           sizeof(config.wifi_passwd),     CF_HIDDEN },
 
     { "SMB2_USERNAME:",             "<user>",
-      config_smb2_user,             sizeof(config_smb2_user),       0 },
+      config.smb2_user,             sizeof(config.smb2_user),       0 },
     { "SMB2_PASSWORD:",             NULL,
-      config_smb2_passwd,           sizeof(config_smb2_passwd),     CF_HIDDEN },
+      config.smb2_passwd,           sizeof(config.smb2_passwd),     CF_HIDDEN },
     { "SMB2_WORKGROUP:",            "WORKGROUP",
-      config_smb2_workgroup,        sizeof(config_smb2_workgroup),  0 },
+      config.smb2_workgroup,        sizeof(config.smb2_workgroup),  0 },
 
     { "SMB2_SERVER:",               "<server>",
-      config_smb2_server,           sizeof(config_smb2_server),     0 },
+      config.smb2_server,           sizeof(config.smb2_server),     0 },
     { "SMB2_SHARE:",                "<share>",
-      config_smb2_share,            sizeof(config_smb2_share),      0 },
+      config.smb2_share,            sizeof(config.smb2_share),      0 },
     { "ID0:",                       NULL,
-      config_id[0],                 sizeof(config_id[0]),           CF_URL },
+      config.id[0],                 sizeof(config.id[0]),           CF_URL },
     { "ID1:",                       NULL,
-      config_id[1],                 sizeof(config_id[1]),           CF_URL },
+      config.id[1],                 sizeof(config.id[1]),           CF_URL },
     { "ID2:",                       NULL,
-      config_id[2],                 sizeof(config_id[2]),           CF_URL },
+      config.id[2],                 sizeof(config.id[2]),           CF_URL },
     { "ID3:",                       NULL,
-      config_id[3],                 sizeof(config_id[3]),           CF_URL },
+      config.id[3],                 sizeof(config.id[3]),           CF_URL },
     { "ID4:",                       NULL,
-      config_id[4],                 sizeof(config_id[4]),           CF_URL },
+      config.id[4],                 sizeof(config.id[4]),           CF_URL },
     { "ID5:",                       NULL,
-      config_id[5],                 sizeof(config_id[5]),           CF_URL },
+      config.id[5],                 sizeof(config.id[5]),           CF_URL },
     { "ID6:",                       NULL,
-      config_id[6],                 sizeof(config_id[6]),           CF_URL },
+      config.id[6],                 sizeof(config.id[6]),           CF_URL },
 
     { "TZ:",                        "JST-9",
-      config_tz,                    sizeof(config_tz),              0 },
+      config.tz,                    sizeof(config.tz),              0 },
     { "TADJUST:",                   "2",
-      config_tadjust,               sizeof(config_tadjust),         0 },
+      config.tadjust,               sizeof(config.tadjust),         0 },
 };
 
 //****************************************************************************
@@ -165,7 +153,7 @@ void config_read(void)
     }
 
     for (i = 0; i < 7; i++) {
-        for (char *p = config_id[i]; *p != '\0'; p++) {
+        for (char *p = config.id[i]; *p != '\0'; p++) {
             if (*p == '/')
                 *p = '\\';
         }
@@ -173,21 +161,21 @@ void config_read(void)
 
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
-             config_wifi_ssid,
-             config_smb2_user, config_smb2_workgroup,
-             config_smb2_server, config_smb2_share,
-             config_id[0],
-             config_id[1],
-             config_id[2],
-             config_id[3],
-             config_id[4],
-             config_id[5],
-             config_id[6],
-             config_tz,
-             config_tadjust);
+             config.wifi_ssid,
+             config.smb2_user, config.smb2_workgroup,
+             config.smb2_server, config.smb2_share,
+             config.id[0],
+             config.id[1],
+             config.id[2],
+             config.id[3],
+             config.id[4],
+             config.id[5],
+             config.id[6],
+             config.tz,
+             config.tadjust);
 
     for (i = 0; i < 7; i++) {
-        for (char *p = config_id[i]; *p != '\0'; p++) {
+        for (char *p = config.id[i]; *p != '\0'; p++) {
             if (*p == '\\')
                 *p = '/';
         }
