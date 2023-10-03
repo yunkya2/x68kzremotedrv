@@ -60,7 +60,7 @@ scsiremote.sys: head.o remotedrv.o scsiremote.o
 
 head.o:       ../include/config.h
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
-scsiremote.o: ../include/config.h remotedrv.h x68kremote.h ../include/vd_head.h
+scsiremote.o: ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h
 
 bootloader.bin: bootloader.o
 	$(OBJCOPY) -O binary $< $@

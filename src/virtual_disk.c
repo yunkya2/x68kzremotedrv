@@ -41,7 +41,7 @@
 
 #include "main.h"
 #include "virtual_disk.h"
-#include "vd_head.h"
+#include "vd_command.h"
 #include "config_file.h"
 #include "remoteserv.h"
 #include "fileop.h"

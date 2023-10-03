@@ -33,7 +33,7 @@
 #include <x68k/iocs.h>
 
 #include <config.h>
-#include <vd_head.h>
+#include <vd_command.h>
 #include <x68kremote.h>
 #include <remotedrv.h>
 

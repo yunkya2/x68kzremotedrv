@@ -23,8 +23,8 @@
  *
  */
 
-#ifndef _VD_HEAD_H_
-#define _VD_HEAD_H_
+#ifndef _VD_COMMAND_H_
+#define _VD_COMMAND_H_
 
 #include <stdint.h>
 
@@ -60,4 +60,4 @@ struct res_gettime {
     uint8_t sec;
 };
 
-#endif  /* _VD_HEAD_H_ */
+#endif  /* _VD_COMMAND_H_ */
