@@ -44,10 +44,21 @@
 #include "config_file.h"
 
 //****************************************************************************
-// for debug log
+// Global variables
 //****************************************************************************
 
 char log_txt[LOGSIZE];
+
+uint64_t boottime = 0;
+
+TaskHandle_t main_th;
+TaskHandle_t connect_th;
+TaskHandle_t blink_th;
+
+//****************************************************************************
+// for debug log
+//****************************************************************************
+
 static char *log_txtp = log_txt;
 
 static void log_out_chars(const char *buffer, int length)
@@ -72,8 +83,7 @@ static void log_out_init(void)
 // LED blinking task
 //****************************************************************************
 
-TaskHandle_t blink_th;
-TimerHandle_t blink_tm;
+static TimerHandle_t blink_tm;
 
 static void blink_timer_cb(TimerHandle_t th)
 {
@@ -85,7 +95,6 @@ static void blink_task(void *params)
     static bool led_state = true;
     uint32_t nvalue;
 
-    blink_tm = xTimerCreate("BlinkTimer", pdMS_TO_TICKS(150), pdTRUE, NULL, blink_timer_cb);
     xTimerStart(blink_tm, 0);
 
     while (1) {
@@ -106,25 +115,13 @@ static void blink_task(void *params)
 }
 
 //****************************************************************************
-// Main task
+// Connect task
 //****************************************************************************
 
 struct smb2_context *smb2;
-uint64_t boottime = 0;
 
-static void service_main(void)
+static void connection(void)
 {
-    /* Set up WiFi connection */
-
-    if (cyw43_arch_init()) {
-        printf("Failed to initialize Pico W\n");
-        return;
-    }
-
-    cyw43_arch_enable_sta_mode();
-    
-    tusb_init();        /* Start TinyUSB MSC */
-
     printf("Connecting to WiFi...\n");
 
     if (cyw43_arch_wifi_connect_timeout_ms(config.wifi_ssid, config.wifi_passwd,
@@ -177,18 +174,46 @@ static void service_main(void)
     xTaskNotify(blink_th, 2, eSetBits);
 }
 
+static void connect_task(void *params)
+{
+    uint32_t nvalue;
+
+    /* Set up WiFi connection */
+
+    if (cyw43_arch_init()) {
+        printf("Failed to initialize Pico W\n");
+        while (1)
+            taskYIELD();
+    }
+
+    cyw43_arch_enable_sta_mode();
+
+    connection();
+    xTaskNotify(main_th, 1, eSetBits);
+
+    while (1) {
+        xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
+        taskYIELD();
+    }
+}
+
+//****************************************************************************
+// Main task
+//****************************************************************************
+
 static void main_task(void *params)
 {
+    blink_tm = xTimerCreate("BlinkTimer", pdMS_TO_TICKS(150), pdTRUE, NULL, blink_timer_cb);
     xTaskCreate(blink_task, "BlinkThread", configMINIMAL_STACK_SIZE, NULL, 2, &blink_th);
-
-    service_main();
-
-    printf("Start USB MSC device.\n");
+    xTaskCreate(connect_task, "ConnectThread", configMINIMAL_STACK_SIZE, NULL, 1, &connect_th);
 
     vd_init();
 
+    printf("Start USB MSC device.\n");
+
     /* USB MSC main loop */
 
+    tusb_init();
     while (1) {
         tud_task();
         taskYIELD();
@@ -223,8 +248,6 @@ void tud_resume_cb(void)
 
 int main(void)
 {
-    TaskHandle_t task;
-
     board_init();
     stdio_init_all();
     log_out_init();
@@ -232,7 +255,7 @@ int main(void)
 
     printf("\nX68000Z Remote Drive Service (version %s)\n", GIT_REPO_VERSION);
 
-    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &task);
+    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &main_th);
     vTaskStartScheduler();
 
     return 0;

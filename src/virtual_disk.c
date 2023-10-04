@@ -263,10 +263,13 @@ static uint8_t pscsiini[256];
 
 int vd_init(void)
 {
+    uint32_t nvalue;
     struct dir_entry *dirent;
     int len;
 
     setenv("TZ", config.tz, true);
+
+    xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
 
     /* Open HDS files */
 
