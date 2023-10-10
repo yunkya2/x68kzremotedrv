@@ -460,7 +460,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_read(id, lba, buf) < 0)
                 return -1;
-            xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
         if (diskinfo[id].rootpath) {
@@ -516,7 +515,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     vdbuf_rcnt += 8;
                 }
             }
-            xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
     }
@@ -564,7 +562,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
             if (cache_write(id, lba, buf) < 0)
                 return -1;
-            xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
         if (diskinfo[id].rootpath) {
@@ -584,7 +581,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 vdbuf_rcnt = 0;
                 DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
             }
-            xTaskNotify(blink_th, 2, eSetBits);
             return 0;
         }
     }

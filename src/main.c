@@ -53,7 +53,6 @@ uint64_t boottime = 0;
 
 TaskHandle_t main_th;
 TaskHandle_t connect_th;
-TaskHandle_t blink_th;
 
 //****************************************************************************
 // for debug log
@@ -80,41 +79,6 @@ static void log_out_init(void)
 }
 
 //****************************************************************************
-// LED blinking task
-//****************************************************************************
-
-static TimerHandle_t blink_tm;
-
-static void blink_timer_cb(TimerHandle_t th)
-{
-    xTaskNotifyFromISR(blink_th, 1, eSetBits, NULL);
-}
-
-static void blink_task(void *params)
-{
-    static bool led_state = true;
-    uint32_t nvalue;
-
-    xTimerStart(blink_tm, 0);
-
-    while (1) {
-        xTaskNotifyWait(3, 0, &nvalue, portMAX_DELAY);
-        if (nvalue & 2)
-            break;
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, led_state);
-        led_state = 1 - led_state;
-    }
-    xTimerDelete(blink_tm, 0);
-    cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
-
-    while (1) {
-        xTaskNotifyWait(3, 0, &nvalue, portMAX_DELAY);
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, true);
-        cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, false);
-    }
-}
-
-//****************************************************************************
 // Connect task
 //****************************************************************************
 
@@ -129,8 +93,6 @@ static void connection(void)
         printf("Failed to connect.\n");
         return;
     }
-
-    xTimerChangePeriod(blink_tm, pdMS_TO_TICKS(500), 0);
 
     ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
     printf("Connected to %s as %d.%d.%d.%d as host %s\n",
@@ -170,8 +132,6 @@ static void connection(void)
     printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 
     printf("SMB2 connection established.\n");
-
-    xTaskNotify(blink_th, 2, eSetBits);
 }
 
 static void connect_task(void *params)
@@ -203,8 +163,6 @@ static void connect_task(void *params)
 
 static void main_task(void *params)
 {
-    blink_tm = xTimerCreate("BlinkTimer", pdMS_TO_TICKS(150), pdTRUE, NULL, blink_timer_cb);
-    xTaskCreate(blink_task, "BlinkThread", configMINIMAL_STACK_SIZE, NULL, 2, &blink_th);
     xTaskCreate(connect_task, "ConnectThread", configMINIMAL_STACK_SIZE, NULL, 1, &connect_th);
 
     vd_init();
