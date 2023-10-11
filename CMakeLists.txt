@@ -69,6 +69,8 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
         NO_SYS=0            # don't want NO_SYS (generally this would be in your lwipopts.h)
 )
 
+target_compile_options(${PROJECT_NAME} PRIVATE -g)
+
 target_link_libraries(${PROJECT_NAME}
         pico_cyw43_arch_lwip_sys_freertos
         FreeRTOS-Kernel
