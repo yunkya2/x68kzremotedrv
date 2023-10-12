@@ -44,13 +44,17 @@ CFLAGS += -I $(RMTINC)
 CFLAGS += -I $(RMTSRC)
 CFLAGS +=  -Os -DGIT_REPO_VERSION=\"$(GIT_REPO_VERSION)\"
 CFLAGS += -finput-charset=utf-8 -fexec-charset=cp932
+CFLAGS += $(CFLAGS_XTEST)
 ASFLAGS = -m68000 -I. -I../include
 
 ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: scsiremote.inc bootloader.inc clrconfig.uf2
+all: scsiremote.inc bootloader.inc settingui.inc clrconfig.uf2
+
+uitest:
+	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
 
 scsiremote.bin: scsiremote.sys
 	./fixupsys.py $< $@
@@ -61,9 +65,17 @@ scsiremote.sys: head.o remotedrv.o scsiremote.o
 head.o:       ../include/config.h
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
 scsiremote.o: ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h
+settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
+settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 
 bootloader.bin: bootloader.o
 	$(OBJCOPY) -O binary $< $@
+
+settingui.bin: settingui.o settinguisub.o
+	$(LD) -o $@ $^ -Ttext=0x6800 -s -specs=x68knodos.specs
+
+settingui.x: settingui.o settinguisub.o
+	$(LD) -o $@ $^
 
 clrconfig.uf2: clrconfig.py
 	./clrconfig.py $@
@@ -78,6 +90,6 @@ clrconfig.uf2: clrconfig.py
 	./bindump.py $< $(basename $@) > $@
 
 clean:
-	-rm -f *.o *.elf* *.sys *.bin *.inc *.uf2
+	-rm -f *.o *.x *.elf* *.sys *.bin *.inc *.uf2
 
-.PHONY: all clean
+.PHONY: all clean uitest
