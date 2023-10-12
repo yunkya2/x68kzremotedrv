@@ -67,6 +67,19 @@ struct config_data {
 /* scsiremote.sys communication protocol definition */
 
 #define CMD_GETTIME     0x00
+#define CMD_GETCONFIG   0x01
+#define CMD_SETCONFIG   0x02
+#define CMD_GETSTATUS   0x03
+#define CMD_WIFI_SCAN   0x04
+#define CMD_SMB2_ENUM   0x05
+#define CMD_SMB2_LIST   0x06
+
+#define STAT_WIFI_DISCONNECTED      0
+#define STAT_WIFI_CONNECTING        1
+#define STAT_WIFI_CONNECTED         2
+#define STAT_SMB2_CONNECTING        3
+#define STAT_SMB2_CONNECTED         4
+#define STAT_CONFIGURED             5
 
 struct cmd_gettime {
     uint8_t command;
@@ -79,5 +92,58 @@ struct res_gettime {
     uint8_t min;
     uint8_t sec;
 };
+
+struct cmd_getconfig {
+    uint8_t command;
+};
+struct res_getconfig {
+    struct config_data data;
+};
+
+struct cmd_setconfig {
+    uint8_t command;
+    struct config_data data;
+};
+struct res_setconfig {
+    uint8_t status;
+};
+
+struct cmd_getstatus {
+    uint8_t command;
+};
+struct res_getstatus {
+    uint8_t status;
+};
+
+struct cmd_wifi_scan {
+    uint8_t command;
+    uint8_t clear;
+};
+struct res_wifi_scan {
+    uint8_t status;
+    uint8_t n_items;
+    uint8_t ssid[16][32];
+};
+
+struct cmd_smb2_enum {
+    uint8_t command;
+};
+struct res_smb2_enum {
+    uint8_t status;
+    uint8_t n_items;
+    uint8_t share[16][64];
+};
+
+struct cmd_smb2_list {
+    uint8_t command;
+    uint8_t share[64];
+    uint8_t path[256];
+};
+struct res_smb2_list {
+    uint8_t status;
+    uint8_t list[1024];
+};
+
+#define countof(array)      (sizeof(array) / sizeof(array[0]))
 
 #endif  /* _VD_COMMAND_H_ */

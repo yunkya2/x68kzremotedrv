@@ -31,6 +31,8 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+extern volatile int sysstatus;
+
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 

@@ -40,8 +40,11 @@
 #include "tusb.h"
 
 #include "main.h"
+#include "vd_command.h"
 #include "virtual_disk.h"
 #include "config_file.h"
+
+volatile int sysstatus = STAT_WIFI_DISCONNECTED;
 
 //****************************************************************************
 // Global variables
@@ -88,11 +91,17 @@ static void connection(void)
 {
     printf("Connecting to WiFi...\n");
 
-    if (cyw43_arch_wifi_connect_timeout_ms(config.wifi_ssid, config.wifi_passwd,
+    sysstatus = STAT_WIFI_CONNECTING;
+
+    if (strlen(config.wifi_ssid) == 0 ||
+        cyw43_arch_wifi_connect_timeout_ms(config.wifi_ssid, config.wifi_passwd,
                                            CYW43_AUTH_WPA2_AES_PSK, 30000)) {
+        sysstatus = STAT_WIFI_DISCONNECTED;
         printf("Failed to connect.\n");
         return;
     }
+
+    sysstatus = STAT_WIFI_CONNECTED;
 
     ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
     printf("Connected to %s as %d.%d.%d.%d as host %s\n",
@@ -117,14 +126,19 @@ static void connection(void)
 
     smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
 
-    printf("SMB2 connection server:%s share:%s\n", config.smb2_server, config.smb2_share);
+    printf("SMB2 connection server:%s share:%s\n", config.smb2_server, "IPC$");
 
-    if (smb2_connect_share(smb2, config.smb2_server, config.smb2_share, config.smb2_user) < 0) {
+    sysstatus = STAT_SMB2_CONNECTING;
+
+    if (smb2_connect_share(smb2, config.smb2_server, "IPC$", config.smb2_user) < 0) {
+        sysstatus = STAT_WIFI_CONNECTED;
         printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
         smb2_destroy_context(smb2);
         smb2 = NULL;
         return;
     }
+
+    sysstatus = STAT_SMB2_CONNECTED;
 
     boottime = (smb2_get_system_time(smb2) / 10) - (11644473600 * 1000000) - to_us_since_boot(get_absolute_time());
     time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
@@ -148,12 +162,15 @@ static void connect_task(void *params)
 
     cyw43_arch_enable_sta_mode();
 
-    connection();
-    xTaskNotify(main_th, 1, eSetBits);
-
     while (1) {
-        xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
-        taskYIELD();
+        connection();
+        xTaskNotify(main_th, 1, eSetBits);
+        while (1) {
+            xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
+            if (nvalue & 1)
+                break;
+            taskYIELD();
+        }
     }
 }
 
