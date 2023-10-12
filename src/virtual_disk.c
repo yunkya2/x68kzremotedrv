@@ -470,6 +470,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
+                buf[5] = sysstatus;
             } else if (lba == 4) {
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);

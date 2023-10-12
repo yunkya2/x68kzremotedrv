@@ -27,15 +27,40 @@
 /* HUMAN.SYS simple bootloader */
 
 entry:
-    bra.w   1f
+    bra.w   start
+
+sysstat:
+    .word   0                   /* system status */
+
+start:
+    move.w  %pc@(sysstat),%d0
+    cmpi.w  #5,%d0              /* STAT_CONFIGURED */
+    blt     loadsetting         /* not configured -> setting UI */
+
+    moveq.l #0x04,%d0           /* B_BITSNS */
+    moveq.l #0x0c,%d1
+    trap    #15
+    andi.b  #0x08,%d0           /* check F1 key */
+    bne     loadsetting
+
+loadhuman:
+    move.l  #(0x8000/512),%d2   /* HUMAN.SYS */
+    bra     1f
+
+loadsetting:
+    move.l  #(0x20000/512),%d2  /* Setting UI menu */
+    moveq.l #6,%d4              /* SCSI ID 6 */
+
 1:
-    move.l  #(0x8000/512),%d2
     moveq.l #1,%d3
     moveq.l #1,%d5
     movea.w #0x67c0.w,%a1
     move.l  #0xf5,%d0           /* SCSIDRV */
     moveq.l #0x26,%d1           /* S_READEXT */
     trap    #15                 /* Read the first sector */
+
+    cmpi.w  #0x4855,0x67c0.w
+    bne     error
 
     move.l  0x67cc.w,%d3        /* text size */
     add.l   0x67d0.w,%d3        /* + data size */
@@ -46,9 +71,6 @@ entry:
     move.l  #0xf5,%d0           /* SCSIDRV */
     moveq.l #0x26,%d1           /* S_READEXT */
     trap    #15                 /* Read HUMAN.SYS */
-
-    cmpi.w  #0x4855,0x67c0.w
-    bne     error
 
     movea.l 0x67c4.w,%a0        /* start address (0x6800) */
     adda.l  0x67cc.w,%a0        /* + text size */
@@ -80,6 +102,9 @@ errormsg:
     .byte   0x1b
     .ascii  "[14;26H                                             "
     .byte   0x1b
-    .asciz  "[14;35HHuman.sys ‚ª Œ©‚Â‚©‚è‚Ü‚¹‚ñ"
+    .ascii  "[14;35HHuman.sys "
+    .byte   0x82,0xaa,0x20
+    .byte   0x8c,0xa9,0x82,0xc2,0x82,0xa9,0x82,0xe8,0x82,0xdc,0x82,0xb9,0x82,0xf1
+    .byte   0
 
     .end
