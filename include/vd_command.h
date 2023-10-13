@@ -75,6 +75,9 @@ struct config_data {
 #define CMD_WIFI_SCAN   0x04
 #define CMD_SMB2_ENUM   0x05
 #define CMD_SMB2_LIST   0x06
+#define CMD_FLASHCONFIG 0x07
+#define CMD_FLASHCLEAR  0x08
+#define CMD_REBOOT      0x09
 
 #define STAT_WIFI_DISCONNECTED      0
 #define STAT_WIFI_CONNECTING        1
@@ -82,6 +85,12 @@ struct config_data {
 #define STAT_SMB2_CONNECTING        3
 #define STAT_SMB2_CONNECTED         4
 #define STAT_CONFIGURED             5
+
+#define CONNECT_WIFI                0
+#define CONNECT_SMB2                1
+#define CONNECT_NONE                2
+#define CONNECT_MASK                0x0f
+#define CONNECT_WAIT                0x10
 
 struct cmd_gettime {
     uint8_t command;
@@ -104,6 +113,7 @@ struct res_getconfig {
 
 struct cmd_setconfig {
     uint8_t command;
+    uint8_t mode;
     struct config_data data;
 };
 struct res_setconfig {
@@ -144,6 +154,27 @@ struct cmd_smb2_list {
 struct res_smb2_list {
     uint8_t status;
     uint8_t list[1024];
+};
+
+struct cmd_flashconfig {
+    uint8_t command;
+};
+struct res_flashconfig {
+    uint8_t status;
+};
+
+struct cmd_flashclear {
+    uint8_t command;
+};
+struct res_flashclear {
+    uint8_t status;
+};
+
+struct cmd_reboot {
+    uint8_t command;
+};
+struct res_reboot {
+    uint8_t status;
 };
 
 #define countof(array)      (sizeof(array) / sizeof(array[0]))

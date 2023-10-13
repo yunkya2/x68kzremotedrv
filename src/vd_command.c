@@ -29,6 +29,7 @@
 #include "pico/cyw43_arch.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
+#include "hardware/watchdog.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -186,7 +187,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       config = cmd->data;
       res->status = 0;
       rsize = sizeof(*res);
-      xTaskNotify(connect_th, 1, eSetBits);
+      xTaskNotify(connect_th, cmd->mode | CONNECT_WAIT, eSetBits);
       break;
     }
 
@@ -197,6 +198,36 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       rsize = sizeof(*res);
       res->status = sysstatus;
       break;
+    }
+
+  case CMD_FLASHCONFIG:
+    {
+      struct cmd_flashconfig *cmd = (struct cmd_flashconfig *)cbuf;
+      struct res_flashconfig *res = (struct res_flashconfig *)rbuf;
+      config_write();
+      res->status = 0;
+      rsize = sizeof(*res);
+      break;
+    }
+
+  case CMD_FLASHCLEAR:
+    {
+      struct cmd_flashclear *cmd = (struct cmd_flashclear *)cbuf;
+      struct res_flashclear *res = (struct res_flashclear *)rbuf;
+      config_erase();
+      config_read();
+      res->status = 0;
+      rsize = sizeof(*res);
+      xTaskNotify(connect_th, CONNECT_WAIT, eSetBits);
+      break;
+    }
+
+  case CMD_REBOOT:
+    {
+      // reboot by watchdog
+      watchdog_enable(500, 1);
+      while (1)
+        ;
     }
 
   case CMD_WIFI_SCAN:
