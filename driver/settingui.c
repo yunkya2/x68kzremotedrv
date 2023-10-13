@@ -59,6 +59,9 @@ struct config_data config
 #define issetconf(n)  ((itemtbl[n].stat) & 0x40)
 #define isupdconf(n)  ((itemtbl[n].stat) & 0x80)
 
+int flash_config(struct itemtbl *it, void *v);
+int flash_clear(struct itemtbl *it, void *v);
+
 //****************************************************************************
 // Menu data
 //****************************************************************************
@@ -77,7 +80,7 @@ struct itemtbl itemtbl[] = {
     "WiFi 接続先のパスワードを設定します",
     "WiFi 接続先のパスワードを入力してください",
     "#e  (確定) #f   (前に戻る) #g   (パスワードを表示)",
-    16, 16, config.wifi_passwd,     sizeof(config.wifi_passwd),    input_passwd },
+    16, 16, config.wifi_passwd,     sizeof(config.wifi_passwd),    input_passwd, (void *)CONNECT_WIFI },
 
   { 0x012, 4, 8, -1,   "USERNAME",
     "Windows ファイル共有のユーザ名を設定します",
@@ -98,7 +101,7 @@ struct itemtbl itemtbl[] = {
     "Windows ファイル共有のサーバ名を設定します",
     "Windows ファイル共有のサーバ名または IP アドレスを入力してください",
     "#e  (確定) #f   (前に戻る)",
-    16, 28, config.smb2_server,     sizeof(config.smb2_server),    input_entry },
+    16, 28, config.smb2_server,     sizeof(config.smb2_server),    input_entry, (void *)CONNECT_SMB2 },
 
   { 0x014, 4, 14, -1,  "HDS0",
     "HDS ファイル 0 を設定します",
@@ -154,8 +157,9 @@ struct itemtbl itemtbl[] = {
 
   { 0x014, 4, 27, 19,  " 設定終了 ",
     "設定を反映して終了します",
-    NULL, NULL,
-    -1, -1, NULL, 0, NULL },
+    "設定を反映して終了します  よろしいですか？",
+    "#h (設定を反映する) #i #f  (前に戻る)",
+    -1, -1, NULL, 0, flash_config },
 
   { 0x010, 52, 4, 0,   "TZ",
     "Windows から取得した時刻のタイムゾーンを設定します",
@@ -168,10 +172,11 @@ struct itemtbl itemtbl[] = {
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     64, 8, config.tadjust,          sizeof(config.tadjust),        input_numlist, &opt_tadjust },
 
-  { 0x000, 82, 27, 16, "設定クリア",
+  { 0x080, 82, 27, 16, "設定クリア",
     "保存されている設定内容をクリアします",
-    NULL, NULL,
-    -1, -1, NULL, 0, NULL },
+    "保存されている設定内容をクリアします  よろしいですか？",
+    "#h (クリアする) #i #f  (前に戻る)",
+    -1, -1, NULL, 0, flash_clear },
 };
 
 #define N_ITEMTBL (countof(itemtbl))
@@ -255,6 +260,89 @@ int topview(void)
 }
 
 //****************************************************************************
+// Flash command
+//****************************************************************************
+
+int flash_config(struct itemtbl *it, void *v)
+{
+  int res = 0;
+
+  while (1) {
+    /* キー入力処理 */
+    int k = keyinp(-1);
+    int c = k & 0xff;
+    if (c == 'y' || c == 'Y') {                         // Y
+      _iocs_b_putmes(3, 3, 29, 89, "設定を反映しました  X68000 Zをリセットして再起動してください");
+      _iocs_b_putmes(3, 3, 30, 89, "");
+#ifndef XTEST
+      {
+        struct cmd_setconfig cmd;
+        struct res_setconfig res;
+        cmd.command = CMD_SETCONFIG;
+        cmd.mode = CONNECT_NONE;
+        cmd.data = config;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+      }
+      {
+        struct cmd_flashconfig cmd;
+        struct res_flashconfig res;
+        cmd.command = CMD_FLASHCONFIG;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+      }
+      {
+        struct cmd_reboot cmd;
+        struct res_reboot res;
+        cmd.command = CMD_REBOOT;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+      }
+      while (1)
+        ;
+#endif
+      res = 1;
+      break;
+    } else if (c == 'n' || c == 'N' || c == '\x1b') {   // N or ESC
+      break;
+    }
+  }
+
+  return res;
+}
+
+int flash_clear(struct itemtbl *it, void *v)
+{
+  int res = 0;
+
+  while (1) {
+    /* キー入力処理 */
+    int k = keyinp(-1);
+    int c = k & 0xff;
+    if (c == 'y' || c == 'Y') {                         // Y
+#ifndef XTEST
+      {
+        struct cmd_flashclear cmd;
+        struct res_flashclear res;
+        cmd.command = CMD_FLASHCLEAR;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+      }
+      {
+        struct cmd_getconfig cmd;
+        struct res_getconfig res;
+        cmd.command = CMD_GETCONFIG;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+        config = res.data;
+      }
+#endif
+      res = 1;
+      break;
+    } else if (c == 'n' || c == 'N' || c == '\x1b') {   // N or ESC
+      break;
+    }
+  }
+
+  return res;
+}
+
+//****************************************************************************
 // Main
 //****************************************************************************
 
@@ -297,6 +385,7 @@ int main()
   /***********************************************************/
 
   int n = 0;
+  int pren = -1;
   bool update = true;
   while (1) {
     if (update) {
@@ -304,12 +393,16 @@ int main()
       while (!isvisible(n)) {
         n = (n + N_ITEMTBL - 1) % N_ITEMTBL;
       }
+      pren = -1;
       update = false;
     }
     struct itemtbl *it = &itemtbl[n];
     drawmsg(it->x, it->y, 10, it->msg);
-    _iocs_b_putmes(3, 3, 29, 89, it->help1);
-    drawhelp(3, 3, 30, 89, "#a #b (選択) #e  (確定)");
+    if (pren != n) {
+      _iocs_b_putmes(3, 3, 29, 89, it->help1);
+      drawhelp(3, 3, 30, 89, "#a #b (選択) #e  (確定)");
+      pren = n;
+    }
 
     /* キー入力を待ちながら2秒おきに設定状態をチェックする */
     int k;
@@ -332,7 +425,7 @@ int main()
     int c = k & 0xff;
     if (c == '\r') {                          /* CR */
       drawmsg(it->x, it->y, 7, it->msg);
-      if (it->xd < 0) {
+      if (it->func == NULL) {
         break;
       }
       if (it->func) {
@@ -349,6 +442,7 @@ int main()
             struct cmd_setconfig cmd;
             struct res_setconfig res;
             cmd.command = CMD_SETCONFIG;
+            cmd.mode = (int)it->opt;
             cmd.data = config;
             com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 #endif
