@@ -95,6 +95,8 @@ int seqno = 0;
 int seqtim = 0;
 int sect = 0x400000;
 
+#define SCSICOMMID    6
+
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {
   struct vdbuf_header *h;
@@ -112,7 +114,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     memcpy(vdbuf_write.buf, wbuf, s);
     wsize -= s;
     wbuf += s;
-    _iocs_s_writeext(0x20, 1, scsiid, 1, &vdbuf_write);
+    _iocs_s_writeext(0x20, 1, SCSICOMMID, 1, &vdbuf_write);
     for (int i = 0; i < 128; i++) {
       DPRINTF1("%02x ", vdbuf_write[i]);
       if ((i % 16) == 15)
@@ -125,7 +127,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
   for (int i = 0; i <= rcnt; i++) {
     while (1) {
       DPRINTF1("sect=0x%x\r\n", sect);
-      _iocs_s_readext(sect + (i & 7), 1, scsiid, 1, &vdbuf_read);
+      _iocs_s_readext(sect + (i & 7), 1, SCSICOMMID, 1, &vdbuf_read);
       for (int i = 0; i < 64; i++) {
         DPRINTF1("%02x ", vdbuf_read[i]);
         if ((i % 16) == 15)
@@ -175,10 +177,12 @@ int com_init(struct dos_req_header *req)
 #else
   _dos_print
 #endif
-    ("\r\nX68000Z Remote Drive Driver (version " GIT_REPO_VERSION ") ID=");
+    ("\r\nX68000 Z Remote Drive Driver (version " GIT_REPO_VERSION ") ID=");
 
   extern uint8_t scsiidd2;
   scsiid = scsiidd2 - 1;
+
+  int unit = 0;
 
   volatile uint8_t *scsidrvflg = (volatile uint8_t *)0x000cec;
   *scsidrvflg |= (1 << scsiid);
@@ -203,14 +207,15 @@ int com_init(struct dos_req_header *req)
     ("\r\n");
 
   {
-    struct cmd_gettime cmd;
-    struct res_gettime res;
-    cmd.command = CMD_GETTIME;
+    struct cmd_getinfo cmd;
+    struct res_getinfo res;
+    cmd.command = CMD_GETINFO;
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
     if (res.year > 0) {
       _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
       _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
     }
+    unit = res.unit;
   }
   {
     struct cmd_init cmd;
@@ -243,5 +248,5 @@ int com_init(struct dos_req_header *req)
 #endif
   DPRINTF1("Debug level: %d\r\n", debuglevel);
 
-  return 1;
+  return unit;
 }
