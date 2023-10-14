@@ -145,14 +145,14 @@ static void se_cb(struct smb2_context *smb2, int status,
 
 int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 {
-  DPRINTF2("----VDCommand: 0x%02x\n", cbuf[0]);
+  DPRINTF2("----VDCommand: 0x%04x\n", (cbuf[0] << 8) | cbuf[1]);
   int rsize = -1;
 
-  switch (cbuf[0]) {
-  case CMD_GETTIME:
+  switch ((cbuf[0] << 8) | cbuf[1]) {
+  case CMD_GETINFO:
     {
-      struct cmd_gettime *cmd = (struct cmd_gettime *)cbuf;
-      struct res_gettime *res = (struct res_gettime *)rbuf;
+      struct cmd_getinfo *cmd = (struct cmd_getinfo *)cbuf;
+      struct res_getinfo *res = (struct res_getinfo *)rbuf;
       rsize = sizeof(*res);
 
       if (boottime == 0 || config.tadjust[0] == '\0') {
@@ -167,6 +167,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->hour = tm->tm_hour;
         res->min = tm->tm_min;
         res->sec = tm->tm_sec;
+        res->unit = atoi(config.remoteunit);
       }
       break;
     }

@@ -68,16 +68,16 @@ struct config_data {
 
 /* scsiremote.sys communication protocol definition */
 
-#define CMD_GETTIME     0x00
-#define CMD_GETCONFIG   0x01
-#define CMD_SETCONFIG   0x02
-#define CMD_GETSTATUS   0x03
-#define CMD_WIFI_SCAN   0x04
-#define CMD_SMB2_ENUM   0x05
-#define CMD_SMB2_LIST   0x06
-#define CMD_FLASHCONFIG 0x07
-#define CMD_FLASHCLEAR  0x08
-#define CMD_REBOOT      0x09
+#define CMD_GETINFO     0xff00
+#define CMD_GETCONFIG   0xff01
+#define CMD_SETCONFIG   0xff02
+#define CMD_GETSTATUS   0xff03
+#define CMD_WIFI_SCAN   0xff04
+#define CMD_SMB2_ENUM   0xff05
+#define CMD_SMB2_LIST   0xff06
+#define CMD_FLASHCONFIG 0xff07
+#define CMD_FLASHCLEAR  0xff08
+#define CMD_REBOOT      0xff09
 
 #define STAT_WIFI_DISCONNECTED      0
 #define STAT_WIFI_CONNECTING        1
@@ -92,27 +92,28 @@ struct config_data {
 #define CONNECT_MASK                0x0f
 #define CONNECT_WAIT                0x10
 
-struct cmd_gettime {
-    uint8_t command;
+struct cmd_getinfo {
+    uint16_t command;
 };
-struct res_gettime {
+struct res_getinfo {
     uint16_t year;
     uint8_t mon;
     uint8_t day;
     uint8_t hour;
     uint8_t min;
     uint8_t sec;
+    uint8_t unit;
 };
 
 struct cmd_getconfig {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_getconfig {
     struct config_data data;
 };
 
 struct cmd_setconfig {
-    uint8_t command;
+    uint16_t command;
     uint8_t mode;
     struct config_data data;
 };
@@ -121,14 +122,14 @@ struct res_setconfig {
 };
 
 struct cmd_getstatus {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_getstatus {
     uint8_t status;
 };
 
 struct cmd_wifi_scan {
-    uint8_t command;
+    uint16_t command;
     uint8_t clear;
 };
 struct res_wifi_scan {
@@ -138,7 +139,7 @@ struct res_wifi_scan {
 };
 
 struct cmd_smb2_enum {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_smb2_enum {
     uint8_t status;
@@ -147,7 +148,7 @@ struct res_smb2_enum {
 };
 
 struct cmd_smb2_list {
-    uint8_t command;
+    uint16_t command;
     uint8_t share[64];
     uint8_t path[256];
 };
@@ -157,21 +158,21 @@ struct res_smb2_list {
 };
 
 struct cmd_flashconfig {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_flashconfig {
     uint8_t status;
 };
 
 struct cmd_flashclear {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_flashclear {
     uint8_t status;
 };
 
 struct cmd_reboot {
-    uint8_t command;
+    uint16_t command;
 };
 struct res_reboot {
     uint8_t status;
