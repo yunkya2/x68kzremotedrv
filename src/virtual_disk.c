@@ -74,6 +74,9 @@ static struct diskinfo {
     int sects;
 } diskinfo[7];
 
+static int remoteunit;
+static bool remoteboot;
+
 //****************************************************************************
 // for debugging
 //****************************************************************************
@@ -279,7 +282,8 @@ int vd_init(void)
 
     xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
 
-    int remoteunit =  atoi(config.remoteunit);
+    remoteunit = atoi(config.remoteunit);
+    remoteboot = atoi(config.remoteboot);
 
     if (sysstatus >= STAT_SMB2_CONNECTED) {
         /* Set up remote drive */
@@ -300,7 +304,7 @@ int vd_init(void)
 
         /* Set up remote drive boot */
         int id = 0;
-        if (atoi(config.remoteboot) != 0) {
+        if (remoteboot) {
             diskinfo[id].type = DTYPE_REMOTEBOOT;
             diskinfo[id].size = 0x20000;
             id++;
@@ -496,6 +500,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         if (lba >= diskinfo[id].sects)
             return -1;
         DPRINTF3("disk %d: read 0x%x\n", id, lba);
+
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (lba == 2) {
                 // boot loader
@@ -509,26 +514,34 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 return -1;
             return 0;
         }
+
         if (diskinfo[id].type == DTYPE_REMOTEBOOT ||
-            diskinfo[id].type == DTYPE_REMOTECOMM) {
+            (!remoteboot && diskinfo[id].type == DTYPE_REMOTECOMM)) {
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
                 memcpy(&buf[16], "X68000ZRemoteDrv", 16);
-            } else if (lba == 2) {
-                // boot loader
-                memcpy(buf, bootloader, sizeof(bootloader));
-                buf[5] = sysstatus;
+                return 0;
             } else if (lba == 4) {
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);
                 memcpy(buf + 16 , "Human68k", 8);
+                return 0;
             } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
                 // SCSI device driver
                 lba -= 0xc00 / 512;
                 if (lba <= sizeof(scsiremote) / 512) {
                     memcpy(buf, &scsiremote[lba * 512], 512);
                 }
+                return 0;
+            }
+        }
+        if (diskinfo[id].type == DTYPE_REMOTEBOOT) {
+            if (lba == 2) {
+                // boot loader
+                memcpy(buf, bootloader, sizeof(bootloader));
+                buf[5] = sysstatus;
+                return 0;
             } else if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
@@ -555,13 +568,18 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                         DPRINTF1("HUMAN.SYS closed.\n");
                     }
                 }
-            } else if (lba >= (0x20000 / 512) && lba < (0x40000 / 512)) {
+                return 0;
+            }
+        }
+        if (diskinfo[id].type == DTYPE_REMOTECOMM) {
+            if (lba >= (0x20000 / 512) && lba < (0x40000 / 512)) {
                 // settingui.bin
                 lba -= 0x20000 / 512;
                 if (lba <= sizeof(settingui) / 512) {
                     memcpy(buf, &settingui[lba * 512], 512);
                 }
-            } else {
+                return 0;
+            } else if (lba >= (0x40000 / 512)) {
                 int page = vdbuf_rcnt + (lba % 8);
                 struct vdbuf *b = (struct vdbuf *)buf;
                 b->header = vdbuf_header;
@@ -571,8 +589,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 if ((lba % 8) == 7) {
                     vdbuf_rcnt += 8;
                 }
+                return 0;
             }
-            return 0;
         }
     }
 
