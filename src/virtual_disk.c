@@ -47,6 +47,7 @@
 
 #include "scsiremote.inc"
 #include "bootloader.inc"
+#include "settingui.inc"
 
 //****************************************************************************
 // Global variables
@@ -273,6 +274,7 @@ int vd_init(void)
 
     /* Open HDS files */
 
+#if 0
     if (smb2) {
         for (int id = 0; id < 7; id++) {
             struct diskinfo *d = &diskinfo[id];
@@ -304,6 +306,15 @@ int vd_init(void)
             }
         }
     }
+#else
+    struct diskinfo *d = &diskinfo[6];
+    /* Remote drive */
+    d->size = 0x80000000;
+    rootpath[0] = d->rootpath = "HFS";
+
+    diskinfo[0].size = 0x00000800;
+    diskinfo[0].rootpath = "HFS";
+#endif
 
     for (int i = 0; i < 7; i++) {
         diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
@@ -488,7 +499,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 static uint32_t humanlbamax = (uint32_t)-1;
                 if (lba <= humanlbamax && diskinfo[id].sfh == NULL) {
                     char human[256];
-                    strcpy(human, config.id[id]);
+                    strcpy(human, config.hds[id]);
                     strcat(human, "/HUMAN.SYS");
                     if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");
@@ -504,6 +515,12 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                         humanlbamax = lba;
                         DPRINTF1("HUMAN.SYS closed.\n");
                     }
+                }
+            } else if (lba >= (0x20000 / 512) && lba < (0x40000 / 512)) {
+                // settingui.bin
+                lba -= 0x20000 / 512;
+                if (lba <= sizeof(settingui) / 512) {
+                    memcpy(buf, &settingui[lba * 512], 512);
                 }
             } else {
                 int page = vdbuf_rcnt + (lba % 8);
