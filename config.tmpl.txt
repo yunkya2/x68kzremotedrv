@@ -4,25 +4,32 @@
 WIFI_SSID: %s
 WIFI_PASSWORD: ********
 
-# Windows ファイル共有のユーザ名、パスワード、ワークグループ名
+# Windows ファイル共有のユーザ名、パスワード、ワークグループ名、サーバ名
 SMB2_USERNAME: %s
 SMB2_PASSWORD: ********
 SMB2_WORKGROUP: %s
-# Windows ファイル共有のサーバ名、共有名
 SMB2_SERVER: %s
-SMB2_SHARE: %s
 
-# X68000Z に見せるリモートドライブ/HDSの場所
-# SCSI ID 0～6 について Windows ファイル共有のパスを指定する
-# HDS ファイル名を指定した場合はリモートHDS
-# ディレクトリ名を指定した場合はリモートドライブとして扱う
-ID0: %s
-ID1: %s
-ID2: %s
-ID3: %s
-ID4: %s
-ID5: %s
-ID6: %s
+# X68000Z に見せるHDSファイルの場所
+HDS0: %s
+HDS1: %s
+HDS2: %s
+HDS3: %s
+
+# リモートドライブからの起動を行うかどうか (0=行わない/1=行う)
+RMTBOOT: %s
+# リモートドライブのユニット数 (0-4) 0ならリモートドライブは使用しない
+RMTUNIT: %s
+
+# X68000Z に見せるリモートドライブの場所
+REMOTE0: %s
+REMOTE1: %s
+REMOTE2: %s
+REMOTE3: %s
+REMOTE4: %s
+REMOTE5: %s
+REMOTE6: %s
+REMOTE7: %s
 
 # タイムゾーン設定
 TZ: %s

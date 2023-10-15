@@ -55,13 +55,15 @@ struct config_data {
     char smb2_user[16];
     char smb2_passwd[16];
     char smb2_workgroup[16];
-
     char smb2_server[32];
-    char smb2_share[32];
-    char id[7][128];
+
+    char remoteboot[4];
+    char remoteunit[4];
+    char remote[8][128];
+    char hds[4][128];
 
     char tz[16];
-    char tadjust[8];
+    char tadjust[4];
 };
 
 /* scsiremote.sys communication protocol definition */

@@ -69,36 +69,49 @@ const struct config_item {
     size_t valuesz;
     int flag;
 } config_items[] = {
-    { "WIFI_SSID:",                 "<ssid>",
+    { "WIFI_SSID:",                 NULL,
       config.wifi_ssid,             sizeof(config.wifi_ssid),       0 },
     { "WIFI_PASSWORD:",             NULL,
       config.wifi_passwd,           sizeof(config.wifi_passwd),     CF_HIDDEN },
 
-    { "SMB2_USERNAME:",             "<user>",
+    { "SMB2_USERNAME:",             NULL,
       config.smb2_user,             sizeof(config.smb2_user),       0 },
     { "SMB2_PASSWORD:",             NULL,
       config.smb2_passwd,           sizeof(config.smb2_passwd),     CF_HIDDEN },
     { "SMB2_WORKGROUP:",            "WORKGROUP",
       config.smb2_workgroup,        sizeof(config.smb2_workgroup),  0 },
-
-    { "SMB2_SERVER:",               "<server>",
+    { "SMB2_SERVER:",               NULL,
       config.smb2_server,           sizeof(config.smb2_server),     0 },
-    { "SMB2_SHARE:",                "<share>",
-      config.smb2_share,            sizeof(config.smb2_share),      0 },
-    { "ID0:",                       NULL,
-      config.id[0],                 sizeof(config.id[0]),           CF_URL },
-    { "ID1:",                       NULL,
-      config.id[1],                 sizeof(config.id[1]),           CF_URL },
-    { "ID2:",                       NULL,
-      config.id[2],                 sizeof(config.id[2]),           CF_URL },
-    { "ID3:",                       NULL,
-      config.id[3],                 sizeof(config.id[3]),           CF_URL },
-    { "ID4:",                       NULL,
-      config.id[4],                 sizeof(config.id[4]),           CF_URL },
-    { "ID5:",                       NULL,
-      config.id[5],                 sizeof(config.id[5]),           CF_URL },
-    { "ID6:",                       NULL,
-      config.id[6],                 sizeof(config.id[6]),           CF_URL },
+
+    { "REMOTE_BOOT:",               "0",
+      config.remoteboot,            sizeof(config.remoteboot),      0 },
+    { "REMOTE_UNIT:",               "0",
+      config.remoteunit,            sizeof(config.remoteunit),      0 },
+    { "REMOTE0:",                   NULL,
+      config.remote[0],             sizeof(config.remote[0]),       CF_URL },
+    { "REMOTE1:",                   NULL,
+      config.remote[1],             sizeof(config.remote[1]),       CF_URL },
+    { "REMOTE2:",                   NULL,
+      config.remote[2],             sizeof(config.remote[2]),       CF_URL },
+    { "REMOTE3:",                   NULL,
+      config.remote[3],             sizeof(config.remote[3]),       CF_URL },
+    { "REMOTE4:",                   NULL,
+      config.remote[4],             sizeof(config.remote[4]),       CF_URL },
+    { "REMOTE5:",                   NULL,
+      config.remote[5],             sizeof(config.remote[5]),       CF_URL },
+    { "REMOTE6:",                   NULL,
+      config.remote[6],             sizeof(config.remote[6]),       CF_URL },
+    { "REMOTE7:",                   NULL,
+      config.remote[7],             sizeof(config.remote[7]),       CF_URL },
+
+    { "HDS0:",                       NULL,
+      config.hds[0],                sizeof(config.hds[0]),           CF_URL },
+    { "HDS1:",                       NULL,
+      config.hds[1],                sizeof(config.hds[1]),           CF_URL },
+    { "HDS2:",                       NULL,
+      config.hds[2],                sizeof(config.hds[2]),           CF_URL },
+    { "HDS3:",                       NULL,
+      config.hds[3],                sizeof(config.hds[3]),           CF_URL },
 
     { "TZ:",                        "JST-9",
       config.tz,                    sizeof(config.tz),              0 },
@@ -114,8 +127,7 @@ const struct config_item {
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v2"
-#define CONFIG_FLASH_MAGIC_v1   "X68000Z Remote Drive Config v1"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v3"
 
 void config_read(void)
 {
@@ -133,17 +145,6 @@ void config_read(void)
             memcpy(c->value, p, c->valuesz);
             p += c->valuesz;
         }
-    } else if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC_v1, sizeof(CONFIG_FLASH_MAGIC_v1)) == 0) {
-        for (i = 0; i < CONFIG_ITEMS - 1; i++) {
-            const struct config_item *c = &config_items[i];
-            memcpy(c->value, p, c->valuesz);
-            p += c->valuesz;
-        }
-        for (; i < CONFIG_ITEMS; i++) {
-            const struct config_item *c = &config_items[i];
-            if (c->defval)
-                strcpy(c->value, c->defval);
-        }
     } else {
         for (i = 0; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
@@ -152,8 +153,14 @@ void config_read(void)
         }
     }
 
-    for (i = 0; i < 7; i++) {
-        for (char *p = config.id[i]; *p != '\0'; p++) {
+    for (i = 0; i < 8; i++) {
+        for (char *p = config.remote[i]; *p != '\0'; p++) {
+            if (*p == '/')
+                *p = '\\';
+        }
+    }
+    for (i = 0; i < 4; i++) {
+        for (char *p = config.hds[i]; *p != '\0'; p++) {
             if (*p == '/')
                 *p = '\\';
         }
@@ -162,20 +169,31 @@ void config_read(void)
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
              config.wifi_ssid,
-             config.smb2_user, config.smb2_workgroup,
-             config.smb2_server, config.smb2_share,
-             config.id[0],
-             config.id[1],
-             config.id[2],
-             config.id[3],
-             config.id[4],
-             config.id[5],
-             config.id[6],
+             config.smb2_user, config.smb2_workgroup, config.smb2_server,
+             config.hds[0],
+             config.hds[1],
+             config.hds[2],
+             config.hds[3],
+             config.remoteboot, config.remoteunit,
+             config.remote[0],
+             config.remote[1],
+             config.remote[2],
+             config.remote[3],
+             config.remote[4],
+             config.remote[5],
+             config.remote[6],
+             config.remote[7],
              config.tz,
              config.tadjust);
 
-    for (i = 0; i < 7; i++) {
-        for (char *p = config.id[i]; *p != '\0'; p++) {
+    for (i = 0; i < 8; i++) {
+        for (char *p = config.remote[i]; *p != '\0'; p++) {
+            if (*p == '\\')
+                *p = '/';
+        }
+    }
+    for (i = 0; i < 4; i++) {
+        for (char *p = config.hds[i]; *p != '\0'; p++) {
             if (*p == '\\')
                 *p = '/';
         }
