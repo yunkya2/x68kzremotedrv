@@ -51,7 +51,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: scsiremote.inc bootloader.inc settingui.inc clrconfig.uf2
+all: scsiremote.inc bootloader.inc hdsboot.inc settingui.inc clrconfig.uf2
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -69,6 +69,9 @@ settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h setting
 settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 
 bootloader.bin: bootloader.o
+	$(OBJCOPY) -O binary $< $@
+
+hdsboot.bin: hdsboot.o
 	$(OBJCOPY) -O binary $< $@
 
 settingui.bin: settingui.o settinguisub.o

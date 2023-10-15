@@ -47,6 +47,7 @@
 
 #include "scsiremote.inc"
 #include "bootloader.inc"
+#include "hdsboot.inc"
 #include "settingui.inc"
 
 //****************************************************************************
@@ -496,6 +497,14 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return -1;
         DPRINTF3("disk %d: read 0x%x\n", id, lba);
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
+            if (lba == 2) {
+                // boot loader
+                memcpy(buf, hdsboot, sizeof(hdsboot));
+                return 0;
+            }
+            if (lba == 0x20 || lba == 0x21) {
+                lba -= 0x20 - 2;
+            }
             if (cache_read(id, lba, buf) < 0)
                 return -1;
             return 0;
