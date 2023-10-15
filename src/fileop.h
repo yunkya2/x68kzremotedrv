@@ -27,6 +27,7 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <stdint.h>
 #include <fcntl.h>
 #include <unistd.h>
 #include <time.h>
@@ -46,11 +47,38 @@ typedef struct smb2_stat_64 TYPE_STAT;
 #define STAT_MTIME(st)    ((st)->smb2_mtime)
 #define STAT_ISDIR(st)    ((st)->smb2_type == SMB2_TYPE_DIRECTORY)
 
-typedef struct smb2dir TYPE_DIR;
 typedef struct smb2dirent TYPE_DIRENT;
-typedef struct smb2fh *TYPE_FD;
-#define FD_BADFD NULL
-#define DIRENT_NAME(d)    ((char *)(d)->name);
+#define DIRENT_NAME(d)    ((char *)(d)->name)
+
+typedef uint64_t TYPE_DIR;
+#define DIR_BADDIR        (uint64_t)0
+union smb2dd {
+  struct {
+    struct smb2dir *dir;
+    struct smb2_context *smb2;
+  };
+  uint64_t dd;
+};
+#define dir2dir(dir)      (((union smb2dd *)&dir)->dir)
+#define dir2smb2(dir)     (((union smb2dd *)&dir)->smb2)
+
+typedef uint64_t TYPE_FD;
+#define FD_BADFD          (uint64_t)0
+union smb2fd {
+  struct {
+    struct smb2fh *sfh;
+    struct smb2_context *smb2;
+  };
+  uint64_t fd;
+};
+#define fd2sfh(fd)        (((union smb2fd *)&fd)->sfh)
+#define fd2smb2(fd)       (((union smb2fd *)&fd)->smb2)
+
+static inline const char *path2path(const char *path)
+{
+  const char *p = strchr(path, '/') + 1;
+  return (*p == '/') ? p + 1 : p;
+}
 
 //****************************************************************************
 // Endian functions
@@ -108,35 +136,35 @@ static inline int FUNC_CHMOD(int *err, const char *path, int mode)
 
 static inline int FUNC_STAT(int *err, const char *path, TYPE_STAT *st)
 {
-  int r = smb2_stat(smb2, path, st);
+  int r = smb2_stat(path2smb2(path), path2path(path), st);
   if (err)
     *err = -r;
   return r;
 }
 static inline int FUNC_MKDIR(int *err, const char *path)
 {
-  int r = smb2_mkdir(smb2, path);
+  int r = smb2_mkdir(path2smb2(path), path2path(path));
   if (err)
     *err = -r;
   return r;
 }
 static inline int FUNC_RMDIR(int *err, const char *path)
 {
-  int r = smb2_rmdir(smb2, path);
+  int r = smb2_rmdir(path2smb2(path), path2path(path));
   if (err)
     *err = -r;
   return r;
 }
 static inline int FUNC_RENAME(int *err, const char *pathold, const char *pathnew)
 {
-  int r = smb2_rename(smb2, pathold, pathnew);
+  int r = smb2_rename(path2smb2(pathold), path2path(pathold), path2path(pathnew));
   if (err)
     *err = -r;
   return r;
 }
 static inline int FUNC_UNLINK(int *err, const char *path)
 {
-  int r = smb2_unlink(smb2, path);
+  int r = smb2_unlink(path2smb2(path), path2path(path));
   if (err)
     *err = -r;
   return r;
@@ -146,23 +174,28 @@ static inline int FUNC_UNLINK(int *err, const char *path)
 // Directory operations
 //****************************************************************************
 
-static inline TYPE_DIR *FUNC_OPENDIR(int *err, const char *path)
+static inline TYPE_DIR FUNC_OPENDIR(int *err, const char *path)
 {
-  TYPE_DIR *dir = smb2_opendir(smb2, path);
+  union smb2dd dir;
+  struct smb2_context *smb2 = path2smb2(path);
+  dir.dir = smb2_opendir(smb2, path2path(path));
+  if (dir.dir) {
+    dir.smb2 = smb2;
+  }
   if (err)
     *err = nterror_to_errno(smb2_get_nterror(smb2));
-  return dir;
+  return dir.dd;
 }
-static inline TYPE_DIRENT *FUNC_READDIR(int *err, TYPE_DIR *dir)
+static inline TYPE_DIRENT *FUNC_READDIR(int *err, TYPE_DIR dir)
 {
-  TYPE_DIRENT *d = smb2_readdir(smb2, dir);
+  TYPE_DIRENT *d = smb2_readdir(dir2smb2(dir), dir2dir(dir));
   if (err)
-    *err = nterror_to_errno(smb2_get_nterror(smb2));
+    *err = nterror_to_errno(smb2_get_nterror(dir2smb2(dir)));
   return d;
 }
-static inline int FUNC_CLOSEDIR(int *err, TYPE_DIR *dir)
+static inline int FUNC_CLOSEDIR(int *err, TYPE_DIR dir)
 { 
-  smb2_closedir(smb2, dir);
+  smb2_closedir(dir2smb2(dir), dir2dir(dir));
   return 0;
 }
 
@@ -172,21 +205,26 @@ static inline int FUNC_CLOSEDIR(int *err, TYPE_DIR *dir)
 
 static inline TYPE_FD FUNC_OPEN(int *err, const char *path, int flags)
 {
-  TYPE_FD fd = smb2_open(smb2, path, flags);
+  union smb2fd fd = { .fd = FD_BADFD };
+  struct smb2_context *smb2 = path2smb2(path);
+  fd.sfh = smb2_open(smb2, path2path(path), flags);
+  if (fd.sfh) {
+    fd.smb2 = smb2;
+  }
   if (err)
     *err = nterror_to_errno(smb2_get_nterror(smb2));
-  return fd;
+  return fd.fd;
 }
 static inline int FUNC_CLOSE(int *err, TYPE_FD fd)
 {
-  int r = smb2_close(smb2, fd);
+  int r = smb2_close(fd2smb2(fd), fd2sfh(fd));
   if (err)
     *err = -r;
   return r;
 }
 static inline ssize_t FUNC_READ(int *err, TYPE_FD fd, void *buf, size_t count)
 {
-  ssize_t r = smb2_read(smb2, fd, buf, count);
+  ssize_t r = smb2_read(fd2smb2(fd), fd2sfh(fd), buf, count);
   if (err)
     *err = -r;
   return r;
@@ -196,7 +234,7 @@ static inline ssize_t FUNC_WRITE(int *err, TYPE_FD fd, const void *buf, size_t c
   ssize_t res = 0;
   while (count > 0) {
     int c = count > 1024 ? 1024 : count;
-    ssize_t r = smb2_write(smb2, fd, buf, c);
+    ssize_t r = smb2_write(fd2smb2(fd), fd2sfh(fd), buf, c);
     if (r < 0) {
       res = r;
       break;
@@ -213,7 +251,7 @@ static inline ssize_t FUNC_WRITE(int *err, TYPE_FD fd, const void *buf, size_t c
 }
 static inline int FUNC_FTRUNCATE(int *err, TYPE_FD fd, off_t length)
 {
-  int r = smb2_ftruncate(smb2, fd, length);
+  int r = smb2_ftruncate(fd2smb2(fd), fd2sfh(fd), length);
   if (err)
     *err = -r;
   return r;
@@ -221,14 +259,14 @@ static inline int FUNC_FTRUNCATE(int *err, TYPE_FD fd, off_t length)
 static inline off_t FUNC_LSEEK(int *err, TYPE_FD fd, off_t offset, int whence)
 {
   uint64_t cur;
-  off_t r = smb2_lseek(smb2, fd, offset, whence, &cur);
+  off_t r = smb2_lseek(fd2smb2(fd), fd2sfh(fd), offset, whence, &cur);
   if (err)
     *err = -r;
   return r;
 }
 static inline int FUNC_FSTAT(int *err, TYPE_FD fd, TYPE_STAT *st)
 {
-  int r = smb2_fstat(smb2, fd, st);
+  int r = smb2_fstat(fd2smb2(fd), fd2sfh(fd), st);
   if (err)
     *err = -r;
   return r;
@@ -246,7 +284,7 @@ static inline int FUNC_FILEDATE(int *err, TYPE_FD fd, uint16_t time, uint16_t da
 static inline int FUNC_STATFS(int *err, const char *path, uint64_t *total, uint64_t *free)
 {
   struct smb2_statvfs sf;
-  smb2_statvfs(smb2, path, &sf);
+  smb2_statvfs(path2smb2(path), path2path(path), &sf);
   *total = sf.f_blocks * sf.f_bsize;
   *free = sf.f_bfree * sf.f_bsize;
   return 0;
