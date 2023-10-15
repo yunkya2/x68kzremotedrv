@@ -42,4 +42,9 @@ extern uint64_t boottime;
 extern TaskHandle_t main_th;
 extern TaskHandle_t connect_th;
 
+struct smb2_context *connect_smb2(const char *share);
+struct smb2_context *path2smb2(const char *path);
+struct smb2_context *connect_smb2_path(const char *path, const char **shpath);
+void disconnect_smb2(void);
+
 #endif /* _MAIN_H_ */

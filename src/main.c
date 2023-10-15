@@ -119,30 +119,10 @@ static void connection(int mode)
             break;
         }
 
-        smb2 = smb2_init_context();
-        if (smb2 == NULL) {
-            printf("Failed to init SMB2 context\n");
-            break;
-        }
-
-        if (strlen(config.smb2_user))
-            smb2_set_user(smb2, config.smb2_user);
-        if (strlen(config.smb2_passwd))
-            smb2_set_password(smb2, config.smb2_passwd);
-        if (strlen(config.smb2_workgroup))
-            smb2_set_workstation(smb2, config.smb2_workgroup);
-
-        smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
-
-        printf("SMB2 connection server:%s share:%s\n", config.smb2_server, "IPC$");
-
         sysstatus = STAT_SMB2_CONNECTING;
 
-        if (smb2_connect_share(smb2, config.smb2_server, "IPC$", config.smb2_user) < 0) {
+        if ((smb2 = connect_smb2("IPC$")) == NULL) {
             sysstatus = STAT_WIFI_CONNECTED;
-            printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
-            smb2_destroy_context(smb2);
-            smb2 = NULL;
             break;
         }
 
@@ -152,8 +132,6 @@ static void connection(int mode)
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
         struct tm *tm = localtime(&tt);
         printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-
-        printf("SMB2 connection established.\n");
 
         /* fall through */
 

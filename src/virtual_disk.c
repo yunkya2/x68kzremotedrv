@@ -60,9 +60,15 @@ int debuglevel = 0;
 // Static variables
 //****************************************************************************
 
+#define DTYPE_NOTUSED       0
+#define DTYPE_HDS           1
+#define DTYPE_REMOTEBOOT    2
+#define DTYPE_REMOTECOMM    3
+
 static struct diskinfo {
-    const char *rootpath;
+    int type;
     struct smb2fh *sfh;
+    struct smb2_context *smb2;
     uint32_t size;
     int sects;
 } diskinfo[7];
@@ -217,10 +223,10 @@ int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
 
     struct cache *c = &cache[cache_next];
     uint64_t cur;
-    if (smb2_lseek(smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+    if (smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
         return -1;
     c->sects = 0;
-    int sz = smb2_read(smb2, diskinfo[id].sfh, c->data, DISK_CACHE_SIZE);
+    int sz = smb2_read(diskinfo[id].smb2, diskinfo[id].sfh, c->data, DISK_CACHE_SIZE);
     if (sz < 0)
         return -1;
     c->id = id;
@@ -245,9 +251,9 @@ int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
     }
 
     uint64_t cur;
-    if (smb2_lseek(smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
+    if (smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
         return -1;
-    int sz = smb2_write(smb2, diskinfo[id].sfh, buf, SECTOR_SIZE);
+    int sz = smb2_write(diskinfo[id].smb2, diskinfo[id].sfh, buf, SECTOR_SIZE);
     if (sz < 0)
         return -1;
     return 0;
@@ -272,49 +278,68 @@ int vd_init(void)
 
     xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
 
-    /* Open HDS files */
+    int remoteunit =  atoi(config.remoteunit);
 
-#if 0
-    if (smb2) {
-        for (int id = 0; id < 7; id++) {
-            struct diskinfo *d = &diskinfo[id];
-            if (strlen(config.id[id]) == 0)
+    if (sysstatus >= STAT_SMB2_CONNECTED) {
+        /* Set up remote drive */
+        for (int i = 0; i < remoteunit; i++) {
+            struct smb2_context *smb2;
+            const char *shpath;
+            if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
                 continue;
 
             struct smb2_stat_64 st;
-            if (smb2_stat(smb2, config.id[id], &st) < 0) {
-                printf("File %s not found.\n", config.id[id]);
+            if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
+                printf("%s is not directory.\n", config.remote[i]);
                 continue;
             }
+            rootpath[i] = config.remote[i];
+            printf("REMOTE%u: %s\n", i, config.remote[i]);
+        }
 
-            if (st.smb2_type == SMB2_TYPE_FILE) {
-                /* HDS file */
-                if ((d->sfh = smb2_open(smb2, config.id[id], O_RDWR)) == NULL) {
-                    printf("File %s open failure.\n", config.id[id]);
-                    continue;
-                }
-                d->size = st.smb2_size;
-                d->rootpath = NULL;
-                printf("ID=%d file:%s size:%lld\n", id, config.id[id], st.smb2_size);
-            } else {
-                if (rootpath[0] == NULL) {
-                    /* Remote drive */
-                    d->size = 0x80000000;
-                    rootpath[0] = d->rootpath = config.id[id];
-                    printf("ID=%d dir:%s\n", id, config.id[id]);
-                }
+        /* Set up remote drive boot */
+        int id = 0;
+        if (atoi(config.remoteboot) != 0) {
+            diskinfo[id].type = DTYPE_REMOTEBOOT;
+            diskinfo[id].size = 0x20000;
+            id++;
+        }
+
+        /* Set up remote HDS */
+        for (int i = 0; i < countof(config.hds); i++) {
+            struct smb2_context *smb2;
+            const char *shpath;
+            if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
+                continue;
+
+            struct smb2_stat_64 st;
+            if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
+                printf("File %s not found.\n", config.hds[i]);
+                continue;
             }
+            if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
+                printf("File %s open failure.\n", config.hds[i]);
+                continue;
+            }
+            diskinfo[id].smb2 = smb2;
+            diskinfo[id].type = DTYPE_HDS;
+            diskinfo[id].size = st.smb2_size;
+            printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
+            id++;
+        }
+
+        sysstatus = STAT_CONFIGURED;
+    } else {
+        /* not configured */
+        for (int i = 0; i < 6; i++) {
+            diskinfo[i].type = DTYPE_REMOTEBOOT;
+            diskinfo[i].size = 0x800;
         }
     }
-#else
-    struct diskinfo *d = &diskinfo[6];
-    /* Remote drive */
-    d->size = 0x80000000;
-    rootpath[0] = d->rootpath = "HFS";
 
-    diskinfo[0].size = 0x00000800;
-    diskinfo[0].rootpath = "HFS";
-#endif
+    /* SCSI ID 6 : for remote communication */
+    diskinfo[6].type = DTYPE_REMOTECOMM;
+    diskinfo[6].size = 0x80000000;
 
     for (int i = 0; i < 7; i++) {
         diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
@@ -322,7 +347,7 @@ int vd_init(void)
 
     strcpy(pscsiini, "[pscsi]\r\n");
     for (int i = 0; i < 7; i++) {
-        if (diskinfo[i].size) {
+        if (diskinfo[i].type != DTYPE_NOTUSED) {
             char str[32] = "IDx=diskx.hds\r\n";
             str[2] = '0' + i;
             str[8] = '0' + i;
@@ -357,7 +382,7 @@ int vd_init(void)
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     for (int i = 0; i < 7; i++) {
-        if (diskinfo[i].size) {
+        if (diskinfo[i].type != DTYPE_NOTUSED) {
             char fn[12] = "DISKx   HDS";
             fn[4] = '0' + i;
             init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, diskinfo[i].size);
@@ -406,7 +431,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             uint32_t *lbuf = (uint32_t *)buf;
             int id = (lba - 0x400) / 0x400;
             lba %= 0x400;
-            if (diskinfo[id].size) {
+            if (diskinfo[id].type != DTYPE_NOTUSED) {
                 // 1セクタ分のFAT領域(512/4=128エントリ)が占めるディスク領域 (128*32kB = 4MB)
                 int fatdsz = FATENTS_SECT * CLUSTER_SIZE;
                 // ファイルに使用するFAT領域のセクタ数(1セクタ未満切り捨て)
@@ -465,15 +490,18 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         lba -= 0x00803fa0;
         int id = lba / 0x800000;
         lba %= 0x800000;
+        if (diskinfo[id].type == DTYPE_NOTUSED)
+            return -1;
         if (lba >= diskinfo[id].sects)
             return -1;
         DPRINTF3("disk %d: read 0x%x\n", id, lba);
-        if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
+        if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (cache_read(id, lba, buf) < 0)
                 return -1;
             return 0;
         }
-        if (diskinfo[id].rootpath) {
+        if (diskinfo[id].type == DTYPE_REMOTEBOOT ||
+            diskinfo[id].type == DTYPE_REMOTECOMM) {
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
@@ -499,18 +527,20 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 static uint32_t humanlbamax = (uint32_t)-1;
                 if (lba <= humanlbamax && diskinfo[id].sfh == NULL) {
                     char human[256];
-                    strcpy(human, config.hds[id]);
+                    strcpy(human, rootpath[0]);
                     strcat(human, "/HUMAN.SYS");
-                    if ((diskinfo[id].sfh = smb2_open(smb2, human, O_RDONLY)) == NULL) {
+                    diskinfo[id].smb2 = path2smb2(human);
+                    char *p = strchr(human, '/') + 1;
+                    if ((diskinfo[id].sfh = smb2_open(diskinfo[id].smb2, p, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");
                     } else {
                         DPRINTF1("HUMAN.SYS opened.\n");
                     }
                 }
                 if (diskinfo[id].sfh != NULL &&
-                    smb2_lseek(smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
-                    if (smb2_read(smb2, diskinfo[id].sfh, buf, 512) != 512) {
-                        smb2_close(smb2, diskinfo[id].sfh);
+                    smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
+                    if (smb2_read(diskinfo[id].smb2, diskinfo[id].sfh, buf, 512) != 512) {
+                        smb2_close(diskinfo[id].smb2, diskinfo[id].sfh);
                         diskinfo[id].sfh = NULL;
                         humanlbamax = lba;
                         DPRINTF1("HUMAN.SYS closed.\n");
@@ -574,15 +604,17 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         lba -= 0x00803fa0;
         int id = lba / 0x800000;
         lba %= 0x800000;
+        if (diskinfo[id].type == DTYPE_NOTUSED)
+            return -1;
         if (lba >= diskinfo[id].sects)
             return -1;
         DPRINTF3("disk %d: write 0x%x\n", id, lba);
-        if (diskinfo[id].rootpath == NULL && diskinfo[id].sfh != NULL) {
+        if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (cache_write(id, lba, buf) < 0)
                 return -1;
             return 0;
         }
-        if (diskinfo[id].rootpath) {
+        if (diskinfo[id].type == DTYPE_REMOTECOMM) {
             struct vdbuf *b = (struct vdbuf *)buf;
             if (b->header.signature != 0x5a383658) {   /* "X68Z" (big endian) */
                 return -1;
