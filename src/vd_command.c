@@ -268,15 +268,15 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       smb2_enum_finished = false;
       smb2_enum_ptr = res;
-      if (smb2_share_enum_async(smb2, se_cb, NULL) != 0) {
-        printf("smb2_share_enum failed. %s\n", smb2_get_error(smb2));
+      if (smb2_share_enum_async(smb2ipc, se_cb, NULL) != 0) {
+        printf("smb2_share_enum failed. %s\n", smb2_get_error(smb2ipc));
         res->status = -1;
         goto errout_enum;
       }
 
       while (!smb2_enum_finished) {
-        pfd.fd = smb2_get_fd(smb2);
-        pfd.events = smb2_which_events(smb2);
+        pfd.fd = smb2_get_fd(smb2ipc);
+        pfd.events = smb2_which_events(smb2ipc);
 
         if (lwip_poll(&pfd, 1, 1000) < 0) {
           printf("Poll failed");
@@ -286,8 +286,8 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         if (pfd.revents == 0) {
           continue;
         }
-        if (smb2_service(smb2, pfd.revents) < 0) {
-          printf("smb2_service failed with : %s\n", smb2_get_error(smb2));
+        if (smb2_service(smb2ipc, pfd.revents) < 0) {
+          printf("smb2_service failed with : %s\n", smb2_get_error(smb2ipc));
           res->status = -1;
           goto errout_enum;
         }
@@ -319,26 +319,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       res->status = -1;
 
-      smb2 = smb2_init_context();
-      if (smb2 == NULL) {
-        printf("Failed to init SMB2 context\n");
-        break;
-      }
-
-      if (strlen(config.smb2_user))
-          smb2_set_user(smb2, config.smb2_user);
-      if (strlen(config.smb2_passwd))
-          smb2_set_password(smb2, config.smb2_passwd);
-      if (strlen(config.smb2_workgroup))
-          smb2_set_workstation(smb2, config.smb2_workgroup);
-
-      smb2_set_security_mode(smb2, SMB2_NEGOTIATE_SIGNING_ENABLED);
-
-      printf("SMB2 connection server:%s share:%s path:%s\n", config.smb2_server, cmd->share, path);
-
-      if (smb2_connect_share(smb2, config.smb2_server, cmd->share, config.smb2_user) < 0) {
-        printf("smb2_connect_share failed. %s\n", smb2_get_error(smb2));
-        smb2_destroy_context(smb2);
+      if ((smb2 = connect_smb2(cmd->share)) == NULL) {
         break;
       }
 

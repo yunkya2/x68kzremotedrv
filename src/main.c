@@ -85,7 +85,7 @@ static void log_out_init(void)
 // Connect task
 //****************************************************************************
 
-struct smb2_context *smb2;
+struct smb2_context *smb2ipc;
 
 static void connection(int mode)
 {
@@ -121,14 +121,14 @@ static void connection(int mode)
 
         sysstatus = STAT_SMB2_CONNECTING;
 
-        if ((smb2 = connect_smb2("IPC$")) == NULL) {
+        if ((smb2ipc = connect_smb2("IPC$")) == NULL) {
             sysstatus = STAT_WIFI_CONNECTED;
             break;
         }
 
         sysstatus = STAT_SMB2_CONNECTED;
 
-        boottime = (smb2_get_system_time(smb2) / 10) - (11644473600 * 1000000) - to_us_since_boot(get_absolute_time());
+        boottime = (smb2_get_system_time(smb2ipc) / 10) - (11644473600 * 1000000) - to_us_since_boot(get_absolute_time());
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
         struct tm *tm = localtime(&tt);
         printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);

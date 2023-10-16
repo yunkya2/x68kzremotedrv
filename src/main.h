@@ -36,7 +36,7 @@ extern volatile int sysstatus;
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 
-extern struct smb2_context *smb2;
+extern struct smb2_context *smb2ipc;
 extern uint64_t boottime;
 
 extern TaskHandle_t main_th;
