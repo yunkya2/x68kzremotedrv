@@ -28,10 +28,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <sys/stat.h>
-#include <sys/unistd.h>
-#include <sys/fcntl.h>
-#include <sys/time.h>
 #include <string.h>
 #include "hardware/watchdog.h"
 
@@ -185,82 +181,6 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
     entry->fstClusHI = cluster >> 16;
     entry->fstClusLO = cluster & 0xffff;
     entry->fileSize = len;
-}
-
-//****************************************************************************
-// Disk cache
-//****************************************************************************
-
-#define DISK_CACHE_SECTS    8
-#define DISK_CACHE_SIZE     (DISK_CACHE_SECTS * SECTOR_SIZE)
-#define DISK_CACHE_SETS     4
-
-static struct cache {
-    uint8_t data[DISK_CACHE_SIZE];
-    int id;
-    uint32_t lba;
-    size_t sects;
-} cache[DISK_CACHE_SETS];
-static int cache_next = 0;
-
-static void cache_init(void)
-{
-    for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        cache[i].id = -1;
-        cache[i].lba = 0xffffffff;
-        cache[i].sects = 0;
-    }
-}
-
-int cache_read(unsigned int id, uint32_t lba, uint8_t *buf)
-{
-    if (id >= 7 || diskinfo[id].sfh == NULL)
-        return -1;
-
-    for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        struct cache *c = &cache[i];
-        if (c->id == id && lba >= c->lba && lba < c->lba + c->sects) {
-            memcpy(buf, &c->data[(lba - c->lba) * SECTOR_SIZE], SECTOR_SIZE);
-            return 0;
-        }
-    }
-
-    struct cache *c = &cache[cache_next];
-    uint64_t cur;
-    if (smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
-        return -1;
-    c->sects = 0;
-    int sz = smb2_read(diskinfo[id].smb2, diskinfo[id].sfh, c->data, DISK_CACHE_SIZE);
-    if (sz < 0)
-        return -1;
-    c->id = id;
-    c->lba = lba;
-    c->sects = sz / SECTOR_SIZE;
-    cache_next =(cache_next + 1) % DISK_CACHE_SETS;
-    memcpy(buf, c->data, SECTOR_SIZE);
-    return 0;
-}
-
-int cache_write(unsigned int id, uint32_t lba, uint8_t *buf)
-{
-    if (id >= 7 || diskinfo[id].sfh == NULL)
-        return -1;
-
-    for (int i = 0; i < DISK_CACHE_SETS; i++) {
-        struct cache *c = &cache[i];
-        if (c->id == id && lba >= c->lba && lba < c->lba + c->sects) {
-            memcpy(&c->data[(lba - c->lba) * SECTOR_SIZE], buf, SECTOR_SIZE);
-            break;
-        }
-    }
-
-    uint64_t cur;
-    if (smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
-        return -1;
-    int sz = smb2_write(diskinfo[id].smb2, diskinfo[id].sfh, buf, SECTOR_SIZE);
-    if (sz < 0)
-        return -1;
-    return 0;
 }
 
 //****************************************************************************
@@ -510,7 +430,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0x20 || lba == 0x21) {
                 lba -= 0x20 - 2;
             }
-            if (cache_read(id, lba, buf) < 0)
+            if (hds_cache_read(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
                 return -1;
             return 0;
         }
@@ -637,7 +557,7 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
             return -1;
         DPRINTF3("disk %d: write 0x%x\n", id, lba);
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
-            if (cache_write(id, lba, buf) < 0)
+            if (hds_cache_write(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
                 return -1;
             return 0;
         }

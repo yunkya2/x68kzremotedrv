@@ -47,4 +47,8 @@ struct smb2_context *path2smb2(const char *path);
 struct smb2_context *connect_smb2_path(const char *path, const char **shpath);
 void disconnect_smb2(void);
 
+void hds_cache_init(void);
+int hds_cache_read(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, uint8_t *buf);
+int hds_cache_write(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, uint8_t *buf);
+
 #endif /* _MAIN_H_ */

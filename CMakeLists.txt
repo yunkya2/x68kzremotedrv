@@ -28,6 +28,7 @@ add_executable(
         src/msc_disk.c
         src/virtual_disk.c
         src/vd_command.c
+	src/hdscache.c
 	src/smb2connect.c
         src/config_file.c
         src/usb_descriptors.c
