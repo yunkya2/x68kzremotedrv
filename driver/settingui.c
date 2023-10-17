@@ -272,7 +272,7 @@ int flash_config(struct itemtbl *it, void *v)
     int k = keyinp(-1);
     int c = k & 0xff;
     if (c == 'y' || c == 'Y') {                         // Y
-      _iocs_b_putmes(3, 3, 29, 89, "設定を反映しました  X68000 Zをリセットして再起動してください");
+      _iocs_b_putmes(3, 3, 29, 89, "設定を反映しました  X68000 Zの電源を一度切って再投入してください");
       _iocs_b_putmes(3, 3, 30, 89, "");
 #ifndef XTEST
       {

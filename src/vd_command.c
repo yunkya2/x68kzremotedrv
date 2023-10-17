@@ -136,6 +136,7 @@ static void se_cb(struct smb2_context *smb2, int status,
   }
 
   smb2_free_data(smb2, rep);
+  smb2_enum_ptr->status = 0;
   smb2_enum_finished = true;
 }
 
@@ -178,6 +179,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_getconfig *res = (struct res_getconfig *)rbuf;
       rsize = sizeof(*res);
       res->data = config;
+
+      hds_cache_init();
+      disconnect_smb2_all();
       break;
     }
 
@@ -262,15 +266,20 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct cmd_smb2_enum *cmd = (struct cmd_smb2_enum *)cbuf;
       struct res_smb2_enum *res = (struct res_smb2_enum *)rbuf;
       struct pollfd pfd;
+      struct smb2_context *smb2ipc;
 
       rsize = sizeof(*res);
       memset(res, 0, rsize);
+      res->status = -1;
+
+      if ((smb2ipc = connect_smb2("IPC$")) == NULL) {
+        break;
+      }
 
       smb2_enum_finished = false;
       smb2_enum_ptr = res;
       if (smb2_share_enum_async(smb2ipc, se_cb, NULL) != 0) {
         printf("smb2_share_enum failed. %s\n", smb2_get_error(smb2ipc));
-        res->status = -1;
         goto errout_enum;
       }
 
@@ -280,7 +289,6 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
         if (lwip_poll(&pfd, 1, 1000) < 0) {
           printf("Poll failed");
-          res->status = -1;
           goto errout_enum;
         }
         if (pfd.revents == 0) {
@@ -288,13 +296,13 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         }
         if (smb2_service(smb2ipc, pfd.revents) < 0) {
           printf("smb2_service failed with : %s\n", smb2_get_error(smb2ipc));
-          res->status = -1;
           goto errout_enum;
         }
       }
     errout_enum:
       smb2_enum_finished = false;
       smb2_enum_ptr = NULL;
+      disconnect_smb2(smb2ipc);
       break;
     }
 
@@ -375,8 +383,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->status = 0;
       }
 
-      smb2_disconnect_share(smb2);
-      smb2_destroy_context(smb2);
+      disconnect_smb2(smb2);
       break;
     }
 

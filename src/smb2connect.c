@@ -74,6 +74,12 @@ struct smb2_context *connect_smb2(const char *share)
     return smb2;
 }
 
+void disconnect_smb2(struct smb2_context *smb2)
+{
+    smb2_disconnect_share(smb2);
+    smb2_destroy_context(smb2);
+}
+
 struct smb2_context *path2smb2(const char *path)
 {
     const char *p = strchr(path, '/');
@@ -121,15 +127,15 @@ struct smb2_context *connect_smb2_path(const char *path, const char **shpath)
     return smb2;
 }
 
-void disconnect_smb2(void)
+void disconnect_smb2_all(void)
 {
     struct smb2share *s = smb2share;
     while (s != NULL) {
-        smb2_disconnect_share(s->smb2);
-        smb2_destroy_context(s->smb2);
+        disconnect_smb2(s->smb2);
         free((char *)s->share);
         struct smb2share *next = s->next;
         free(s);
         s = next;
     }
+    smb2share = NULL;
 }

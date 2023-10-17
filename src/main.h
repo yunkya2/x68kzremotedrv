@@ -36,16 +36,16 @@ extern volatile int sysstatus;
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 
-extern struct smb2_context *smb2ipc;
 extern uint64_t boottime;
 
 extern TaskHandle_t main_th;
 extern TaskHandle_t connect_th;
 
 struct smb2_context *connect_smb2(const char *share);
+void disconnect_smb2(struct smb2_context *smb2);
 struct smb2_context *path2smb2(const char *path);
 struct smb2_context *connect_smb2_path(const char *path, const char **shpath);
-void disconnect_smb2(void);
+void disconnect_smb2_all(void);
 
 void hds_cache_init(void);
 int hds_cache_read(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, uint8_t *buf);

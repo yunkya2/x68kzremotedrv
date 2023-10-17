@@ -85,7 +85,7 @@ static void log_out_init(void)
 // Connect task
 //****************************************************************************
 
-struct smb2_context *smb2ipc;
+static struct smb2_context *smb2ipc;
 
 static void connection(int mode)
 {
@@ -132,6 +132,8 @@ static void connection(int mode)
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
         struct tm *tm = localtime(&tt);
         printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
+
+        disconnect_smb2(smb2ipc);
 
         /* fall through */
 
