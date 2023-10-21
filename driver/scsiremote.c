@@ -248,5 +248,14 @@ int com_init(struct dos_req_header *req)
 #endif
   DPRINTF1("Debug level: %d\r\n", debuglevel);
 
+#ifdef CONFIG_BOOTDRIVER
+  /* SCSI ROM のデバイスドライバ組み込み処理から渡される値
+   *「何番目のパーティションから起動するか」を Human68k のドライバ初期化処理に返す
+   * この値に基づいてどのドライブから起動するか (CONFIG.SYSをどのドライブから読むか) が決まる
+   */
+  extern uint8_t bootpart;
+  *(char *)&req->fcb = bootpart;
+#endif
+
   return unit;
 }
