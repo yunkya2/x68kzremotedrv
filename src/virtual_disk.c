@@ -231,7 +231,7 @@ int vd_init(void)
         }
 
         /* Set up remote HDS */
-        for (int i = 0; i < countof(config.hds); i++) {
+        for (int i = 0; i < countof(config.hds); i++, id++) {
             struct smb2_context *smb2;
             const char *shpath;
             if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
@@ -250,7 +250,6 @@ int vd_init(void)
             diskinfo[id].type = DTYPE_HDS;
             diskinfo[id].size = st.smb2_size;
             printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
-            id++;
         }
 
         sysstatus = STAT_CONFIGURED;
