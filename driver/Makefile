@@ -51,7 +51,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: scsiremote.inc bootloader.inc hdsboot.inc settingui.inc clrconfig.uf2
+all: scsiremote.inc bootloader.inc hdsboot.inc settingui.inc clrconfig.uf2 zrmtrescue.xdf
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -61,6 +61,9 @@ scsiremote.bin: scsiremote.sys
 
 scsiremote.sys: head.o remotedrv.o scsiremote.o
 	$(LD) -o $@ $^ -nostartfiles -s
+
+zrmtrescue.xdf: rescueboot.bin settingui.bin
+	./createrescue.py $^ $@
 
 head.o:       ../include/config.h
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
@@ -72,6 +75,9 @@ bootloader.bin: bootloader.o
 	$(OBJCOPY) -O binary $< $@
 
 hdsboot.bin: hdsboot.o
+	$(OBJCOPY) -O binary $< $@
+
+rescueboot.bin: rescueboot.o
 	$(OBJCOPY) -O binary $< $@
 
 settingui.bin: settingui.o settinguisub.o
@@ -93,6 +99,6 @@ clrconfig.uf2: clrconfig.py
 	./bindump.py $< $(basename $@) > $@
 
 clean:
-	-rm -f *.o *.x *.elf* *.sys *.bin *.inc *.uf2
+	-rm -f *.o *.x *.elf* *.sys *.bin *.inc *.uf2 *.xdf
 
 .PHONY: all clean uitest

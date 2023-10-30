@@ -26,6 +26,7 @@ release: all
 	cp README.md build/README.txt
 	cp QUICKSTART.pdf build
 	cp driver/*.uf2 build
-	(cd build; zip -r ../$(RELFILE).zip *.uf2 README.txt *.pdf)
+	cp driver/*.xdf build
+	(cd build; zip -r ../$(RELFILE).zip *.uf2 README.txt *.pdf *.xdf)
 
 .PHONY: all clean update release

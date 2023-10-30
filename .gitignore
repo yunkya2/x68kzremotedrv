@@ -8,3 +8,4 @@ build/
 *.inc
 *.uf2
 *.HDS
+*.xdf
