@@ -144,8 +144,6 @@ static void connection(int mode)
 
 static void connect_task(void *params)
 {
-    uint32_t nvalue;
-
     /* Set up WiFi connection */
 
     if (cyw43_arch_init()) {
@@ -156,17 +154,19 @@ static void connect_task(void *params)
 
     cyw43_arch_enable_sta_mode();
 
-    int mode = CONNECT_WIFI;
+    connection(CONNECT_WIFI);
+    if (sysstatus >= STAT_SMB2_CONNECTED) {
+        vd_mount();
+    }
+    xTaskNotify(main_th, 1, eSetBits);
+
     while (1) {
-        connection(mode);
-        xTaskNotify(main_th, 1, eSetBits);
-        while (1) {
-            xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
-            if (nvalue & CONNECT_WAIT)
-                break;
-            taskYIELD();
-        }
-        mode = nvalue & CONNECT_MASK;
+        uint32_t nvalue;
+
+        xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
+        if (!(nvalue & CONNECT_WAIT))
+            continue;
+        connection(nvalue & CONNECT_MASK);
     }
 }
 

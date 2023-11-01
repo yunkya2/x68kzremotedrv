@@ -192,6 +192,67 @@ static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 16];
 static uint8_t pscsiini[256];
 
+static void vd_sync(void)
+{
+    static bool synced = false;
+    if (!synced) {
+        xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
+        synced = true;
+    }
+}
+
+int vd_mount(void)
+{
+    uint32_t nvalue;
+    struct dir_entry *dirent;
+    int len;
+
+    /* Set up remote drive */
+    for (int i = 0; i < remoteunit; i++) {
+        struct smb2_context *smb2;
+        const char *shpath;
+        if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
+            continue;
+
+        struct smb2_stat_64 st;
+        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
+            printf("%s is not directory.\n", config.remote[i]);
+            continue;
+        }
+        rootpath[i] = config.remote[i];
+        printf("REMOTE%u: %s\n", i, config.remote[i]);
+    }
+
+    int id = remoteboot ? 1 : 0;
+
+    /* Set up remote HDS */
+    for (int i = 0; i < countof(config.hds); i++, id++) {
+        struct smb2_context *smb2;
+        const char *shpath;
+        if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
+            continue;
+
+        struct smb2_stat_64 st;
+        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
+            printf("File %s not found.\n", config.hds[i]);
+            continue;
+        }
+        if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
+            printf("File %s open failure.\n", config.hds[i]);
+            continue;
+        }
+        diskinfo[id].smb2 = smb2;
+        diskinfo[id].size = st.smb2_size;
+        printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
+    }
+
+    for (int i = 0; i < 7; i++) {
+        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    }
+
+    sysstatus = STAT_CONFIGURED;
+}
+
 int vd_init(void)
 {
     uint32_t nvalue;
@@ -200,28 +261,16 @@ int vd_init(void)
 
     setenv("TZ", config.tz, true);
 
-    xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
-
     remoteunit = atoi(config.remoteunit);
     remoteboot = atoi(config.remoteboot);
 
-    if (sysstatus >= STAT_SMB2_CONNECTED) {
-        /* Set up remote drive */
-        for (int i = 0; i < remoteunit; i++) {
-            struct smb2_context *smb2;
-            const char *shpath;
-            if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
-                continue;
-
-            struct smb2_stat_64 st;
-            if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-                printf("%s is not directory.\n", config.remote[i]);
-                continue;
-            }
-            rootpath[i] = config.remote[i];
-            printf("REMOTE%u: %s\n", i, config.remote[i]);
+    if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
+        /* not configured */
+        for (int i = 0; i < 6; i++) {
+            diskinfo[i].type = DTYPE_REMOTEBOOT;
+            diskinfo[i].size = 0x800;
         }
-
+    } else {
         /* Set up remote drive boot */
         int id = 0;
         if (remoteboot) {
@@ -232,32 +281,10 @@ int vd_init(void)
 
         /* Set up remote HDS */
         for (int i = 0; i < countof(config.hds); i++, id++) {
-            struct smb2_context *smb2;
-            const char *shpath;
-            if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
+            if (strlen(config.hds[i]) == 0)
                 continue;
-
-            struct smb2_stat_64 st;
-            if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-                printf("File %s not found.\n", config.hds[i]);
-                continue;
-            }
-            if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-                printf("File %s open failure.\n", config.hds[i]);
-                continue;
-            }
-            diskinfo[id].smb2 = smb2;
             diskinfo[id].type = DTYPE_HDS;
-            diskinfo[id].size = st.smb2_size;
-            printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
-        }
-
-        sysstatus = STAT_CONFIGURED;
-    } else {
-        /* not configured */
-        for (int i = 0; i < 6; i++) {
-            diskinfo[i].type = DTYPE_REMOTEBOOT;
-            diskinfo[i].size = 0x800;
+            diskinfo[id].size = 0x80000000; /* tentative size */
         }
     }
 
@@ -297,6 +324,7 @@ int vd_init(void)
     init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
+//    vd_sync();
 
     /* Initialize "X68000Z" directory */
 
@@ -420,6 +448,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return -1;
         DPRINTF3("disk %d: read 0x%x\n", id, lba);
 
+        vd_sync();
+
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (lba == 2) {
                 // boot loader
@@ -444,7 +474,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
-                buf[5] = remoteboot ? sysstatus : 0;
+                if (diskinfo[id].type == DTYPE_REMOTEBOOT)
+                    buf[5] = remoteboot ? sysstatus : 0;
                 return 0;
             }
         }
@@ -561,6 +592,9 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         if (lba >= diskinfo[id].sects)
             return -1;
         DPRINTF3("disk %d: write 0x%x\n", id, lba);
+
+        vd_sync();
+
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (hds_cache_write(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
                 return -1;
