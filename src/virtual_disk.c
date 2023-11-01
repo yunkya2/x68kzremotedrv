@@ -446,16 +446,18 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 memcpy(buf, bootloader, sizeof(bootloader));
                 buf[5] = remoteboot ? sysstatus : 0;
                 return 0;
-            } else if (lba == 4) {
-                // SCSI partition signature
-                memcpy(buf, "X68K", 4);
-                memcpy(buf + 16 , "Human68k", 8);
-                return 0;
             }
         }
         if (diskinfo[id].type == DTYPE_REMOTEBOOT ||
             (!remoteboot && diskinfo[id].type == DTYPE_REMOTECOMM)) {
-            if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
+            if (lba == 4) {
+                // SCSI partition signature
+                memcpy(buf, "X68K", 4);
+                for (int i = 0; i < remoteunit; i++) {
+                    memcpy(buf + 16 + i * 16, "Human68k", 8);
+                }
+                return 0;
+            } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
                 // SCSI device driver
                 lba -= 0xc00 / 512;
                 if (lba <= sizeof(scsiremote) / 512) {
