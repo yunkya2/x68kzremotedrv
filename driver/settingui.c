@@ -360,8 +360,28 @@ int main()
 #endif
   _iocs_os_curof();
 
+  _iocs_b_clr_st();
+  char title[200];
+  strcpy(title, "Ｒｅｍｏｔｅ　Ｄｒｉｖｅ　Ｓｅｒｖｉｃｅ　ｆｏｒ　Ｘ６８０００ Ｚ  Version " GIT_REPO_VERSION);
+  title[88] = '\0';
+  drawframe2(0, 0, strlen(title) + 6, 3, 1, -1);
+  drawmsg(3, 1, 3, title);
+
 #ifndef XTEST
   com_init();
+
+  {
+    char buf[512];
+    _iocs_s_readext(0, 1, 6, 1, buf);
+    if (memcmp(buf, "X68SCSI1", 8) != 0 ||
+        memcmp(&buf[16], "X68000ZRemoteDrv", 16) != 0) {
+       drawframe2(1, 28, 94, 4, 1, -1);
+      _iocs_b_putmes(3, 3, 29, 89, "X68000 Z Remote Drive Service が見つかりません");
+      _iocs_b_putmes(3, 3, 30, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
+      while (1)
+        ;
+    }
+  }
 
   {
     struct cmd_getconfig cmd;
@@ -380,13 +400,6 @@ int main()
     sysstatus = res.status;
   }
 #endif
-
-  _iocs_b_clr_st();
-  char title[200];
-  strcpy(title, "Ｒｅｍｏｔｅ　Ｄｒｉｖｅ　Ｓｅｒｖｉｃｅ　ｆｏｒ　Ｘ６８０００ Ｚ  Version " GIT_REPO_VERSION);
-  title[88] = '\0';
-  drawframe2(0, 0, strlen(title) + 6, 3, 1, -1);
-  drawmsg(3, 1, 3, title);
 
   /***********************************************************/
 
