@@ -64,6 +64,7 @@ struct config_data {
 
     char tz[16];
     char tadjust[4];
+    char fastconnect[4];
 };
 
 /* scsiremote.sys communication protocol definition */

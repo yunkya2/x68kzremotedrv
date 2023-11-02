@@ -72,6 +72,7 @@ static struct diskinfo {
 
 static int remoteunit;
 static bool remoteboot;
+static bool fastconnect;
 
 //****************************************************************************
 // for debugging
@@ -263,6 +264,7 @@ int vd_init(void)
 
     remoteunit = atoi(config.remoteunit);
     remoteboot = atoi(config.remoteboot);
+    fastconnect = atoi(config.fastconnect);
 
     if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
         /* not configured */
@@ -284,7 +286,7 @@ int vd_init(void)
             if (strlen(config.hds[i]) == 0)
                 continue;
             diskinfo[id].type = DTYPE_HDS;
-            diskinfo[id].size = 0x80000000; /* tentative size */
+            diskinfo[id].size = 0xfffffe00; /* tentative size */
         }
     }
 
@@ -324,7 +326,9 @@ int vd_init(void)
     init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
-//    vd_sync();
+
+    if (!fastconnect)
+        vd_sync();
 
     /* Initialize "X68000Z" directory */
 

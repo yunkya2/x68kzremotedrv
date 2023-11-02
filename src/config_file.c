@@ -117,6 +117,8 @@ const struct config_item {
       config.tz,                    sizeof(config.tz),              0 },
     { "TADJUST:",                   "2",
       config.tadjust,               sizeof(config.tadjust),         0 },
+    { "FASTCONNECT:",               "0",
+      config.fastconnect,           sizeof(config.fastconnect),     0 },
 };
 
 //****************************************************************************
@@ -127,7 +129,8 @@ const struct config_item {
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v3"
+#define CONFIG_FLASH_MAGIC_v3   "X68000Z Remote Drive Config v3"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v4"
 
 void config_read(void)
 {
@@ -145,6 +148,13 @@ void config_read(void)
             memcpy(c->value, p, c->valuesz);
             p += c->valuesz;
         }
+    } else if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC_v3, sizeof(CONFIG_FLASH_MAGIC_v3)) == 0) {
+        for (i = 0; i < CONFIG_ITEMS - 1; i++) {
+            const struct config_item *c = &config_items[i];
+            memcpy(c->value, p, c->valuesz);
+            p += c->valuesz;
+        }
+        strcpy(config.fastconnect, "0");
     } else {
         for (i = 0; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
@@ -184,7 +194,8 @@ void config_read(void)
              config.remote[6],
              config.remote[7],
              config.tz,
-             config.tadjust);
+             config.tadjust,
+             config.fastconnect);
 
     for (i = 0; i < 8; i++) {
         for (char *p = config.remote[i]; *p != '\0'; p++) {
