@@ -384,6 +384,20 @@ int main()
   }
 
   {
+    struct cmd_getinfo cmd;
+    struct res_getinfo res;
+    cmd.command = CMD_GETINFO;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    if (res.version != PROTO_VERSION) {
+       drawframe2(1, 28, 94, 4, 1, -1);
+      _iocs_b_putmes(3, 3, 29, 89, "X68000 Z Remote Drive Service のバージョンが合致しません");
+      _iocs_b_putmes(3, 3, 30, 89, "同一バージョンのレスキューディスクを使用してください");
+      while (1)
+        ;
+    }
+  }
+
+  {
     struct cmd_getconfig cmd;
     struct res_getconfig res;
     cmd.command = CMD_GETCONFIG;

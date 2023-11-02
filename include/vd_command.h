@@ -69,6 +69,8 @@ struct config_data {
 
 /* scsiremote.sys communication protocol definition */
 
+#define PROTO_VERSION   1
+
 #define CMD_GETINFO     0xff00
 #define CMD_GETCONFIG   0xff01
 #define CMD_SETCONFIG   0xff02
@@ -104,6 +106,8 @@ struct res_getinfo {
     uint8_t min;
     uint8_t sec;
     uint8_t unit;
+    uint8_t version;
+    uint8_t verstr[16];
 };
 
 struct cmd_getconfig {

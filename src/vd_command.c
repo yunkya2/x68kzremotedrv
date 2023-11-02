@@ -169,6 +169,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->min = tm->tm_min;
         res->sec = tm->tm_sec;
         res->unit = atoi(config.remoteunit);
+        res->version = PROTO_VERSION;
+        memset(res->verstr, 0, sizeof(res->verstr));
+        strncpy(res->verstr, GIT_REPO_VERSION, sizeof(res->verstr) - 1);
       }
       break;
     }
