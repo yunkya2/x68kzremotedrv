@@ -180,9 +180,6 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_getconfig *res = (struct res_getconfig *)rbuf;
       rsize = sizeof(*res);
       res->data = config;
-
-      hds_cache_init();
-      disconnect_smb2_all();
       break;
     }
 
