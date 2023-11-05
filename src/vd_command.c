@@ -352,10 +352,14 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
               int len;
               if ((len = strlen(ent->name)) <= 4)
                 continue;
-              if (!(ent->name[len - 4] == '.' &&
-                    (ent->name[len - 3] & 0xdf) == 'H' &&
-                    (ent->name[len - 2] & 0xdf) == 'D' &&
-                    (ent->name[len - 1] & 0xdf) == 'S'))
+              if (!(((ent->name[len - 4] == '.' &&
+                     (ent->name[len - 3] & 0xdf) == 'H' &&
+                     (ent->name[len - 2] & 0xdf) == 'D' &&
+                     (ent->name[len - 1] & 0xdf) == 'S')) ||
+                    ((ent->name[len - 4] == '.' &&
+                     (ent->name[len - 3] & 0xdf) == 'M' &&
+                     (ent->name[len - 2] & 0xdf) == 'O' &&
+                     (ent->name[len - 1] & 0xdf) == 'S'))))
                 continue;
             }
 
