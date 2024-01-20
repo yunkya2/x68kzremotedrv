@@ -44,7 +44,7 @@ struct config_data config
 = {
   .tz = "JST-9",
   .tadjust= "2",
-  .fastconn= "0",
+  .fastconnect = "0",
 }
 #endif
 ;
