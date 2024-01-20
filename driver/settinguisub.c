@@ -295,7 +295,14 @@ static int isfbyte(unsigned char *s, int p)
   return res;
 }
 
-static int input_entry_main(struct itemtbl *it, bool mask)
+static struct cmd_wifi_scan cmd_wifi_scan;
+static struct res_wifi_scan wifi_scan
+#ifdef XTEST
+= { .n_items = 3, .ssid = { "wifi_ap1", "wifi_ap2", "wifi_ap3" }}
+#endif
+;
+
+static int input_entry_main(struct itemtbl *it, bool mask, bool wifi)
 {
   int res = 0;
   char temp[256];
@@ -325,7 +332,21 @@ static int input_entry_main(struct itemtbl *it, bool mask)
 
     /* キー入力処理 */
     while (1) {
-      int k = keyinp(-1);
+      int k;
+      if (wifi) {
+        while ((k = keyinp(200)) < 0) {
+#ifndef XTEST
+          cmd_wifi_scan.command = CMD_WIFI_SCAN;
+          cmd_wifi_scan.clear = 0;
+          com_cmdres(&cmd_wifi_scan, sizeof(cmd_wifi_scan), &wifi_scan, sizeof(wifi_scan));
+#endif
+          for (int i = 0; i < 4; i++)
+            _iocs_b_putmes(3, it->xd, it->y + 2 + i, it->wd - 1,
+                           i < wifi_scan.n_items ? (const char *)wifi_scan.ssid[i] : "");
+        }
+      } else {
+        k = keyinp(-1);
+      }
       int c = k & 0xff;
       if (c == '\r') {                          // CR
         strcpy(it->value, temp);
@@ -353,6 +374,12 @@ static int input_entry_main(struct itemtbl *it, bool mask)
         cur = cur < len ? cur + 1 : len;
         if (!isfbyte(temp, cur))
           cur++;
+      } else if (wifi && (c == '\x0e' || k == 0x3e00)) {  // CTRL+N or ↓
+        res = -1;
+        done = true;
+      } else if (wifi && (c == '\x10' || k == 0x3c00)) {  // CTRL+N or ↑
+        res = -2;
+        done = true;
       } else if (c == '\b') {                   // BS
         if (cur > 0) {
           if (!isfbyte(temp, cur - 1)) {
@@ -393,14 +420,14 @@ static int input_entry_main(struct itemtbl *it, bool mask)
 
 int input_entry(struct itemtbl *it, void *v)
 {
-  return input_entry_main(it, false);
+  return input_entry_main(it, false, false);
 }
 
 /* 1項目をキー入力する(パスワード) */
 
 int input_passwd(struct itemtbl *it, void *v)
 {
-  return input_entry_main(it, true);
+  return input_entry_main(it, true, false);
 }
 
 
@@ -446,14 +473,11 @@ int input_numlist(struct itemtbl *it, void *v)
 
 /* WiFiアクセスポイントリストから選択する */
 
-static struct cmd_wifi_scan cmd_wifi_scan;
-static struct res_wifi_scan wifi_scan;
-
 int input_wifiap(struct itemtbl *it, void *v)
 {
   int res = 0;
   int top = 0;
-  int cur = 0;
+  int cur = -1;
 
 #ifndef XTEST
   cmd_wifi_scan.command = CMD_WIFI_SCAN;
@@ -465,6 +489,21 @@ int input_wifiap(struct itemtbl *it, void *v)
   drawhline(it->xd, it->y + 1, 28, 2);
 
   while (1) {
+    if (cur < 0) {
+      /* WiFiアクセスポイントを直接入力 */
+      for (int i = 0; i < 4; i++)
+        _iocs_b_putmes(3, it->xd, it->y + 2 + i, it->wd - 1,
+                       i < wifi_scan.n_items ? (const char *)wifi_scan.ssid[i] : "");
+      int res = input_entry_main(it, false, true);
+      if (res == 0 || res == 1) {
+        break;
+      }
+      if (wifi_scan.n_items == 0)
+        continue;
+
+      cur = (res == -1) ? 0 : wifi_scan.n_items - 1;
+    }
+
     /* リスト表示範囲がカーソル位置からはみ出さないようにする */
     top = (top > cur) ? cur : ((top + 4 <= cur) ? cur - 3 : top);
 
@@ -480,10 +519,9 @@ int input_wifiap(struct itemtbl *it, void *v)
     int k = keyinp(200);
     if (k < 0) {
 #ifndef XTEST
-      struct cmd_wifi_scan cmd;
-      cmd.command = CMD_WIFI_SCAN;
-      cmd.clear = 0;
-      com_cmdres(&cmd, sizeof(cmd), &wifi_scan, sizeof(wifi_scan));
+      cmd_wifi_scan.command = CMD_WIFI_SCAN;
+      cmd_wifi_scan.clear = 0;
+      com_cmdres(&cmd_wifi_scan, sizeof(cmd_wifi_scan), &wifi_scan, sizeof(wifi_scan));
 #endif
       continue;
     }
@@ -495,9 +533,9 @@ int input_wifiap(struct itemtbl *it, void *v)
     } else if (c == '\x1b') {                 // ESC
       break;
     } else if (c == '\x0e' || k == 0x3e00) {  // CTRL+N or ↓
-      cur = cur < wifi_scan.n_items - 1 ? cur + 1 : 0;
+      cur = cur < wifi_scan.n_items - 1 ? cur + 1 : -1;
     } else if (c == '\x10' || k == 0x3c00) {  // CTRL+P or ↑
-      cur = cur > 0 ? cur - 1 : wifi_scan.n_items - 1;
+      cur = cur > 0 ? cur - 1 : -1;
     } else if (c == '\x01' || k == 0x3900 || k == 0x3600) { // CTRL+A or ROLLDOWN or HOME
       cur = 0;
     } else if (c == '\x05' || k == 0x3800) {  // CTRL+E or ROLLUP
