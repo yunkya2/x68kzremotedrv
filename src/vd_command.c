@@ -243,6 +243,8 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         memset(&wifi_scan_data, 0, sizeof(wifi_scan_data));
       }
 
+      printf("scan status %d\n", cyw43_wifi_scan_active(&cyw43_state));
+
       cyw43_wifi_scan_options_t scan_options = {0};
       int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
       if (err != 0) {

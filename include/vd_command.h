@@ -87,11 +87,13 @@ struct config_data {
 #define STAT_WIFI_CONNECTED         2
 #define STAT_SMB2_CONNECTING        3
 #define STAT_SMB2_CONNECTED         4
-#define STAT_CONFIGURED             5
+#define STAT_SMB2_CONNECTED_SAFE    5
+#define STAT_CONFIGURED             6
 
 #define CONNECT_WIFI                0
-#define CONNECT_SMB2                1
-#define CONNECT_NONE                2
+#define CONNECT_WIFI_FAST           1
+#define CONNECT_SMB2                2
+#define CONNECT_NONE                3
 #define CONNECT_MASK                0x0f
 #define CONNECT_WAIT                0x10
 

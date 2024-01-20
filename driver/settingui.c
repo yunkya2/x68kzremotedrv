@@ -205,6 +205,7 @@ int topview(void)
     /* fall through */
 
   case STAT_SMB2_CONNECTED:
+  case STAT_SMB2_CONNECTED_SAFE:
     drawmsg(38, 7, 3, "接続済");
     sstat = true;
 
@@ -457,6 +458,12 @@ int main()
 
     int c = k & 0xff;
     if (c == '\r') {                          /* CR */
+      if (sysstatus == STAT_SMB2_CONNECTING || sysstatus == STAT_WIFI_CONNECTING) {
+        continue;
+      }
+      if (it->func == input_wifiap && sysstatus == STAT_SMB2_CONNECTED) {
+        continue;
+      }
       drawmsg(it->x, it->y, 7, it->msg);
       if (it->func == NULL) {
         break;

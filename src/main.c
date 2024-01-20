@@ -91,6 +91,7 @@ static void connection(int mode)
 {
     switch (mode) {
     case CONNECT_WIFI:
+    case CONNECT_WIFI_FAST:
         printf("Connecting to WiFi...\n");
 
         sysstatus = STAT_WIFI_CONNECTING;
@@ -135,6 +136,11 @@ static void connection(int mode)
 
         disconnect_smb2(smb2ipc);
 
+        if (mode != CONNECT_WIFI_FAST) {
+            vTaskDelay(pdMS_TO_TICKS(3000));
+            sysstatus = STAT_SMB2_CONNECTED_SAFE;
+        }
+
         /* fall through */
 
     default:
@@ -154,7 +160,7 @@ static void connect_task(void *params)
 
     cyw43_arch_enable_sta_mode();
 
-    connection(CONNECT_WIFI);
+    connection(CONNECT_WIFI_FAST);
     if (sysstatus >= STAT_SMB2_CONNECTED) {
         vd_mount();
     }
