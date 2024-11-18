@@ -105,6 +105,10 @@ loop1:
     move.l  %a5,reqheader
     rts
 
+    .global zusb_rmtdata
+zusb_rmtdata:                       // ZUSBRMTデバイスドライバ間の共有データ
+    .space  4
+
 interrupt_asm:
     movem.l %d0-%d2/%a0-%a2/%a5,%sp@-
 #ifdef CONFIG_BOOTDRIVER
