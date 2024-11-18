@@ -36,7 +36,7 @@
 #include "timers.h"
 #include "smb2.h"
 #include "libsmb2.h"
-#include "bsp/board.h"
+#include "bsp/board_api.h"
 #include "tusb.h"
 
 #include "main.h"
