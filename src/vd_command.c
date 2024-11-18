@@ -88,7 +88,7 @@ static struct res_smb2_enum *smb2_enum_ptr;
 static void se_cb(struct smb2_context *smb2, int status,
                   void *command_data, void *private_data)
 {
-  struct srvsvc_netshareenumall_rep *rep = (struct srvsvc_netshareenumall_rep *)command_data;
+  struct srvsvc_NetrShareEnum_rep *rep = command_data;
 
   if (smb2_enum_ptr == NULL)
     return;
@@ -101,35 +101,35 @@ static void se_cb(struct smb2_context *smb2, int status,
     return;
   }
 
-  printf("Number of shares:%d\n", rep->ctr->ctr1.count);
-  for (int i = 0; i < rep->ctr->ctr1.count; i++) {
-    if ((rep->ctr->ctr1.array[i].type & 3) == SHARE_TYPE_DISKTREE &&
-        !(rep->ctr->ctr1.array[i].type & SHARE_TYPE_HIDDEN)) {
+  printf("Number of shares:%d\n", rep->ses.ShareInfo.Level1.EntriesRead);
+  for (int i = 0; i < rep->ses.ShareInfo.Level1.EntriesRead; i++) {
+    if ((rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & 3) == SHARE_TYPE_DISKTREE &&
+        !(rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & SHARE_TYPE_HIDDEN)) {
       if (smb2_enum_ptr->n_items < countof(smb2_enum_ptr->share)) {
         smb2_enum_ptr->share[smb2_enum_ptr->n_items][sizeof(smb2_enum_ptr->share[0]) - 1] = '\0';
         strncpy(smb2_enum_ptr->share[smb2_enum_ptr->n_items++], 
-                rep->ctr->ctr1.array[i].name, sizeof(smb2_enum_ptr->share[0]) - 1);
+                rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].netname.utf8, sizeof(smb2_enum_ptr->share[0]) - 1);
       }
     }
 
-    printf("%-20s %-20s", rep->ctr->ctr1.array[i].name,
-           rep->ctr->ctr1.array[i].comment);
-    if ((rep->ctr->ctr1.array[i].type & 3) == SHARE_TYPE_DISKTREE) {
+    printf("%-20s %-20s", rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].netname.utf8,
+           rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].remark.utf8);
+    if ((rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & 3) == SHARE_TYPE_DISKTREE) {
       printf(" DISKTREE");
     }
-    if ((rep->ctr->ctr1.array[i].type & 3) == SHARE_TYPE_PRINTQ) {
+    if ((rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & 3) == SHARE_TYPE_PRINTQ) {
       printf(" PRINTQ");
     }
-    if ((rep->ctr->ctr1.array[i].type & 3) == SHARE_TYPE_DEVICE) {
+    if ((rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & 3) == SHARE_TYPE_DEVICE) {
       printf(" DEVICE");
     }
-    if ((rep->ctr->ctr1.array[i].type & 3) == SHARE_TYPE_IPC) {
+    if ((rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & 3) == SHARE_TYPE_IPC) {
       printf(" IPC");
     }
-    if (rep->ctr->ctr1.array[i].type & SHARE_TYPE_TEMPORARY) {
+    if (rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & SHARE_TYPE_TEMPORARY) {
       printf(" TEMPORARY");
     }
-    if (rep->ctr->ctr1.array[i].type & SHARE_TYPE_HIDDEN) {
+    if (rep->ses.ShareInfo.Level1.Buffer->share_info_1[i].type & SHARE_TYPE_HIDDEN) {
       printf(" HIDDEN");
     }
     printf("\n");
@@ -324,7 +324,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       smb2_enum_finished = false;
       smb2_enum_ptr = res;
-      if (smb2_share_enum_async(smb2ipc, se_cb, NULL) != 0) {
+      if (smb2_share_enum_async(smb2ipc, 1, se_cb, NULL) != 0) {
         printf("smb2_share_enum failed. %s\n", smb2_get_error(smb2ipc));
         goto errout_enum;
       }
