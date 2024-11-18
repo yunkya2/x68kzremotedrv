@@ -331,6 +331,7 @@ int vd_init(void)
     dirent = (struct dir_entry *) x68zdir;
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+#if 0
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     for (int i = 0; i < 7; i++) {
         if (diskinfo[i].type != DTYPE_NOTUSED) {
@@ -339,6 +340,7 @@ int vd_init(void)
             init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, diskinfo[i].size);
         }
     }
+#endif
 
     return 0;
 }
