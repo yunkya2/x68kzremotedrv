@@ -166,8 +166,9 @@ static int my_atoi(char *p)
 // Device driver interrupt rountine
 //****************************************************************************
 
-void com_timeout(struct dos_req_header *req)
+int com_timeout(struct dos_req_header *req)
 {
+  return 0x7002;
 }
 
 int com_init(struct dos_req_header *req)
