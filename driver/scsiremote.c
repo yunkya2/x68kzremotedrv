@@ -116,7 +116,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     wbuf += s;
     _iocs_s_writeext(0x20, 1, SCSICOMMID, 1, &vdbuf_write);
     for (int i = 0; i < 128; i++) {
-      DPRINTF1("%02x ", vdbuf_write[i]);
+      DPRINTF1("%02x ", ((uint8_t *)&vdbuf_write)[i]);
       if ((i % 16) == 15)
         DPRINTF1("\r\n");
     }
@@ -129,7 +129,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
       DPRINTF1("sect=0x%x\r\n", sect);
       _iocs_s_readext(sect + (i & 7), 1, SCSICOMMID, 1, &vdbuf_read);
       for (int i = 0; i < 64; i++) {
-        DPRINTF1("%02x ", vdbuf_read[i]);
+        DPRINTF1("%02x ", ((uint8_t *)&vdbuf_read)[i]);
         if ((i % 16) == 15)
           DPRINTF1("\r\n");
       }
@@ -180,7 +180,11 @@ int com_init(struct dos_req_header *req)
 #endif
     ("\r\nX68000 Z Remote Drive Driver (version " GIT_REPO_VERSION ") ID=");
 
+#ifdef CONFIG_BOOTDRIVER
   extern uint8_t scsiidd2;
+#else
+  int scsiidd2 = 1;
+#endif
   scsiid = scsiidd2 - 1;
 
   int unit = 0;
@@ -237,6 +241,7 @@ int com_init(struct dos_req_header *req)
         debuglevel++;
         break;
 #endif
+      }
     }
     p += strlen(p) + 1;
   }
