@@ -43,6 +43,7 @@
 #include "vd_command.h"
 #include "virtual_disk.h"
 #include "config_file.h"
+#include "remoteserv.h"
 
 volatile int sysstatus = STAT_WIFI_DISCONNECTED;
 
@@ -177,6 +178,38 @@ static void connect_task(void *params)
 }
 
 //****************************************************************************
+// Vendor task
+//****************************************************************************
+
+static uint8_t buf_read[1024 * 4];
+static uint8_t buf_write[1024 * 4];
+static uint8_t *buf_wptr = NULL;
+static int buf_wsize = 0;
+
+void vendor_task(void)
+{
+    if (tud_vendor_available()) {
+        if (buf_wptr == NULL) {
+            buf_wptr = buf_write;
+            buf_wsize = 0;
+        }
+        uint32_t count = tud_vendor_read(buf_wptr, 64);
+        buf_wptr += count;
+        buf_wsize += count;
+        uint32_t total = buf_write[0] << 24 | buf_write[1] << 16 | buf_write[2] << 8 | buf_write[3];
+        if (buf_wsize >= 4 && total <= buf_wsize - 4) {
+            buf_wptr = NULL;
+            int rsize;
+            if ((rsize = vd_command(&buf_write[4], buf_read)) < 0) {
+                rsize = remote_serv(&buf_write[4], buf_read);
+            }
+            tud_vendor_write(buf_read, rsize);
+            tud_vendor_flush();
+        }
+    }
+}
+
+//****************************************************************************
 // Main task
 //****************************************************************************
 
@@ -193,6 +226,7 @@ static void main_task(void *params)
     tusb_init();
     while (1) {
         tud_task();
+        vendor_task();
         taskYIELD();
     }
 }
