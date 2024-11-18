@@ -59,13 +59,18 @@ uitest:
 scsiremote.bin: scsiremote.sys
 	./fixupsys.py $< $@
 
-scsiremote.sys: head.o remotedrv.o scsiremote.o
+scsiremote.sys: head_rmt_boot.o remotedrv.o scsiremote.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@
 
-head.o:       ../include/config.h
+head_rmt.o: head.S
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -c -o $@ $<
+
+head_rmt_boot.o: head.S
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -DCONFIG_BOOTDRIVER -c -o $@ $<
+
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
 scsiremote.o: ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h
 settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h

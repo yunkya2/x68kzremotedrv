@@ -31,8 +31,6 @@
 
 /* Remote drive config */
 
-#define CONFIG_BOOTDRIVER
-#define CONFIG_DEVNAME      "\x01ZREMOTE"
 #define CONFIG_NDCACHE      4
 #define CONFIG_NFCACHE      4
 

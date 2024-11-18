@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Yuichi Nakamura (@yunkya2)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
  * The MIT License (MIT)
  *
@@ -22,8 +22,6 @@
  * THE SOFTWARE.
  */
 
-#include <config.h>
-
 /* Human68k device driver header */
 
     .text
@@ -33,7 +31,7 @@
 
 devheader:
     .long   -1                  // link pointer
-    .word   0x2000              // device type (remote disk)
+    .word   CONFIG_DEVTYPE      // device type (remote disk)
     .long   strategy            // strategy routine entry point
     .long   interrupt_asm       // interrupt routine entry point
 
