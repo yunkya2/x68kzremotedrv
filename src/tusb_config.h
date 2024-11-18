@@ -89,10 +89,15 @@
 #define CFG_TUD_MSC              1
 #define CFG_TUD_HID              0
 #define CFG_TUD_MIDI             0
-#define CFG_TUD_VENDOR           0
+#define CFG_TUD_VENDOR           1
 
 // MSC Buffer size of Device Mass storage
 #define CFG_TUD_MSC_EP_BUFSIZE   512
+
+// Vendor FIFO size of TX and RX
+// If not configured vendor endpoints will not be buffered
+#define CFG_TUD_VENDOR_RX_BUFSIZE (1024 * 4)
+#define CFG_TUD_VENDOR_TX_BUFSIZE (1024 * 4)
 
 #ifdef __cplusplus
  }

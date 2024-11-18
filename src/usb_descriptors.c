@@ -2,7 +2,7 @@
  * The MIT License (MIT)
  *
  * Copyright (c) 2019 Ha Thach (tinyusb.org)
- * Copyright (c) 2023 Yuichi Nakamura
+ * Copyright (c) 2023,2024 Yuichi Nakamura
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -47,10 +47,11 @@ tusb_desc_device_t const desc_device =
     .bLength            = sizeof(tusb_desc_device_t),
     .bDescriptorType    = TUSB_DESC_DEVICE,
     .bcdUSB             = USB_BCD,
-    .bcdUSB             = 0x0200,
+
     .bDeviceClass       = 0x00,
     .bDeviceSubClass    = 0x00,
     .bDeviceProtocol    = 0x00,
+
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
 
     .idVendor           = USB_VID,
@@ -77,14 +78,19 @@ uint8_t const * tud_descriptor_device_cb(void)
 
 enum
 {
-  ITF_NUM_MSC,
+  ITF_NUM_MSC = 0,
+  ITF_NUM_VENDOR,
   ITF_NUM_TOTAL
 };
 
-#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN)
+#define CONFIG_TOTAL_LEN    (TUD_CONFIG_DESC_LEN + TUD_MSC_DESC_LEN + TUD_VENDOR_DESC_LEN)
 
 #define EPNUM_MSC_OUT     0x01
-#define EPNUM_MSC_IN      0x81
+#define EPNUM_MSC_IN      0x82
+
+#define EPNUM_VENDOR_OUT  0x03
+#define EPNUM_VENDOR_IN   0x84
+
 
 uint8_t const desc_fs_configuration[] =
 {
@@ -92,7 +98,10 @@ uint8_t const desc_fs_configuration[] =
   TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0x00, 100),
 
   // Interface number, string index, EP Out & EP In address, EP size
-  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 0, EPNUM_MSC_OUT, EPNUM_MSC_IN, 64),
+  TUD_MSC_DESCRIPTOR(ITF_NUM_MSC, 4, EPNUM_MSC_OUT, EPNUM_MSC_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
+
+  // Interface number, string index, EP Out & EP In address, EP size
+  TUD_VENDOR_DESCRIPTOR(ITF_NUM_VENDOR, 5, EPNUM_VENDOR_OUT, EPNUM_VENDOR_IN, TUD_OPT_HIGH_SPEED ? 512 : 64),
 };
 
 #if TUD_OPT_HIGH_SPEED
@@ -129,9 +138,11 @@ uint8_t const * tud_descriptor_configuration_cb(uint8_t index)
 char const* string_desc_arr [] =
 {
   (const char[]) { 0x09, 0x04 }, // 0: is supported language is English (0x0409)
-  "X68000Z",                     // 1: Manufacturer
-  "Remote Drive Mass Storage",   // 2: Product
-  "123456789012",                // 3: Serials, should use chip ID
+  "X68000 Z",                     // 1: Manufacturer
+  "X68000 Z Remote Drive Device", // 2: Product
+  "123456789012",                 // 3: Serials, should use chip ID
+  "X68000 Z MSC",                 // 4: MSC Interface
+  "X68000 Z Remote",              // 5: Vendor Interface
 };
 
 static uint16_t _desc_str[32];
