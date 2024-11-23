@@ -41,7 +41,6 @@
 #include "remoteserv.h"
 #include "fileop.h"
 
-#include "scsiremote.inc"
 #include "bootloader.inc"
 #include "hdsboot.inc"
 #include "settingui.inc"
@@ -481,9 +480,11 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
                 // SCSI device driver
                 lba -= 0xc00 / 512;
+#if 0
                 if (lba <= sizeof(scsiremote) / 512) {
                     memcpy(buf, &scsiremote[lba * 512], 512);
                 }
+#endif
                 return 0;
             }
             if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
