@@ -60,7 +60,6 @@ int debuglevel = 0;
 #define DTYPE_NOTUSED       0
 #define DTYPE_HDS           1
 #define DTYPE_REMOTEBOOT    2
-#define DTYPE_REMOTECOMM    3
 
 static struct diskinfo {
     int type;
@@ -290,10 +289,6 @@ int vd_init(void)
         }
     }
 
-    /* SCSI ID 6 : for remote communication */
-    diskinfo[6].type = DTYPE_REMOTECOMM;
-    diskinfo[6].size = 0x80000000;
-
     for (int i = 0; i < 7; i++) {
         diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     }
@@ -347,13 +342,6 @@ int vd_init(void)
 
     return 0;
 }
-
-uint8_t vdbuf_read[(512 - 16) * 8 * 4];
-uint8_t vdbuf_write[(512 - 16) * 8 * 4];
-int vdbuf_rpages;
-int vdbuf_rcnt;
-
-struct vdbuf_header vdbuf_header;
 
 int vd_read_block(uint32_t lba, uint8_t *buf)
 {
@@ -468,8 +456,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return 0;
         }
 
-        if (diskinfo[id].type == DTYPE_REMOTEBOOT ||
-            diskinfo[id].type == DTYPE_REMOTECOMM) {
+        if (diskinfo[id].type == DTYPE_REMOTEBOOT) {
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
@@ -482,9 +469,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     buf[5] = remoteboot ? sysstatus : 0;
                 return 0;
             }
-        }
-        if (diskinfo[id].type == DTYPE_REMOTEBOOT ||
-            (!remoteboot && diskinfo[id].type == DTYPE_REMOTECOMM)) {
             if (lba == 4) {
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);
@@ -500,8 +484,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 }
                 return 0;
             }
-        }
-        if (diskinfo[id].type == DTYPE_REMOTEBOOT) {
             if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
@@ -527,27 +509,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                         humanlbamax = lba;
                         DPRINTF1("HUMAN.SYS closed.\n");
                     }
-                }
-                return 0;
-            }
-        }
-        if (diskinfo[id].type == DTYPE_REMOTECOMM) {
-            if (lba >= (0x20000 / 512) && lba < (0x40000 / 512)) {
-                // settingui.bin
-                lba -= 0x20000 / 512;
-                if (lba <= sizeof(settingui) / 512) {
-                    memcpy(buf, &settingui[lba * 512], 512);
-                }
-                return 0;
-            } else if (lba >= (0x40000 / 512)) {
-                int page = vdbuf_rcnt + (lba % 8);
-                struct vdbuf *b = (struct vdbuf *)buf;
-                b->header = vdbuf_header;
-                b->header.maxpage = vdbuf_rpages;
-                b->header.page = page;
-                memcpy(b->buf, &vdbuf_read[page * (512 - 16)], sizeof(b->buf));
-                if ((lba % 8) == 7) {
-                    vdbuf_rcnt += 8;
                 }
                 return 0;
             }
@@ -602,25 +563,6 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
             if (hds_cache_write(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
                 return -1;
-            return 0;
-        }
-        if (diskinfo[id].type == DTYPE_REMOTECOMM) {
-            struct vdbuf *b = (struct vdbuf *)buf;
-            if (b->header.signature != 0x5a383658) {   /* "X68Z" (big endian) */
-                return -1;
-            }
-            vdbuf_header = b->header;
-            memcpy(&vdbuf_write[b->header.page * (512 - 16)], b->buf, sizeof(b->buf));
-            if (b->header.page == b->header.maxpage) {
-                // last page copy
-                int rsize;
-                if ((rsize = vd_command(vdbuf_write, vdbuf_read)) < 0) {
-                    rsize = remote_serv(vdbuf_write, vdbuf_read);
-                }
-                vdbuf_rpages = (rsize < 0) ? 0 : ((rsize - 1) / (512 - 16));
-                vdbuf_rcnt = 0;
-                DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
-            }
             return 0;
         }
     }

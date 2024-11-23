@@ -28,22 +28,6 @@
 
 #include <stdint.h>
 
-/* virtual disk buffer definition */
-
-struct vdbuf_header {
-    uint32_t signature;         // "X68Z" signature
-    uint32_t session;           // session ID
-    uint32_t seqno;             // sequence count
-    uint8_t page;               // page number
-    uint8_t maxpage;            // max page
-    uint8_t reserved[2];
-};
-
-struct vdbuf {
-    struct vdbuf_header header;
-    uint8_t buf[512 - sizeof(struct vdbuf_header)];
-};
-
 int vd_command(uint8_t *cbuf, uint8_t *rbuf);
 
 /* configuration data structure */
@@ -67,7 +51,7 @@ struct config_data {
     char fastconnect[4];
 };
 
-/* scsiremote.sys communication protocol definition */
+/* remote communication protocol definition */
 
 #define PROTO_VERSION   1
 

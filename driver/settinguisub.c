@@ -37,69 +37,18 @@
 // Global variables
 //****************************************************************************
 
-int scsiid = 6;
-
 //****************************************************************************
 // Communication
 //****************************************************************************
 
 #ifndef XTEST
 
-static struct vdbuf vdbuf_read;
-static struct vdbuf vdbuf_write;
-
-static int seqno = 0;
-static int seqtim = 0;
-static int sect = 0x400000;
-
 void com_init(void)
 {
-  /* init communication */
-  seqtim = _iocs_bindateget();
-  seqtim ^= _iocs_timeget() << 8;
-  struct iocs_time it = _iocs_ontime();
-  seqtim ^= it.sec;
 }
 
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {
-  struct vdbuf_header *h;
-  int wcnt = (wsize - 1) / (512 - 16);
-  int rcnt = (rsize - 1) / (512 - 16);
-
-  h = &vdbuf_write.header;
-  h->signature = 0x5836385a;    /* "X68Z" */
-  h->session = seqtim;
-  h->seqno = seqno;
-  h->maxpage = wcnt;
-  for (int i = 0; i <= wcnt; i++) {
-    h->page = i;
-    int s = wsize > (512 - 16) ? 512 - 16 : wsize;
-    memcpy(vdbuf_write.buf, wbuf, s);
-    wsize -= s;
-    wbuf += s;
-    _iocs_s_writeext(0x20, 1, scsiid, 1, &vdbuf_write);
-  }
-
-  sect = ((sect - 8) % 0x200000) + 0x200000;
-  h = &vdbuf_read.header;
-  for (int i = 0; i <= rcnt; i++) {
-    while (1) {
-      _iocs_s_readext(sect + (i & 7), 1, scsiid, 1, &vdbuf_read);
-      if (memcmp(&vdbuf_read, &vdbuf_write, 12) == 0)
-        break;
-      sect = ((sect - 0x10000) % 0x200000) + 0x200000;
-    }
-    int s = rsize > (512 - 16) ? 512 - 16 : rsize;
-    memcpy(rbuf, vdbuf_read.buf, s);
-    rcnt = h->maxpage;
-    rsize -= s;
-    rbuf += s;
-    if ((i & 7) == 7) {
-      sect = ((sect - 8) % 0x200000) + 0x200000;
-    }
-  }
-  seqno++;
 }
 
 #endif
