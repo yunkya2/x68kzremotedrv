@@ -51,7 +51,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc settingui.inc clrconfig.uf2 zrmtrescue.xdf
+all: bootloader.inc hdsboot.inc clrconfig.uf2
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x

@@ -43,7 +43,6 @@
 
 #include "bootloader.inc"
 #include "hdsboot.inc"
-#include "settingui.inc"
 
 //****************************************************************************
 // Global variables
