@@ -3,9 +3,11 @@ build/
 *.x
 *.zip
 *.sys
-*.elf*
+*.SYS
+*.elf
 *.bin
 *.inc
 *.uf2
+*.hds
 *.HDS
 *.xdf

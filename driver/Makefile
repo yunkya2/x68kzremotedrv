@@ -52,7 +52,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys
+all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys zremotedrv.hds
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -60,8 +60,17 @@ uitest:
 zremotedrv.sys: head_rmt.o remotedrv.o zremotedrv.o zusbcomm.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
+zremotedrv_boot.sys: head_rmt_boot.o remotedrv.o zremotedrv_boot.o zusbcomm.o
+	$(LD) -o $@ $^ -nostartfiles -s
+
+zremotedrv.hds: zremotedrv_boot.bin bootloader.bin HUMAN.SYS
+	./createhds.py $@ bootloader.bin HUMAN.SYS zremotedrv_boot.bin
+
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@
+
+zremotedrv_boot.o: zremotedrv.c
+	$(CC) $(CFLAGS) -c -o $@ $< -DCONFIG_BOOTDRIVER
 
 head_rmt.o: head.S
 	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -c -o $@ $<
@@ -99,6 +108,6 @@ clrconfig.uf2: clrconfig.py
 	./bindump.py $< $(basename $@) > $@
 
 clean:
-	-rm -f *.o *.x *.elf* *.sys *.bin *.inc *.uf2 *.xdf
+	-rm -f *.o *.x *.elf *.sys *.bin *.inc *.hds *.uf2 *.xdf
 
 .PHONY: all clean uitest
