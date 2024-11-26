@@ -1,7 +1,7 @@
 /* 
- * The MIT License (MIT)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
- * Copyright (c) 2023 Yuichi Nakamura
+ * The MIT License (MIT)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -28,6 +28,8 @@
 
 #include <stdint.h>
 
+#include "vd_command.h"
+
 /* virtual disk volume contstants */
 
 #define SECTOR_SIZE         512
@@ -47,5 +49,26 @@ int vd_init(void);
 int vd_mount(void);
 int vd_read_block(uint32_t lba, uint8_t *buf);
 int vd_write_block(uint32_t lba, uint8_t *buf);
+
+/* remote disk information */
+
+#define DTYPE_NOTUSED       0
+#define DTYPE_HDS           1
+#define DTYPE_REMOTEBOOT    2
+
+struct diskinfo {
+    int type;
+    struct smb2fh *sfh;
+    struct smb2_context *smb2;
+    uint32_t size;
+    int sects;
+};
+
+struct hdsinfo {
+    struct diskinfo *disk;
+};
+
+extern struct diskinfo diskinfo[7];
+extern struct hdsinfo hdsinfo[N_HDS];
 
 #endif  /* _VIRTUAL_DISK_H */

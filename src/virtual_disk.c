@@ -1,7 +1,7 @@
 /* 
- * The MIT License (MIT)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
- * Copyright (c) 2023 Yuichi Nakamura
+ * The MIT License (MIT)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -51,21 +51,12 @@
 const char *rootpath[8];
 int debuglevel = 0;
 
+struct diskinfo diskinfo[7];
+struct hdsinfo hdsinfo[N_HDS];
+
 //****************************************************************************
 // Static variables
 //****************************************************************************
-
-#define DTYPE_NOTUSED       0
-#define DTYPE_HDS           1
-#define DTYPE_REMOTEBOOT    2
-
-static struct diskinfo {
-    int type;
-    struct smb2fh *sfh;
-    struct smb2_context *smb2;
-    uint32_t size;
-    int sects;
-} diskinfo[7];
 
 static int remoteunit;
 static bool remoteboot;
@@ -224,7 +215,9 @@ int vd_mount(void)
     int id = remoteboot ? 1 : 0;
 
     /* Set up remote HDS */
-    for (int i = 0; i < countof(config.hds); i++, id++) {
+    for (int i = 0; i < N_HDS; i++, id++) {
+        hdsinfo[i].disk = NULL;
+
         struct smb2_context *smb2;
         const char *shpath;
         if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
@@ -239,9 +232,11 @@ int vd_mount(void)
             printf("File %s open failure.\n", config.hds[i]);
             continue;
         }
+
         diskinfo[id].smb2 = smb2;
         diskinfo[id].size = st.smb2_size;
         printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
+        hdsinfo[i].disk = &diskinfo[id];
     }
 
     for (int i = 0; i < 7; i++) {

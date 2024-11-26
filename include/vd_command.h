@@ -1,7 +1,7 @@
 /* 
- * The MIT License (MIT)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
- * Copyright (c) 2023 Yuichi Nakamura
+ * The MIT License (MIT)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf);
 
 /* configuration data structure */
 
+#define N_REMOTE    8
+#define N_HDS       4
+
 struct config_data {
     char wifi_ssid[32];
     char wifi_passwd[16];
@@ -43,8 +46,8 @@ struct config_data {
 
     char remoteboot[4];
     char remoteunit[4];
-    char remote[8][128];
-    char hds[4][128];
+    char remote[N_REMOTE][128];
+    char hds[N_HDS][128];
 
     char tz[16];
     char tadjust[4];
@@ -53,7 +56,7 @@ struct config_data {
 
 /* remote communication protocol definition */
 
-#define PROTO_VERSION   1
+#define PROTO_VERSION   2
 
 #define CMD_GETINFO     0xff00
 #define CMD_GETCONFIG   0xff01
@@ -65,6 +68,8 @@ struct config_data {
 #define CMD_FLASHCONFIG 0xff07
 #define CMD_FLASHCLEAR  0xff08
 #define CMD_REBOOT      0xff09
+#define CMD_HDSREAD     0xff80
+#define CMD_HDSWRITE    0xff81
 
 #define STAT_WIFI_DISCONNECTED      0
 #define STAT_WIFI_CONNECTING        1
@@ -91,7 +96,8 @@ struct res_getinfo {
     uint8_t hour;
     uint8_t min;
     uint8_t sec;
-    uint8_t unit;
+    uint8_t remoteunit;
+    uint8_t remotehds;
     uint8_t version;
     uint8_t verstr[16];
 };
@@ -167,6 +173,32 @@ struct cmd_reboot {
 };
 struct res_reboot {
     uint8_t status;
+};
+
+#define SECTOR_SIZE         512
+#define HDS_MAX_SECT        6
+
+struct cmd_hdsread {
+    uint16_t command;
+    uint8_t unit;
+    uint8_t nsect;
+    uint32_t pos;
+};
+struct res_hdsread {
+    int8_t status;
+    uint8_t nsect;
+    uint8_t data[SECTOR_SIZE * HDS_MAX_SECT];
+};
+
+struct cmd_hdswrite {
+    uint16_t command;
+    uint8_t unit;
+    uint8_t nsect;
+    uint32_t pos;
+    uint8_t data[SECTOR_SIZE * HDS_MAX_SECT];
+};
+struct res_hdswrite {
+    int8_t status;
 };
 
 #define countof(array)      (sizeof(array) / sizeof(array[0]))

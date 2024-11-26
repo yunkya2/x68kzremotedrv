@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Yuichi Nakamura (@yunkya2)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
  * The MIT License (MIT)
  *
@@ -146,6 +146,10 @@ static void se_cb(struct smb2_context *smb2, int status,
 
 int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 {
+  if (cbuf[0] != 0xff) {
+    return -1;
+  }
+
   DPRINTF2("----VDCommand: 0x%04x\n", (cbuf[0] << 8) | cbuf[1]);
   int rsize = -1;
 
@@ -157,6 +161,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       rsize = sizeof(*res);
 
       memset(res, 0, rsize);
+
       if (boottime != 0 && atoi(config.tadjust) != 0) {
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
         tt += atoi(config.tadjust);
@@ -167,8 +172,18 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->hour = tm->tm_hour;
         res->min = tm->tm_min;
         res->sec = tm->tm_sec;
-        res->unit = atoi(config.remoteunit);
       }
+
+      res->remoteunit = atoi(config.remoteunit);
+
+      int remotehds = 0;
+      for (int i = 0; i < N_HDS; i++, remotehds++) {
+        if (strlen(config.hds[i]) == 0) {
+          break;
+        }
+      }
+      res->remotehds = remotehds;
+
       res->version = PROTO_VERSION;
       strncpy(res->verstr, GIT_REPO_VERSION, sizeof(res->verstr) - 1);
       break;
@@ -388,6 +403,54 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       }
 
       disconnect_smb2(smb2);
+      break;
+    }
+
+  case CMD_HDSREAD:
+    {
+      struct cmd_hdsread *cmd = (struct cmd_hdsread *)cbuf;
+      struct res_hdsread *res = (struct res_hdsread *)rbuf;
+      rsize = sizeof(*res);
+
+      printf("CMD_HDSREAD: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
+
+      if (hdsinfo[cmd->unit].disk == NULL) {
+        res->status = -2;
+        break;
+      }
+
+      struct diskinfo *disk = hdsinfo[cmd->unit].disk;
+      for (int i = 0; i < cmd->nsect; i++) {
+        res->status = hds_cache_read(disk->smb2, disk->sfh,
+                                     be32toh(cmd->pos) + i, res->data + i * 512);
+        if (res->status < 0) {
+          break;
+        }
+      }
+      break;
+    }
+
+  case CMD_HDSWRITE:
+    {
+      struct cmd_hdswrite *cmd = (struct cmd_hdswrite *)cbuf;
+      struct res_hdswrite *res = (struct res_hdswrite *)rbuf;
+      rsize = sizeof(*res);
+
+      printf("CMD_HDSWRITE: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
+
+      if (hdsinfo[cmd->unit].disk == NULL) {
+        res->status = -2;
+        break;
+      }
+
+      struct diskinfo *disk = hdsinfo[cmd->unit].disk;
+      for (int i = 0; i < cmd->nsect; i++) {
+        res->status = hds_cache_write(disk->smb2, disk->sfh,
+                                      be32toh(cmd->pos) + i, cmd->data + i * 512);
+        if (res->status < 0) {
+          break;
+        }
+      }
       break;
     }
 
