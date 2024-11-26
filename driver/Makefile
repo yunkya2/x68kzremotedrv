@@ -52,7 +52,9 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys zremotedrv.hds zremotehds.sys
+all: bootloader.inc hdsboot.inc clrconfig.uf2
+all: zremotedrv.sys zremotedrv.hds
+all: zremotehds.sys zremotehds.hds
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -69,10 +71,19 @@ zremotedrv.hds: zremotedrv_boot.bin bootloader.bin HUMAN.SYS
 zremotehds.sys: head_hds.o zremotehds.o zusbcomm.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
+zremotehds_boot.sys: head_hds_boot.o zremotehds_boot.o zusbcomm.o
+	$(LD) -o $@ $^ -nostartfiles -s
+
+zremotehds.hds: zremotehds_boot.bin bootloader.bin HUMAN.SYS
+	./createhds.py $@ bootloader.bin HUMAN.SYS zremotehds_boot.bin
+
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@
 
 zremotedrv_boot.o: zremotedrv.c
+	$(CC) $(CFLAGS) -c -o $@ $< -DCONFIG_BOOTDRIVER
+
+zremotehds_boot.o: zremotehds.c
 	$(CC) $(CFLAGS) -c -o $@ $< -DCONFIG_BOOTDRIVER
 
 head_rmt.o: head.S
