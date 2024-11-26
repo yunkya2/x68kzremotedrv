@@ -52,7 +52,7 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys zremotedrv.hds
+all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys zremotedrv.hds zremotehds.sys
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -65,6 +65,9 @@ zremotedrv_boot.sys: head_rmt_boot.o remotedrv.o zremotedrv_boot.o zusbcomm.o
 
 zremotedrv.hds: zremotedrv_boot.bin bootloader.bin HUMAN.SYS
 	./createhds.py $@ bootloader.bin HUMAN.SYS zremotedrv_boot.bin
+
+zremotehds.sys: head_hds.o zremotehds.o zusbcomm.o
+	$(LD) -o $@ $^ -nostartfiles -s
 
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@
