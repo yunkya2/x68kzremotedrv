@@ -26,8 +26,8 @@
 #define _CONFIG_H_
 
 #define CONFIG_ALIGNED
-#define CONFIG_NFILEINFO    10
-#define CONFIG_DATASIZE     (1024 * 15)
+#define CONFIG_NFILEINFO    40
+#define CONFIG_DATASIZE     (1024 * 3)
 
 /* Remote drive config */
 

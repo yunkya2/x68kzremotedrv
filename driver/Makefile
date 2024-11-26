@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2023 Yuichi Nakamura (@yunkya2)
+# Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
 #
 # The MIT License (MIT)
 #
@@ -40,6 +40,7 @@ vpath %.S $(RMTSRC)
 
 CFLAGS = -g -m68000
 CFLAGS += -I. -I../include
+CFLAGS += -Iinclude
 CFLAGS += -I $(RMTINC)
 CFLAGS += -I $(RMTSRC)
 CFLAGS +=  -Os -DGIT_REPO_VERSION=\"$(GIT_REPO_VERSION)\"
@@ -51,10 +52,13 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc clrconfig.uf2
+all: bootloader.inc hdsboot.inc clrconfig.uf2 zremotedrv.sys
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
+
+zremotedrv.sys: head_rmt.o remotedrv.o zremotedrv.o zusbcomm.o
+	$(LD) -o $@ $^ -nostartfiles -s
 
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@
@@ -66,17 +70,9 @@ head_rmt_boot.o: head.S
 	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -DCONFIG_BOOTDRIVER -c -o $@ $<
 
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
+zremotedrv.o:  ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h
 settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
-
-bootloader.bin: bootloader.o
-	$(OBJCOPY) -O binary $< $@
-
-hdsboot.bin: hdsboot.o
-	$(OBJCOPY) -O binary $< $@
-
-rescueboot.bin: rescueboot.o
-	$(OBJCOPY) -O binary $< $@
 
 settingui.bin: settingui.o settinguisub.o
 	$(LD) -o $@ $^ -Ttext=0x6800 -s -specs=x68knodos.specs
@@ -92,6 +88,12 @@ clrconfig.uf2: clrconfig.py
 
 %.o: %.S
 	$(AS) $(ASFLAGS) -c -o $@ $<
+
+%.bin: %.sys
+	./fixupsys.py $< $@
+
+%.bin: %.o
+	$(OBJCOPY) -O binary $< $@
 
 %.inc: %.bin
 	./bindump.py $< $(basename $@) > $@
