@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2023 Yuichi Nakamura (@yunkya2)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
  * The MIT License (MIT)
  *
@@ -33,6 +33,7 @@ sysstat:
     .word   0                   /* system status */
 
 start:
+#if 0
     move.w  %pc@(sysstat),%d0
     cmpi.w  #5,%d0              /* STAT_CONFIGURED */
     blt     loadsetting         /* not configured -> setting UI */
@@ -42,6 +43,7 @@ start:
     trap    #15
     andi.b  #0x08,%d0           /* check F1 key */
     bne     loadsetting
+#endif
 
 loadhuman:
     move.l  #(0x8000/512),%d2   /* HUMAN.SYS */
