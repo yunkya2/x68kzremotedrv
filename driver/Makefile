@@ -78,6 +78,12 @@ head_rmt.o: head.S
 head_rmt_boot.o: head.S
 	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -DCONFIG_BOOTDRIVER -c -o $@ $<
 
+head_hds.o: head.S
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBHDS\" -DCONFIG_DEVTYPE=0x4000 -c -o $@ $<
+
+head_hds_boot.o: head.S
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBHDS\" -DCONFIG_DEVTYPE=0x4000 -DCONFIG_BOOTDRIVER -c -o $@ $<
+
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
 zremotedrv.o:  ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h
 settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
