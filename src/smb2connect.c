@@ -122,10 +122,9 @@ static struct smb2share **findshare(const char *share, int len)
 // Public functions
 //----------------------------------------------------------------------------
 
-struct smb2_context *path2smb2(const char *path)
+struct smb2_context *path2smb2(const char *path, const char **shpath)
 {
-    const char *shpath;
-    int len = path2share(path, &shpath);
+    int len = path2share(path, shpath);
     if (len <= 0) {
         return NULL;            // invalid path
     }
