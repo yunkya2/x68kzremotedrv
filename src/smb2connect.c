@@ -34,16 +34,6 @@
 #include "config_file.h"
 
 //****************************************************************************
-// Static variables
-//****************************************************************************
-
-static struct smb2share {
-    struct smb2share *next;
-    const char *share;
-    struct smb2_context *smb2;
-} *smb2share;
-
-//****************************************************************************
 // Smb2 connection functions
 //****************************************************************************
 
@@ -80,62 +70,128 @@ void disconnect_smb2(struct smb2_context *smb2)
     smb2_destroy_context(smb2);
 }
 
-struct smb2_context *path2smb2(const char *path)
+//****************************************************************************
+// Smb2 share connection functions
+//****************************************************************************
+
+//----------------------------------------------------------------------------
+// Private data and functions
+//----------------------------------------------------------------------------
+
+static struct smb2share {
+    struct smb2share *next;
+    char *share;
+    struct smb2_context *smb2;
+    int refcnt;
+} *smb2share;
+
+static void disconnect_smb2_internal(struct smb2share **s)
+{
+    disconnect_smb2((*s)->smb2);
+    free((char *)(*s)->share);
+    struct smb2share *next = (*s)->next;
+    free(*s);
+    *s = next;
+}
+
+static int path2share(const char *path, const char **shpath)
 {
     const char *p = strchr(path, '/');
-    if (p == NULL)
-        return NULL;
+    if (p == NULL) {
+        *shpath = NULL;
+        return 0;           // invalid path
+    }
 
-    int len = p - path;
+    for (*shpath = p + 1; **shpath == '/'; *shpath++)
+        ;                   // skip leading slashes
+
+    return p - path;        // share length
+}
+
+static struct smb2share **findshare(const char *share, int len)
+{
     for (struct smb2share **s = &smb2share; *s != NULL; s = &(*s)->next) {
-        if (strncmp((*s)->share, path, len) == 0 && strlen((*s)->share) == len)
-            return (*s)->smb2;
+        if (strlen((*s)->share) == len && strncmp((*s)->share, share, len) == 0) {
+            return s;
+        }
     }
     return NULL;
 }
 
+//----------------------------------------------------------------------------
+// Public functions
+//----------------------------------------------------------------------------
+
+struct smb2_context *path2smb2(const char *path)
+{
+    const char *shpath;
+    int len = path2share(path, &shpath);
+    if (len <= 0) {
+        return NULL;            // invalid path
+    }
+
+    struct smb2share **s;
+    if (s = findshare(path, len)) {
+        return (*s)->smb2;      // found connected share
+    }
+
+    return NULL;                // no such share
+}
+
 struct smb2_context *connect_smb2_path(const char *path, const char **shpath)
 {
-    struct smb2share **s;
-
-    const char *p = strchr(path, '/');
-    if (p == NULL)
-        return NULL;
-
-    *shpath = p + 1;
-
-    int len = p - path;
-    for (s = &smb2share; *s != NULL; s = &(*s)->next) {
-        if (strncmp((*s)->share, path, len) == 0 && strlen((*s)->share) == len)
-            return (*s)->smb2;
+    int len = path2share(path, shpath);
+    if (len <= 0) {
+        return NULL;            // invalid path
     }
 
-    *s = malloc(sizeof(struct smb2share));
-    (*s)->next = NULL;
-    (*s)->share = calloc(1, len + 1);
-    memcpy((char *)(*s)->share, path, len);
+    struct smb2share **s;
+    if (s = findshare(path, len)) {
+        (*s)->refcnt++;
+        return (*s)->smb2;      // found connected share
+    }
 
     struct smb2_context *smb2;
-    if ((smb2 = connect_smb2((*s)->share)) == NULL) {
-        free((char *)(*s)->share);
-        free((*s));
-        (*s) = NULL;
-        return NULL;
+    struct smb2share *t;
+    t = malloc(sizeof(struct smb2share));
+    t->next = NULL;
+    t->share = calloc(1, len + 1);
+    memcpy(t->share, path, len);
+
+    if ((smb2 = connect_smb2(t->share)) == NULL) {
+        free(t->share);
+        free(t);
+        return NULL;            // connection failed
     }
 
-    (*s)->smb2 = smb2;
-    return smb2;
+    t->refcnt = 1;
+    t->smb2 = smb2;
+    t->next = smb2share;
+    smb2share = t;
+
+    return smb2;                // new connection
+}
+
+void disconnect_smb2_path(const char *path)
+{
+    const char *shpath;
+    int len = path2share(path, &shpath);
+    if (len <= 0) {
+        return;
+    }
+
+    struct smb2share **s;
+    if (s = findshare(path, len)) {
+        if (--(*s)->refcnt == 0) {
+            disconnect_smb2_internal(s);
+        }
+    }
 }
 
 void disconnect_smb2_all(void)
 {
-    struct smb2share *s = smb2share;
-    while (s != NULL) {
-        disconnect_smb2(s->smb2);
-        free((char *)s->share);
-        struct smb2share *next = s->next;
-        free(s);
-        s = next;
+    struct smb2share **s = &smb2share;
+    while (*s != NULL) {
+        disconnect_smb2_internal(s);
     }
-    smb2share = NULL;
 }
