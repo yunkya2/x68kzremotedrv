@@ -490,7 +490,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     char human[256];
                     strcpy(human, rootpath[0]);
                     strcat(human, "/HUMAN.SYS");
-                    diskinfo[id].smb2 = path2smb2(human);
+                    const char *shpath;
+                    diskinfo[id].smb2 = path2smb2(human, &shpath);
                     char *p = strchr(human, '/') + 1;
                     if ((diskinfo[id].sfh = smb2_open(diskinfo[id].smb2, p, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");
