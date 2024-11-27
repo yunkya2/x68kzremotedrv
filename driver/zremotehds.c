@@ -59,8 +59,12 @@ int debuglevel = 0;
 static union {
   struct cmd_hdsread  cmd_hdsread;
   struct res_hdsread  res_hdsread;
+
   struct cmd_hdswrite cmd_hdswrite;
   struct res_hdswrite res_hdswrite;
+
+  struct res_hdsread_full  res_hdsread_full;
+  struct cmd_hdswrite_full cmd_hdswrite_full;
 } b;
 
 struct dos_bpb bpb[N_HDS][15];
@@ -118,7 +122,7 @@ static int sector_read(int drive, uint8_t *buf, uint32_t pos, int nsect)
   cmd->unit = drive;
   cmd->nsect = nsect;
   cmd->pos = pos;
-  com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res));
+  com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + nsect * 512);
 
   if (res->status == -2) {
     return 0x1001;      // Bad unit number
@@ -141,7 +145,7 @@ static int sector_write(int drive, uint8_t *buf, uint32_t pos, int nsect)
   cmd->nsect = nsect;
   cmd->pos = pos;
   memcpy(cmd->data, buf, 512 * nsect);
-  com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res));
+  com_cmdres(cmd, sizeof(*cmd) + 512 * nsect, res, sizeof(*res));
 
   if (res->status == -2) {
     return 0x1001;      // Bad unit number

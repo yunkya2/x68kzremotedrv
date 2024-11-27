@@ -187,6 +187,10 @@ struct cmd_hdsread {
 struct res_hdsread {
     int8_t status;
     uint8_t nsect;
+    uint8_t data[0];
+};
+struct res_hdsread_full {
+    struct res_hdsread body;
     uint8_t data[SECTOR_SIZE * HDS_MAX_SECT];
 };
 
@@ -195,6 +199,10 @@ struct cmd_hdswrite {
     uint8_t unit;
     uint8_t nsect;
     uint32_t pos;
+    uint8_t data[0];
+};
+struct cmd_hdswrite_full {
+    struct cmd_hdswrite body;
     uint8_t data[SECTOR_SIZE * HDS_MAX_SECT];
 };
 struct res_hdswrite {

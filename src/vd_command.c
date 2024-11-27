@@ -410,10 +410,11 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
     {
       struct cmd_hdsread *cmd = (struct cmd_hdsread *)cbuf;
       struct res_hdsread *res = (struct res_hdsread *)rbuf;
-      rsize = sizeof(*res);
+      rsize = sizeof(*res) + cmd->nsect * 512;
 
       printf("CMD_HDSREAD: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
 
+      res->nsect = cmd->nsect;
       if (hdsinfo[cmd->unit].disk == NULL) {
         res->status = -2;
         break;
