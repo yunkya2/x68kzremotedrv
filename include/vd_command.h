@@ -68,6 +68,8 @@ struct config_data {
 #define CMD_FLASHCONFIG 0xff07
 #define CMD_FLASHCLEAR  0xff08
 #define CMD_REBOOT      0xff09
+#define CMD_SETRMTDRV   0xff10
+#define CMD_SETRMTHDS   0xff11
 #define CMD_HDSREAD     0xff80
 #define CMD_HDSWRITE    0xff81
 
@@ -172,6 +174,24 @@ struct cmd_reboot {
     uint16_t command;
 };
 struct res_reboot {
+    uint8_t status;
+};
+
+struct cmd_setrmtdrv {
+    uint16_t command;
+    uint8_t unit;
+    uint8_t path[128];
+};
+struct res_setrmtdrv {
+    uint8_t status;
+};
+
+struct cmd_setrmthds {
+    uint16_t command;
+    uint8_t unit;
+    uint8_t path[128];
+};
+struct res_setrmthds {
     uint8_t status;
 };
 
