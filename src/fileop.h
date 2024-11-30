@@ -182,7 +182,7 @@ static inline int FUNC_UNLINK(int unit, int *err, const char *path)
 
 static inline TYPE_DIR FUNC_OPENDIR(int unit, int *err, const char *path)
 {
-  union smb2dd dir;
+  union smb2dd dir = { .dd = DIR_BADDIR };
   const char *shpath;
   struct smb2_context *smb2 = path2smb2(path, &shpath);
   dir.dir = smb2_opendir(smb2, shpath);
