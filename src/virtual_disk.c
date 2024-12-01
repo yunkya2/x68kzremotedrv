@@ -48,7 +48,9 @@
 // Global variables
 //****************************************************************************
 
-const char *rootpath[8];
+const char *rootpath[N_REMOTE];
+struct smb2_context *rootsmb2[N_REMOTE];
+
 int debuglevel = 0;
 
 struct diskinfo diskinfo[7];
@@ -208,7 +210,8 @@ int vd_mount(void)
             printf("%s is not directory.\n", config.remote[i]);
             continue;
         }
-        rootpath[i] = config.remote[i];
+        rootsmb2[i] = smb2;
+        rootpath[i] = shpath;
         printf("REMOTE%u: %s\n", i, config.remote[i]);
     }
 

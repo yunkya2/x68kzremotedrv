@@ -417,10 +417,10 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         break;
       }
 
-      extern const char *rootpath[8];
-
-      if (rootpath[cmd->unit]) {
-        disconnect_smb2_path(rootpath[cmd->unit]);
+      if (rootsmb2[cmd->unit]) {
+        disconnect_smb2_smb2(rootsmb2[cmd->unit]);
+        rootsmb2[cmd->unit] = NULL;
+        rootpath[cmd->unit] = NULL;
         strcpy(config.remote[cmd->unit], "");
       }
 
@@ -437,8 +437,10 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         break;
       }
       strcpy(config.remote[cmd->unit], cmd->path);
-      rootpath[cmd->unit] = config.remote[cmd->unit];
-      printf("REMOTE%u: %s\n", cmd->unit, config.remote[cmd->unit]);
+      path2smb2(config.remote[cmd->unit], &shpath);
+      rootsmb2[cmd->unit] = smb2;
+      rootpath[cmd->unit] = shpath;
+      printf("REMOTE%u: %s %s\n", cmd->unit, config.remote[cmd->unit], shpath);
       res->status = 0;
       break;
     }
@@ -453,8 +455,6 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->status = -1;
         break;
       }
-
-      extern struct hdsinfo hdsinfo[N_HDS];
 
       if (hdsinfo[cmd->unit].disk && hdsinfo[cmd->unit].disk->smb2) {
         smb2_close(hdsinfo[cmd->unit].disk->smb2, hdsinfo[cmd->unit].disk->sfh);

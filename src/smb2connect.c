@@ -171,6 +171,18 @@ struct smb2_context *connect_smb2_path(const char *path, const char **shpath)
     return smb2;                // new connection
 }
 
+void disconnect_smb2_smb2(struct smb2_context *smb2)
+{
+    for (struct smb2share **s = &smb2share; *s != NULL; s = &(*s)->next) {
+        if ((*s)->smb2 == smb2) {
+            if (--(*s)->refcnt == 0) {
+                disconnect_smb2_internal(s);
+            }
+            return;
+        }
+    }
+}
+
 void disconnect_smb2_path(const char *path)
 {
     const char *shpath;

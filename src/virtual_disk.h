@@ -68,6 +68,9 @@ struct hdsinfo {
     struct diskinfo *disk;
 };
 
+extern const char *rootpath[N_REMOTE];
+extern struct smb2_context *rootsmb2[N_REMOTE];
+
 extern struct diskinfo diskinfo[7];
 extern struct hdsinfo hdsinfo[N_HDS];
 
