@@ -126,6 +126,100 @@ static void connection(int mode)
     }
 }
 
+
+int remote_umount(int unit)
+{
+    if (unit < 0 || unit >= N_REMOTE) {
+        return VDERR_EINVAL;
+    }
+    if (!rootsmb2[unit]) {
+        return 0;
+    }
+
+    disconnect_smb2_smb2(rootsmb2[unit]);
+    rootsmb2[unit] = NULL;
+    rootpath[unit] = NULL;
+    strcpy(config.remote[unit], "");
+    return 0;
+}
+
+int remote_mount(int unit, const char *path)
+{
+    if (unit < 0 || unit >= N_REMOTE) {
+        return VDERR_EINVAL;
+    }
+
+    if (rootsmb2[unit]) {
+        remote_umount(unit);
+    }
+
+    struct smb2_context *smb2;
+    const char *shpath;
+    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
+        return VDERR_ENOENT;
+    }
+    struct smb2_stat_64 st;
+    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
+        printf("%s is not directory.\n", path);
+        return VDERR_ENOENT;
+    }
+    strcpy(config.remote[unit], path);
+    path2smb2(config.remote[unit], &shpath);
+    rootsmb2[unit] = smb2;
+    rootpath[unit] = shpath;
+    printf("REMOTE%u: %s %s\n", unit, config.remote[unit], shpath);
+    return VDERR_OK;
+}
+
+int hds_umount(int unit)
+{
+    if (unit < 0 || unit >= N_HDS) {
+        return VDERR_EINVAL;
+    }
+    if (!hdsinfo[unit].disk || !hdsinfo[unit].disk->smb2) {
+        return 0;
+    }
+
+    smb2_close(hdsinfo[unit].disk->smb2, hdsinfo[unit].disk->sfh);
+    disconnect_smb2_path(config.hds[unit]);
+    strcpy(config.hds[unit], "");
+    hdsinfo[unit].disk->smb2 = NULL;
+    hdsinfo[unit].disk->sfh = NULL;
+}
+
+int hds_mount(int unit, const char *path)
+{
+    if (unit < 0 || unit >= N_HDS) {
+        return VDERR_EINVAL;
+    }
+
+    if (hdsinfo[unit].disk && hdsinfo[unit].disk->smb2) {
+        hds_umount(unit);
+    }
+
+    struct smb2_context *smb2;
+    const char *shpath;
+    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
+        return VDERR_ENOENT;
+    }
+
+    struct smb2_stat_64 st;
+    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
+        printf("File %s not found.\n", path);
+        return VDERR_ENOENT;
+    }
+    if ((hdsinfo[unit].disk->sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
+        printf("File %s open failure.\n", path);
+        return VDERR_EIO;
+    }
+    strcpy(config.hds[unit], path);
+    hdsinfo[unit].disk->smb2 = smb2;
+    hdsinfo[unit].disk->size = st.smb2_size;
+    printf("HDS%u: %s size=%lld\n", unit, config.hds[unit], st.smb2_size);
+    hdsinfo[unit].disk->sects = (hdsinfo[unit].disk->size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+    return VDERR_OK;
+}
+
 static int vd_mount(void)
 {
     uint32_t nvalue;
@@ -137,50 +231,17 @@ static int vd_mount(void)
 
     /* Set up remote drive */
     for (int i = 0; i < remoteunit; i++) {
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-            printf("%s is not directory.\n", config.remote[i]);
-            continue;
-        }
-        rootsmb2[i] = smb2;
-        rootpath[i] = shpath;
-        printf("REMOTE%u: %s\n", i, config.remote[i]);
+        remote_mount(i, config.remote[i]);
     }
 
     int id = remoteboot ? 1 : 0;
 
     /* Set up remote HDS */
     for (int i = 0; i < N_HDS; i++, id++) {
-        hdsinfo[i].disk = NULL;
-
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-            printf("File %s not found.\n", config.hds[i]);
-            continue;
-        }
-        if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-            printf("File %s open failure.\n", config.hds[i]);
-            continue;
-        }
-
-        diskinfo[id].smb2 = smb2;
-        diskinfo[id].size = st.smb2_size;
-        printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
         hdsinfo[i].disk = &diskinfo[id];
-    }
-
-    for (int i = 0; i < 7; i++) {
-        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+        if (hds_mount(i, config.hds[i]) != VDERR_OK) {
+            hdsinfo[i].disk = NULL;
+        }
     }
 
     sysstatus = STAT_CONFIGURED;

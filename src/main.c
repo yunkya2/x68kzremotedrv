@@ -172,7 +172,7 @@ int main(void)
     log_out_init();
     config_read();
 
-    printf("\nX68000Z Remote Drive Service (version %s)\n", GIT_REPO_VERSION);
+    printf("\nX68000 Z Remote Drive Service (version %s)\n", GIT_REPO_VERSION);
 
     xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &main_th);
     vTaskStartScheduler();

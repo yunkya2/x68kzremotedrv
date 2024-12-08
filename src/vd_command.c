@@ -450,37 +450,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct cmd_setrmtdrv *cmd = (struct cmd_setrmtdrv *)cbuf;
       struct res_setrmtdrv *res = (struct res_setrmtdrv *)rbuf;
       rsize = sizeof(*res);
-
-      if (cmd->unit < 0 || cmd->unit >= N_REMOTE) {
-        res->status = VDERR_EINVAL;
-        break;
-      }
-
-      if (rootsmb2[cmd->unit]) {
-        disconnect_smb2_smb2(rootsmb2[cmd->unit]);
-        rootsmb2[cmd->unit] = NULL;
-        rootpath[cmd->unit] = NULL;
-        strcpy(config.remote[cmd->unit], "");
-      }
-
-      struct smb2_context *smb2;
-      const char *shpath;
-      if ((smb2 = connect_smb2_path(cmd->path, &shpath)) == NULL) {
-        res->status = VDERR_ENOENT;
-        break;
-      }
-      struct smb2_stat_64 st;
-      if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-        printf("%s is not directory.\n", cmd->path);
-        res->status = VDERR_ENOENT;
-        break;
-      }
-      strcpy(config.remote[cmd->unit], cmd->path);
-      path2smb2(config.remote[cmd->unit], &shpath);
-      rootsmb2[cmd->unit] = smb2;
-      rootpath[cmd->unit] = shpath;
-      printf("REMOTE%u: %s %s\n", cmd->unit, config.remote[cmd->unit], shpath);
-      res->status = VDERR_OK;
+      res->status = remote_mount(cmd->unit, cmd->path);
       break;
     }
 
@@ -489,45 +459,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct cmd_setrmthds *cmd = (struct cmd_setrmthds *)cbuf;
       struct res_setrmthds *res = (struct res_setrmthds *)rbuf;
       rsize = sizeof(*res);
-
-      if (cmd->unit < 0 || cmd->unit >= N_HDS) {
-        res->status = VDERR_EINVAL;
-        break;
-      }
-
-      if (hdsinfo[cmd->unit].disk && hdsinfo[cmd->unit].disk->smb2) {
-        smb2_close(hdsinfo[cmd->unit].disk->smb2, hdsinfo[cmd->unit].disk->sfh);
-        disconnect_smb2_path(config.hds[cmd->unit]);
-        strcpy(config.hds[cmd->unit], "");
-        hdsinfo[cmd->unit].disk->smb2 = NULL;
-        hdsinfo[cmd->unit].disk->sfh = NULL;
-      }
-
-      struct smb2_context *smb2;
-      const char *shpath;
-      if ((smb2 = connect_smb2_path(cmd->path, &shpath)) == NULL) {
-        res->status = VDERR_ENOENT;
-        break;
-      }
-
-      struct smb2_stat_64 st;
-      if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-        printf("File %s not found.\n", cmd->path);
-        res->status = VDERR_ENOENT;
-        break;
-      }
-      if ((hdsinfo[cmd->unit].disk->sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-        printf("File %s open failure.\n", cmd->path);
-        res->status = VDERR_EIO;
-        break;
-      }
-
-      strcpy(config.hds[cmd->unit], cmd->path);
-      hdsinfo[cmd->unit].disk->smb2 = smb2;
-      hdsinfo[cmd->unit].disk->size = st.smb2_size;
-      printf("HDS%u: %s size=%lld\n", cmd->unit, config.hds[cmd->unit], st.smb2_size);
-      hdsinfo[cmd->unit].disk->sects = (hdsinfo[cmd->unit].disk->size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-      res->status = VDERR_OK;
+      res->status = hds_mount(cmd->unit, cmd->path);
       break;
     }
 
