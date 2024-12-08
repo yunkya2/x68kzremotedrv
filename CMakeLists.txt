@@ -25,6 +25,7 @@ add_subdirectory(${LIBSMB2_PATH} libsmb2)
 add_executable(
         ${PROJECT_NAME}
         src/main.c
+        src/connect.c
         src/msc_disk.c
         src/virtual_disk.c
         src/vd_command.c

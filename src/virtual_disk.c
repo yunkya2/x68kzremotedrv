@@ -36,7 +36,6 @@
 
 #include "main.h"
 #include "virtual_disk.h"
-#include "vd_command.h"
 #include "config_file.h"
 #include "remoteserv.h"
 #include "fileop.h"
@@ -50,11 +49,16 @@
 // Global variables
 //****************************************************************************
 
+<<<<<<< HEAD
 const char *rootpath[8];
 int debuglevel = 0;
 
 struct diskinfo diskinfo[7];
 
+=======
+int debuglevel = 0;
+
+>>>>>>> a7fcbcd... Add connect.c for network connection
 //****************************************************************************
 // Static variables
 //****************************************************************************
@@ -191,6 +195,7 @@ static void vd_sync(void)
     }
 }
 
+<<<<<<< HEAD
 int vd_mount(void)
 {
     uint32_t nvalue;
@@ -243,6 +248,8 @@ int vd_mount(void)
     sysstatus = STAT_CONFIGURED;
 }
 
+=======
+>>>>>>> a7fcbcd... Add connect.c for network connection
 int vd_init(void)
 {
     uint32_t nvalue;
