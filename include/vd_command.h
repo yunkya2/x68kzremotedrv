@@ -62,14 +62,20 @@ struct config_data {
 #define CMD_GETCONFIG   0xff01
 #define CMD_SETCONFIG   0xff02
 #define CMD_GETSTATUS   0xff03
-#define CMD_WIFI_SCAN   0xff04
-#define CMD_SMB2_ENUM   0xff05
-#define CMD_SMB2_LIST   0xff06
 #define CMD_FLASHCONFIG 0xff07
 #define CMD_FLASHCLEAR  0xff08
 #define CMD_REBOOT      0xff09
+
+#define CMD_WIFI_SCAN   0xff04
+#define CMD_WIFI_CONFIG 0xff12
+
+#define CMD_SMB2_ENUM   0xff05
+#define CMD_SMB2_LIST   0xff06
+#define CMD_SMB2_CONFIG 0xff13
+
 #define CMD_SETRMTDRV   0xff10
 #define CMD_SETRMTHDS   0xff11
+
 #define CMD_HDSREAD     0xff80
 #define CMD_HDSWRITE    0xff81
 
@@ -132,35 +138,6 @@ struct res_getstatus {
     uint8_t status;
 };
 
-struct cmd_wifi_scan {
-    uint16_t command;
-    uint8_t clear;
-};
-struct res_wifi_scan {
-    uint8_t status;
-    uint8_t n_items;
-    uint8_t ssid[16][32];
-};
-
-struct cmd_smb2_enum {
-    uint16_t command;
-};
-struct res_smb2_enum {
-    uint8_t status;
-    uint8_t n_items;
-    uint8_t share[16][64];
-};
-
-struct cmd_smb2_list {
-    uint16_t command;
-    uint8_t share[64];
-    uint8_t path[256];
-};
-struct res_smb2_list {
-    uint8_t status;
-    uint8_t list[1024];
-};
-
 struct cmd_flashconfig {
     uint16_t command;
 };
@@ -182,6 +159,65 @@ struct res_reboot {
     uint8_t status;
 };
 
+//////////////////////////////////////////////////////////////////////////////
+// WiFi AP confguration
+
+struct cmd_wifi_scan {
+    uint16_t command;
+    uint8_t clear;
+};
+struct res_wifi_scan {
+    uint8_t status;
+    uint8_t n_items;
+    uint8_t ssid[16][32];
+};
+
+struct cmd_wifi_config {
+    uint16_t command;
+    char wifi_ssid[32];
+    char wifi_passwd[16];
+};
+struct res_wifi_config {
+    uint8_t status;
+};
+
+//////////////////////////////////////////////////////////////////////////////
+// SMB2 server configuration
+
+struct cmd_smb2_enum {
+    uint16_t command;
+};
+struct res_smb2_enum {
+    uint8_t status;
+    uint8_t n_items;
+    uint8_t share[16][64];
+};
+
+struct cmd_smb2_list {
+    uint16_t command;
+    uint8_t share[64];
+    uint8_t path[256];
+};
+struct res_smb2_list {
+    uint8_t status;
+    uint8_t list[1024];
+};
+
+struct cmd_smb2_config {
+    uint16_t command;
+    char smb2_user[16];
+    char smb2_passwd[16];
+    char smb2_workgroup[16];
+    char smb2_server[32];
+};
+struct res_smb2_config {
+    uint8_t status;
+};
+
+
+//////////////////////////////////////////////////////////////////////////////
+// Remote drive & HDS configuration
+
 struct cmd_setrmtdrv {
     uint16_t command;
     uint8_t unit;
@@ -199,6 +235,9 @@ struct cmd_setrmthds {
 struct res_setrmthds {
     uint8_t status;
 };
+
+//////////////////////////////////////////////////////////////////////////////
+// Remote HDS read/write
 
 #define SECTOR_SIZE         512
 #define HDS_MAX_SECT        6

@@ -248,6 +248,23 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         ;
     }
 
+  ////////////////////////////////////////////////////////////////////////////
+  // WiFi AP confguration
+
+  case CMD_WIFI_CONFIG:
+    {
+      struct cmd_wifi_config *cmd = (struct cmd_wifi_config *)cbuf;
+      struct res_wifi_config *res = (struct res_wifi_config *)rbuf;
+
+      memcpy(config.wifi_ssid, cmd->wifi_ssid, sizeof(config.wifi_ssid));
+      memcpy(config.wifi_passwd, cmd->wifi_passwd, sizeof(config.wifi_passwd));
+
+      res->status = VDERR_OK;
+      rsize = sizeof(*res);
+      xTaskNotify(connect_th, CONNECT_WIFI|CONNECT_WAIT, eSetBits);
+      break;
+    }
+
   case CMD_WIFI_SCAN:
     {
       struct cmd_wifi_scan *cmd = (struct cmd_wifi_scan *)cbuf;
@@ -273,6 +290,25 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       }
       *res = wifi_scan_data;
       res->status = VDERR_OK;
+      break;
+    }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // SMB2 server configuration
+
+  case CMD_SMB2_CONFIG:
+    {
+      struct cmd_smb2_config *cmd = (struct cmd_smb2_config *)cbuf;
+      struct res_smb2_config *res = (struct res_smb2_config *)rbuf;
+
+      memcpy(config.smb2_server, cmd->smb2_server, sizeof(config.smb2_server));
+      memcpy(config.smb2_user, cmd->smb2_user, sizeof(config.smb2_user));
+      memcpy(config.smb2_workgroup, cmd->smb2_workgroup, sizeof(config.smb2_workgroup));
+      memcpy(config.smb2_passwd, cmd->smb2_passwd, sizeof(config.smb2_passwd));
+
+      res->status = VDERR_OK;
+      rsize = sizeof(*res);
+      xTaskNotify(connect_th, CONNECT_SMB2|CONNECT_WAIT, eSetBits);
       break;
     }
 
@@ -406,6 +442,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       break;
     }
 
+  ////////////////////////////////////////////////////////////////////////////
+  // Remote drive & HDS configuration
+
   case CMD_SETRMTDRV:
     {
       struct cmd_setrmtdrv *cmd = (struct cmd_setrmtdrv *)cbuf;
@@ -491,6 +530,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       res->status = VDERR_OK;
       break;
     }
+
+  ////////////////////////////////////////////////////////////////////////////
+  // Remote HDS read/write
 
   case CMD_HDSREAD:
     {
