@@ -36,7 +36,6 @@
 
 #include "main.h"
 #include "virtual_disk.h"
-#include "vd_command.h"
 #include "config_file.h"
 #include "remoteserv.h"
 #include "fileop.h"
@@ -48,13 +47,7 @@
 // Global variables
 //****************************************************************************
 
-const char *rootpath[N_REMOTE];
-struct smb2_context *rootsmb2[N_REMOTE];
-
 int debuglevel = 0;
-
-struct diskinfo diskinfo[7];
-struct hdsinfo hdsinfo[N_HDS];
 
 //****************************************************************************
 // Static variables
@@ -190,63 +183,6 @@ static void vd_sync(void)
         xTaskNotifyWait(0, 0, NULL, portMAX_DELAY);
         synced = true;
     }
-}
-
-int vd_mount(void)
-{
-    uint32_t nvalue;
-    struct dir_entry *dirent;
-    int len;
-
-    /* Set up remote drive */
-    for (int i = 0; i < remoteunit; i++) {
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-            printf("%s is not directory.\n", config.remote[i]);
-            continue;
-        }
-        rootsmb2[i] = smb2;
-        rootpath[i] = shpath;
-        printf("REMOTE%u: %s\n", i, config.remote[i]);
-    }
-
-    int id = remoteboot ? 1 : 0;
-
-    /* Set up remote HDS */
-    for (int i = 0; i < N_HDS; i++, id++) {
-        hdsinfo[i].disk = NULL;
-
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-            printf("File %s not found.\n", config.hds[i]);
-            continue;
-        }
-        if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-            printf("File %s open failure.\n", config.hds[i]);
-            continue;
-        }
-
-        diskinfo[id].smb2 = smb2;
-        diskinfo[id].size = st.smb2_size;
-        printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
-        hdsinfo[i].disk = &diskinfo[id];
-    }
-
-    for (int i = 0; i < 7; i++) {
-        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-    }
-
-    sysstatus = STAT_CONFIGURED;
 }
 
 int vd_init(void)

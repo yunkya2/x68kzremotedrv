@@ -25,17 +25,12 @@
 
 #include <time.h>
 
-#include "pico/cyw43_arch.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
-#include "pico/time.h"
-#include "hardware/watchdog.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "timers.h"
-#include "smb2.h"
-#include "libsmb2.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
 
@@ -45,15 +40,11 @@
 #include "config_file.h"
 #include "remoteserv.h"
 
-volatile int sysstatus = STAT_WIFI_DISCONNECTED;
-
 //****************************************************************************
 // Global variables
 //****************************************************************************
 
 char log_txt[LOGSIZE];
-
-uint64_t boottime = 0;
 
 TaskHandle_t main_th;
 TaskHandle_t connect_th;
@@ -82,100 +73,6 @@ static void log_out_init(void)
     stdio_set_driver_enabled(&stdio_log, true);
 }
 
-//****************************************************************************
-// Connect task
-//****************************************************************************
-
-static struct smb2_context *smb2ipc;
-
-static void connection(int mode)
-{
-    switch (mode) {
-    case CONNECT_WIFI:
-    case CONNECT_WIFI_FAST:
-        printf("Connecting to WiFi...\n");
-
-        sysstatus = STAT_WIFI_CONNECTING;
-
-        if (strlen(config.wifi_ssid) == 0 ||
-            cyw43_arch_wifi_connect_timeout_ms(config.wifi_ssid, config.wifi_passwd,
-                                               CYW43_AUTH_WPA2_AES_PSK, 30000)) {
-            sysstatus = STAT_WIFI_DISCONNECTED;
-            printf("Failed to connect.\n");
-            break;
-        }
-
-        sysstatus = STAT_WIFI_CONNECTED;
-
-        ip4_addr_t *address = &(cyw43_state.netif[0].ip_addr);
-        printf("Connected to %s as %d.%d.%d.%d as host %s\n",
-               config.wifi_ssid,
-               ip4_addr1_16(address), ip4_addr2_16(address), ip4_addr3_16(address), ip4_addr4_16(address),
-               cyw43_state.netif[0].hostname);
-
-        /* fall through */
-
-    case CONNECT_SMB2:
-        if (strlen(config.smb2_server) == 0) {
-            printf("Failed to connect SMB2 server\n");
-            break;
-        }
-
-        sysstatus = STAT_SMB2_CONNECTING;
-
-        if ((smb2ipc = connect_smb2("IPC$")) == NULL) {
-            sysstatus = STAT_WIFI_CONNECTED;
-            break;
-        }
-
-        sysstatus = STAT_SMB2_CONNECTED;
-
-        boottime = (smb2_get_system_time(smb2ipc) / 10) - (11644473600 * 1000000) - to_us_since_boot(get_absolute_time());
-        time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
-        struct tm *tm = localtime(&tt);
-        printf("Boottime UTC %04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
-
-        disconnect_smb2(smb2ipc);
-
-        if (mode != CONNECT_WIFI_FAST) {
-            vTaskDelay(pdMS_TO_TICKS(3000));
-            sysstatus = STAT_SMB2_CONNECTED_SAFE;
-        }
-
-        /* fall through */
-
-    default:
-        break;
-    }
-}
-
-static void connect_task(void *params)
-{
-    /* Set up WiFi connection */
-
-    if (cyw43_arch_init()) {
-        printf("Failed to initialize Pico W\n");
-        while (1)
-            taskYIELD();
-    }
-
-    cyw43_arch_enable_sta_mode();
-
-    connection(CONNECT_WIFI_FAST);
-    if (sysstatus >= STAT_SMB2_CONNECTED) {
-        vd_mount();
-    }
-    xTaskNotify(main_th, 1, eSetBits);
-
-    while (1) {
-        uint32_t nvalue;
-
-        xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
-        if (!(nvalue & CONNECT_WAIT))
-            continue;
-        connection(nvalue & CONNECT_MASK);
-    }
-}
 
 //****************************************************************************
 // Vendor task

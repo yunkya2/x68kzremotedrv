@@ -31,15 +31,15 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
-extern volatile int sysstatus;
-
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 
-extern uint64_t boottime;
-
 extern TaskHandle_t main_th;
 extern TaskHandle_t connect_th;
+
+extern uint64_t boottime;
+extern volatile int sysstatus;
+void connect_task(void *params);
 
 struct smb2_context *connect_smb2(const char *share);
 void disconnect_smb2(struct smb2_context *smb2);
