@@ -88,6 +88,11 @@ struct config_data {
 #define CONNECT_MASK                0x0f
 #define CONNECT_WAIT                0x10
 
+#define VDERR_OK            0       // no error
+#define VDERR_EIO           -1      // device I/O error
+#define VDERR_EINVAL        -2      // invalid argument
+#define VDERR_ENOENT        -3      // no such file or directory
+
 struct cmd_getinfo {
     uint16_t command;
 };

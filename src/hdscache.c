@@ -35,6 +35,7 @@
 
 #include "main.h"
 #include "virtual_disk.h"
+#include "vd_command.h"
 
 //****************************************************************************
 // Static variables
@@ -72,25 +73,25 @@ int hds_cache_read(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, 
         struct cache *c = &cache[i];
         if (c->sfh == sfh && c->smb2 == smb2 && lba >= c->lba && lba < c->lba + c->sects) {
             memcpy(buf, &c->data[(lba - c->lba) * SECTOR_SIZE], SECTOR_SIZE);
-            return 0;
+            return VDERR_OK;
         }
     }
 
     struct cache *c = &cache[cache_next];
     uint64_t cur;
     if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
-        return -1;
+        return VDERR_EIO;
     c->sects = 0;
     int sz = smb2_read(smb2, sfh, c->data, DISK_CACHE_SIZE);
     if (sz < 0)
-        return -1;
+        return VDERR_EIO;
     c->sfh = sfh;
     c->smb2 = smb2;
     c->lba = lba;
     c->sects = sz / SECTOR_SIZE;
     cache_next =(cache_next + 1) % DISK_CACHE_SETS;
     memcpy(buf, c->data, SECTOR_SIZE);
-    return 0;
+    return VDERR_OK;
 }
 
 int hds_cache_write(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, uint8_t *buf)
@@ -105,9 +106,9 @@ int hds_cache_write(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba,
 
     uint64_t cur;
     if (smb2_lseek(smb2, sfh, lba * SECTOR_SIZE, SEEK_SET, &cur) < 0)
-        return -1;
+        return VDERR_EIO;
     int sz = smb2_write(smb2, sfh, buf, SECTOR_SIZE);
     if (sz < 0)
-        return -1;
-    return 0;
+        return VDERR_EIO;
+    return VDERR_OK;
 }

@@ -203,7 +203,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct cmd_setconfig *cmd = (struct cmd_setconfig *)cbuf;
       struct res_setconfig *res = (struct res_setconfig *)rbuf;
       config = cmd->data;
-      res->status = 0;
+      res->status = VDERR_OK;
       rsize = sizeof(*res);
       xTaskNotify(connect_th, cmd->mode | CONNECT_WAIT, eSetBits);
       break;
@@ -223,7 +223,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct cmd_flashconfig *cmd = (struct cmd_flashconfig *)cbuf;
       struct res_flashconfig *res = (struct res_flashconfig *)rbuf;
       config_write();
-      res->status = 0;
+      res->status = VDERR_OK;
       rsize = sizeof(*res);
       break;
     }
@@ -234,7 +234,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_flashclear *res = (struct res_flashclear *)rbuf;
       config_erase();
       config_read();
-      res->status = 0;
+      res->status = VDERR_OK;
       rsize = sizeof(*res);
       xTaskNotify(connect_th, CONNECT_WAIT, eSetBits);
       break;
@@ -264,7 +264,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       int err = cyw43_wifi_scan(&cyw43_state, &scan_options, NULL, scan_result);
       if (err != 0) {
         printf("Failed to start scan: %d\n", err);
-        res->status = -1;
+        res->status = VDERR_EIO;
         break;
       }
       printf("Performing wifi scan\n");
@@ -272,7 +272,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         vTaskDelay(pdMS_TO_TICKS(200));
       }
       *res = wifi_scan_data;
-      res->status = 0;
+      res->status = VDERR_OK;
       break;
     }
 
@@ -285,7 +285,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       rsize = sizeof(*res);
       memset(res, 0, rsize);
-      res->status = -1;
+      res->status = VDERR_EIO;
 
       if ((smb2ipc = connect_smb2("IPC$")) == NULL) {
         break;
@@ -340,7 +340,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       }
       *dst_buf = '\0';
 
-      res->status = -1;
+      res->status = VDERR_EIO;
 
       if ((smb2 = connect_smb2(cmd->share)) == NULL) {
         break;
@@ -351,7 +351,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       char *p = res->list;
       char *q = &res->list[sizeof(res->list)];
 
-      res->status = -2;
+      res->status = VDERR_ENOENT;
 
       dir = smb2_opendir(smb2, path);
       if (dir != NULL) {
@@ -399,7 +399,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         }
         smb2_closedir(smb2, dir);
         *p++ = '\0';
-        res->status = 0;
+        res->status = VDERR_OK;
       }
 
       disconnect_smb2(smb2);
@@ -413,7 +413,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       rsize = sizeof(*res);
 
       if (cmd->unit < 0 || cmd->unit >= N_REMOTE) {
-        res->status = -1;
+        res->status = VDERR_EINVAL;
         break;
       }
 
@@ -427,13 +427,13 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct smb2_context *smb2;
       const char *shpath;
       if ((smb2 = connect_smb2_path(cmd->path, &shpath)) == NULL) {
-        res->status = -2;
+        res->status = VDERR_ENOENT;
         break;
       }
       struct smb2_stat_64 st;
       if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
         printf("%s is not directory.\n", cmd->path);
-        res->status = -2;
+        res->status = VDERR_ENOENT;
         break;
       }
       strcpy(config.remote[cmd->unit], cmd->path);
@@ -441,7 +441,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       rootsmb2[cmd->unit] = smb2;
       rootpath[cmd->unit] = shpath;
       printf("REMOTE%u: %s %s\n", cmd->unit, config.remote[cmd->unit], shpath);
-      res->status = 0;
+      res->status = VDERR_OK;
       break;
     }
 
@@ -452,7 +452,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       rsize = sizeof(*res);
 
       if (cmd->unit < 0 || cmd->unit >= N_HDS) {
-        res->status = -1;
+        res->status = VDERR_EINVAL;
         break;
       }
 
@@ -467,19 +467,19 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct smb2_context *smb2;
       const char *shpath;
       if ((smb2 = connect_smb2_path(cmd->path, &shpath)) == NULL) {
-        res->status = -2;
+        res->status = VDERR_ENOENT;
         break;
       }
 
       struct smb2_stat_64 st;
       if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
         printf("File %s not found.\n", cmd->path);
-        res->status = -2;
+        res->status = VDERR_ENOENT;
         break;
       }
       if ((hdsinfo[cmd->unit].disk->sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
         printf("File %s open failure.\n", cmd->path);
-        res->status = -2;
+        res->status = VDERR_EIO;
         break;
       }
 
@@ -488,7 +488,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       hdsinfo[cmd->unit].disk->size = st.smb2_size;
       printf("HDS%u: %s size=%lld\n", cmd->unit, config.hds[cmd->unit], st.smb2_size);
       hdsinfo[cmd->unit].disk->sects = (hdsinfo[cmd->unit].disk->size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-      res->status = 0;
+      res->status = VDERR_OK;
       break;
     }
 
@@ -502,7 +502,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       res->nsect = cmd->nsect;
       if (hdsinfo[cmd->unit].disk == NULL) {
-        res->status = -2;
+        res->status = VDERR_EINVAL;
         break;
       }
 
@@ -526,7 +526,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       printf("CMD_HDSWRITE: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
 
       if (hdsinfo[cmd->unit].disk == NULL) {
-        res->status = -2;
+        res->status = VDERR_EINVAL;
         break;
       }
 
