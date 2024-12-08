@@ -1,7 +1,7 @@
 /* 
- * The MIT License (MIT)
+ * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
  *
- * Copyright (c) 2023 Yuichi Nakamura
+ * The MIT License (MIT)
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -44,6 +44,8 @@
 // Global variables
 //****************************************************************************
 
+int debuglevel = 0;
+
 char log_txt[LOGSIZE];
 
 TaskHandle_t main_th;
@@ -73,6 +75,15 @@ static void log_out_init(void)
     stdio_set_driver_enabled(&stdio_log, true);
 }
 
+void DPRINTF(int level, char *fmt, ...)
+{
+  if (debuglevel >= level) {
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+  }
+}
 
 //****************************************************************************
 // Vendor task
