@@ -395,47 +395,69 @@ void cmd_server(int argc, char **argv)
 
 //****************************************************************************
 // zremote mount
+// zremote hds
 //****************************************************************************
 
-void cmd_mount_usage(void)
+void cmd_mounthds_usage(int ishds)
 {
-  printf(
-    "Usage:\t" PROGNAME " mount [オプション]\n"
-    "指定したドライブ名にリモートディレクトリをマウントします\n"
-    "\t" PROGNAME " mount\n"
-    "\t\t現在のリモートドライブ設定状態を表示します\n"
-    "\t" PROGNAME " mount ドライブ名:\n"
-    "\t\t指定したドライブのリモートドライブ設定状態を表示します\n"
-    "\t" PROGNAME " mount ドライブ名: リモートパス\n"
-    "\t\t指定したドライブにリモートパスを接続します\n"
-    "\t" PROGNAME " mount -D ドライブ名:\n"
-    "\t" PROGNAME " umount ドライブ名:\n"
-    "\t\t指定のドライブのリモートドライブ設定を解除します\n"
-    "\t" PROGNAME " mount -n ドライブ数\n"
-    "\t\tリモートドライブの数を設定します (0-8)\n"
-    "\t" PROGNAME " mount -l\n"
-    "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
-  );
+  if (ishds) {
+    printf(
+      "Usage:\t" PROGNAME " hds [オプション]\n"
+      "指定したドライブ名にリモートHDSを接続します\n"
+      "\t" PROGNAME " hds\n"
+      "\t\t現在のリモートHDS設定状態を表示します\n"
+      "\t" PROGNAME " hds ドライブ名:\n"
+      "\t\t指定したドライブのリモートHDS設定状態を表示します\n"
+      "\t" PROGNAME " hds ドライブ名: リモートパス\n"
+      "\t\t指定したドライブにリモートHDSを接続します\n"
+      "\t" PROGNAME " hds -D ドライブ名:\n"
+      "\t" PROGNAME " umount ドライブ名:\n"
+      "\t\t指定のドライブのリモートHDS設定を解除します\n"
+      "\t" PROGNAME " hds -n ドライブ数\n"
+      "\t\tリモートHDSの数を設定します (0-4)\n"
+      "\t" PROGNAME " hds -l\n"
+      "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
+    );
+  } else {
+    printf(
+      "Usage:\t" PROGNAME " mount [オプション]\n"
+      "指定したドライブ名にリモートディレクトリをマウントします\n"
+      "\t" PROGNAME " mount\n"
+      "\t\t現在のリモートドライブ設定状態を表示します\n"
+      "\t" PROGNAME " mount ドライブ名:\n"
+      "\t\t指定したドライブのリモートドライブ設定状態を表示します\n"
+      "\t" PROGNAME " mount ドライブ名: リモートパス\n"
+      "\t\t指定したドライブにリモートパスを接続します\n"
+      "\t" PROGNAME " mount -D ドライブ名:\n"
+      "\t" PROGNAME " umount ドライブ名:\n"
+      "\t\t指定のドライブのリモートドライブ設定を解除します\n"
+      "\t" PROGNAME " mount -n ドライブ数\n"
+      "\t\tリモートドライブの数を設定します (0-8)\n"
+      "\t" PROGNAME " mount -l\n"
+      "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
+    );
+  }
   terminate(1);
 }
 
-void cmd_mount_show(void)
+void cmd_mounthds_show(int ishds)
 {
   for (int drive = 1; drive <= 26; drive++) {
-    int unit = getdbpunit(drive, "\x01ZUSBRMT");
+    int unit = getdbpunit(drive, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
     if (unit < 0) {
       continue;
     }
-    printf("%c: %s\n", 'A' + drive - 1, config_data.remote[unit]);
+    char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
+    printf("%c: %s\n", 'A' + drive - 1, s);
   }
 }
 
-void cmd_mount(int argc, char **argv)
+void cmd_mounthds(int ishds, int argc, char **argv)
 {
   int umount = 0;
 
   if (--argc <= 0) {
-    cmd_mount_show();
+    cmd_mounthds_show(ishds);
     return;
   }
   argv++;
@@ -446,14 +468,15 @@ void cmd_mount(int argc, char **argv)
     argv++;
   } else if (strcmp(*argv, "-n") == 0) {
     if (--argc <= 0) {
-      cmd_mount_usage();
+      cmd_mounthds_usage(ishds);
     }
     argv++;
     int n = atoi(*argv);
-    if (n < 0 || n > 8) {
-      cmd_mount_usage();
+    if (n < 0 || n > (ishds ? 4 : 8)) {
+      cmd_mounthds_usage(ishds);
     }
     printf("set remoteunit=%d\n", n);
+    // TBD
     return;
   } else if (strcmp(*argv, "-l") == 0) {
     struct cmd_smb2_enum rcmd;
@@ -475,23 +498,24 @@ void cmd_mount(int argc, char **argv)
   if (!(strlen(*argv) == 2 &&
         drive >= 'A' && drive <= 'Z' &&
         (*argv)[1] == ':')) {
-    cmd_mount_usage();
+    cmd_mounthds_usage(ishds);
   }
 
-  int unit = getdbpunit(drive - 'A' + 1, "\x01ZUSBRMT");
+  int unit = getdbpunit(drive - 'A' + 1, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
   if (unit < 0) {
-    printf(PROGNAME ": ドライブ%c:はリモートドライブではありません\n", drive);
+    printf(PROGNAME ": ドライブ%c:はリモート%sではありません\n", drive, ishds ? "HDS" : "ドライブ");
     terminate(1);
   }
 
   if (!umount && --argc <= 0) {
-    printf("%c: %s\n", drive, config_data.remote[unit]);
+    char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
+    printf("%c: %s\n", drive, s);
   } else {
     argv++;
     struct cmd_setrmtdrv rcmd;
     struct res_setrmtdrv rres;
-    rcmd.command = CMD_SETRMTDRV;
     rcmd.unit = unit;
+    rcmd.command = ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV;
     if (umount) {
       rcmd.path[0] = '\0';
     } else {
@@ -499,7 +523,6 @@ void cmd_mount(int argc, char **argv)
       rcmd.path[sizeof(rcmd.path) - 1] = '\0';
     }
     com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-
     if (rres.status != 0) {
       printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
       terminate(1);
@@ -507,118 +530,14 @@ void cmd_mount(int argc, char **argv)
   }
 }
 
-//****************************************************************************
-// zremote hds
-//****************************************************************************
-
-void cmd_hds_usage(void)
+void cmd_mount(int argc, char **argv)
 {
-  printf(
-    "Usage:\t" PROGNAME " hds [オプション]\n"
-    "指定したドライブ名にリモートHDSを接続します\n"
-    "\t" PROGNAME " hds\n"
-    "\t\t現在のリモートHDS設定状態を表示します\n"
-    "\t" PROGNAME " hds ドライブ名:\n"
-    "\t\t指定したドライブのリモートHDS設定状態を表示します\n"
-    "\t" PROGNAME " hds ドライブ名: リモートパス\n"
-    "\t\t指定したドライブにリモートHDSを接続します\n"
-    "\t" PROGNAME " hds -D ドライブ名:\n"
-    "\t" PROGNAME " umount ドライブ名:\n"
-    "\t\t指定のドライブのリモートHDS設定を解除します\n"
-    "\t" PROGNAME " hds -n ドライブ数\n"
-    "\t\tリモートHDSの数を設定します (0-4)\n"
-    "\t" PROGNAME " hds -l\n"
-    "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
-  );
-  terminate(1);
-}
-
-void cmd_hds_show(void)
-{
-  for (int drive = 1; drive <= 26; drive++) {
-    int unit = getdbpunit(drive, "\x01ZUSBHDS");
-    if (unit < 0) {
-      continue;
-    }
-    printf("%c: %s\n", 'A' + drive - 1, config_data.hds[unit]);
-  }
+  cmd_mounthds(false, argc, argv);
 }
 
 void cmd_hds(int argc, char **argv)
 {
-  int umount = 0;
-
-  if (--argc <= 0) {
-    cmd_hds_show();
-    return;
-  }
-  argv++;
-
-  if (strcmp(*argv, "-D") == 0) {
-    umount = 1;
-    argc--;
-    argv++;
-  } else if (strcmp(*argv, "-n") == 0) {
-    if (--argc <= 0) {
-      cmd_hds_usage();
-    }
-    argv++;
-    int n = atoi(*argv);
-    if (n < 0 || n > 4) {
-      cmd_hds_usage();
-    }
-    printf("set remotehds=%d\n", n);
-    return;
-  } else if (strcmp(*argv, "-l") == 0) {
-    struct cmd_smb2_enum rcmd;
-    struct res_smb2_enum rres;
-    rcmd.command = CMD_SMB2_ENUM;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status == VDERR_OK) {
-      for (int i = 0; i < rres.n_items; i++) {
-        printf("%-64s\n", rres.share[i]);
-      }
-      return;
-    } else {
-      printf(PROGNAME ": ファイル共有リストの取得に失敗しました\n");
-      terminate(1);
-    }
-  }
-  
-  int drive = (*argv)[0] & 0xdf;
-  if (!(strlen(*argv) == 2 &&
-        drive >= 'A' && drive <= 'Z' &&
-        (*argv)[1] == ':')) {
-    cmd_hds_usage();
-  }
-
-  int unit = getdbpunit(drive - 'A' + 1, "\x01ZUSBHDS");
-  if (unit < 0) {
-    printf(PROGNAME ": ドライブ%c:はリモートHDSではありません\n", drive);
-    terminate(1);
-  }
-
-  if (!umount && --argc <= 0) {
-    printf("%c: %s\n", drive, config_data.hds[unit]);
-  } else {
-    argv++;
-    struct cmd_setrmthds rcmd;
-    struct res_setrmthds rres;
-    rcmd.command = CMD_SETRMTHDS;
-    rcmd.unit = unit;
-    if (umount) {
-      rcmd.path[0] = '\0';
-    } else {
-      strncpy(rcmd.path, *argv, sizeof(rcmd.path) - 1);
-      rcmd.path[sizeof(rcmd.path) - 1] = '\0';
-    }
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-
-    if (rres.status != 0) {
-      printf(PROGNAME ": ドライブ%c:への接続に失敗しました\n", drive);
-      terminate(1);
-    }
-  }
+  cmd_mounthds(true, argc, argv);
 }
 
 //****************************************************************************
@@ -707,9 +626,9 @@ void show_all(void)
   cmd_wifi_show();
   cmd_server_show();
   printf("Remote drive:\n");
-  cmd_mount_show();;
+  cmd_mounthds_show(false);
   printf("Remote HDS:\n");
-  cmd_hds_show();;
+  cmd_mounthds_show(true);
   cmd_config_show();
 }
 
