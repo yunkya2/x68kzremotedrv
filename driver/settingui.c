@@ -205,7 +205,6 @@ int topview(void)
     /* fall through */
 
   case STAT_SMB2_CONNECTED:
-  case STAT_SMB2_CONNECTED_SAFE:
     drawmsg(38, 7, 3, "接続済");
     sstat = true;
 
