@@ -48,7 +48,6 @@ void disconnect_smb2(struct smb2_context *smb2);
 struct smb2_context *path2smb2(const char *path, const char **shpath);
 struct smb2_context *connect_smb2_path(const char *path, const char **shpath);
 void disconnect_smb2_smb2(struct smb2_context *smb2);
-void disconnect_smb2_path(const char *path);
 void disconnect_smb2_all(void);
 
 void hds_cache_init(void);

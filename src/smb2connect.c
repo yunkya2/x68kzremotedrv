@@ -183,22 +183,6 @@ void disconnect_smb2_smb2(struct smb2_context *smb2)
     }
 }
 
-void disconnect_smb2_path(const char *path)
-{
-    const char *shpath;
-    int len = path2share(path, &shpath);
-    if (len <= 0) {
-        return;
-    }
-
-    struct smb2share **s;
-    if (s = findshare(path, len)) {
-        if (--(*s)->refcnt == 0) {
-            disconnect_smb2_internal(s);
-        }
-    }
-}
-
 void disconnect_smb2_all(void)
 {
     struct smb2share **s = &smb2share;
