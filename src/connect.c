@@ -58,7 +58,159 @@ struct hdsinfo hdsinfo[N_HDS];
 //****************************************************************************
 
 //****************************************************************************
-// Private functions
+// Remote drive and HDS
+//****************************************************************************
+
+static int remote_disconnect(int unit)
+{
+    if (unit < 0 || unit >= N_REMOTE) {
+        return VDERR_EINVAL;
+    }
+    if (!rootsmb2[unit]) {
+        return 0;
+    }
+
+    void op_closeall(int unit);
+    op_closeall(unit);
+    disconnect_smb2_smb2(rootsmb2[unit]);
+    rootsmb2[unit] = NULL;
+    rootpath[unit] = NULL;
+    return 0;
+}
+
+static int remote_umount(int unit)
+{
+    int res = remote_disconnect(unit);
+    if (res == 0) {
+        strcpy(config.remote[unit], "");
+    }
+    return res;
+}
+
+int remote_mount(int unit, const char *path)
+{
+    if (unit < 0 || unit >= N_REMOTE) {
+        return VDERR_EINVAL;
+    }
+    if (rootsmb2[unit]) {
+        remote_umount(unit);
+    }
+    if (strlen(path) == 0) {        // umount drive
+        return VDERR_OK;
+    }
+
+    struct smb2_context *smb2;
+    const char *shpath;
+    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
+        return VDERR_ENOENT;
+    }
+    struct smb2_stat_64 st;
+    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
+        printf("%s is not directory.\n", path);
+        return VDERR_ENOENT;
+    }
+    strcpy(config.remote[unit], path);
+    path2smb2(config.remote[unit], &shpath);
+    rootsmb2[unit] = smb2;
+    rootpath[unit] = shpath;
+    printf("REMOTE%u: %s %s\n", unit, config.remote[unit], shpath);
+    return VDERR_OK;
+}
+
+static int hds_disconnect(int unit)
+{
+    if (unit < 0 || unit >= N_HDS) {
+        return VDERR_EINVAL;
+    }
+    if (!hdsinfo[unit].smb2) {
+        return 0;
+    }
+
+    smb2_close(hdsinfo[unit].smb2, hdsinfo[unit].sfh);
+    disconnect_smb2_smb2(hdsinfo[unit].smb2);
+    hdsinfo[unit].smb2 = NULL;
+    hdsinfo[unit].sfh = NULL;
+    return 0;
+}
+
+static int hds_umount(int unit)
+{
+    int res = hds_disconnect(unit);
+    if (res == 0) {
+        strcpy(config.hds[unit], "");
+    }
+    return res;
+}
+
+int hds_mount(int unit, const char *path)
+{
+    if (unit < 0 || unit >= N_HDS) {
+        return VDERR_EINVAL;
+    }
+    if (hdsinfo[unit].smb2) {
+        hds_umount(unit);
+    }
+    if (strlen(path) == 0) {        // umount HDS
+        return VDERR_OK;
+    }
+
+    struct smb2_context *smb2;
+    const char *shpath;
+    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
+        return VDERR_ENOENT;
+    }
+    struct smb2_stat_64 st;
+    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
+        printf("File %s not found.\n", path);
+        return VDERR_ENOENT;
+    }
+    if ((hdsinfo[unit].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
+        printf("File %s open failure.\n", path);
+        return VDERR_EIO;
+    }
+    strcpy(config.hds[unit], path);
+    hdsinfo[unit].smb2 = smb2;
+    hdsinfo[unit].size = st.smb2_size;
+    printf("HDS%u: %s size=%lld\n", unit, config.hds[unit], st.smb2_size);
+    return VDERR_OK;
+}
+
+static int mountall(void)
+{
+    int remoteunit = atoi(config.remoteunit);
+
+    /* Set up remote drive */
+    for (int i = 0; i < remoteunit; i++) {
+        remote_mount(i, config.remote[i]);
+    }
+
+    /* Set up remote HDS */
+    for (int i = 0; i < N_HDS; i++) {
+        hds_mount(i, config.hds[i]);
+    }
+
+    sysstatus = STAT_CONFIGURED;
+}
+
+static int disconnectall(void)
+{
+    int remoteunit = atoi(config.remoteunit);
+
+    /* Unmount remote drive */
+    for (int i = 0; i < remoteunit; i++) {
+        remote_disconnect(i);
+    }
+
+    /* Unmount remote HDS */
+    for (int i = 0; i < N_HDS; i++) {
+        hds_disconnect(i);
+    }
+
+    sysstatus = STAT_SMB2_CONNECTED_SAFE;
+}
+
+//****************************************************************************
+// WiFi and SMB2 connection
 //****************************************************************************
 
 static void connection(int mode)
@@ -124,121 +276,6 @@ static void connection(int mode)
     }
 }
 
-
-int remote_umount(int unit)
-{
-    if (unit < 0 || unit >= N_REMOTE) {
-        return VDERR_EINVAL;
-    }
-    if (!rootsmb2[unit]) {
-        return 0;
-    }
-
-    disconnect_smb2_smb2(rootsmb2[unit]);
-    rootsmb2[unit] = NULL;
-    rootpath[unit] = NULL;
-    strcpy(config.remote[unit], "");
-    return 0;
-}
-
-int remote_mount(int unit, const char *path)
-{
-    if (unit < 0 || unit >= N_REMOTE) {
-        return VDERR_EINVAL;
-    }
-
-    if (rootsmb2[unit]) {
-        remote_umount(unit);
-    }
-
-    struct smb2_context *smb2;
-    const char *shpath;
-    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
-        return VDERR_ENOENT;
-    }
-    struct smb2_stat_64 st;
-    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-        printf("%s is not directory.\n", path);
-        return VDERR_ENOENT;
-    }
-    strcpy(config.remote[unit], path);
-    path2smb2(config.remote[unit], &shpath);
-    rootsmb2[unit] = smb2;
-    rootpath[unit] = shpath;
-    printf("REMOTE%u: %s %s\n", unit, config.remote[unit], shpath);
-    return VDERR_OK;
-}
-
-int hds_umount(int unit)
-{
-    if (unit < 0 || unit >= N_HDS) {
-        return VDERR_EINVAL;
-    }
-    if (!hdsinfo[unit].smb2) {
-        return 0;
-    }
-
-    smb2_close(hdsinfo[unit].smb2, hdsinfo[unit].sfh);
-    disconnect_smb2_smb2(hdsinfo[unit].smb2);
-    hdsinfo[unit].smb2 = NULL;
-    hdsinfo[unit].sfh = NULL;
-    strcpy(config.hds[unit], "");
-    return 0;
-}
-
-int hds_mount(int unit, const char *path)
-{
-    if (unit < 0 || unit >= N_HDS) {
-        return VDERR_EINVAL;
-    }
-
-    if (hdsinfo[unit].smb2) {
-        hds_umount(unit);
-    }
-
-    struct smb2_context *smb2;
-    const char *shpath;
-    if ((smb2 = connect_smb2_path(path, &shpath)) == NULL) {
-        return VDERR_ENOENT;
-    }
-    struct smb2_stat_64 st;
-    if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-        printf("File %s not found.\n", path);
-        return VDERR_ENOENT;
-    }
-    if ((hdsinfo[unit].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-        printf("File %s open failure.\n", path);
-        return VDERR_EIO;
-    }
-    strcpy(config.hds[unit], path);
-    hdsinfo[unit].smb2 = smb2;
-    hdsinfo[unit].size = st.smb2_size;
-    printf("HDS%u: %s size=%lld\n", unit, config.hds[unit], st.smb2_size);
-    return VDERR_OK;
-}
-
-static int vd_mount(void)
-{
-    uint32_t nvalue;
-    struct dir_entry *dirent;
-    int len;
-
-    int remoteunit = atoi(config.remoteunit);
-    int remoteboot = atoi(config.remoteboot);
-
-    /* Set up remote drive */
-    for (int i = 0; i < remoteunit; i++) {
-        remote_mount(i, config.remote[i]);
-    }
-
-    /* Set up remote HDS */
-    for (int i = 0; i < N_HDS; i++) {
-        hds_mount(i, config.hds[i]);
-    }
-
-    sysstatus = STAT_CONFIGURED;
-}
-
 //****************************************************************************
 // WiFi connection task
 //****************************************************************************
@@ -257,7 +294,7 @@ void connect_task(void *params)
 
     connection(CONNECT_WIFI_FAST);
     if (sysstatus >= STAT_SMB2_CONNECTED) {
-        vd_mount();
+        mountall();
     }
     xTaskNotify(main_th, 1, eSetBits);
 
@@ -267,6 +304,12 @@ void connect_task(void *params)
         xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
         if (!(nvalue & CONNECT_WAIT))
             continue;
+        if ((nvalue & CONNECT_MASK) <= CONNECT_SMB2) {
+            disconnectall();
+        }
         connection(nvalue & CONNECT_MASK);
+        if (sysstatus >= STAT_SMB2_CONNECTED) {
+            mountall();
+        }
     }
 }
