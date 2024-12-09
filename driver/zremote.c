@@ -625,8 +625,57 @@ void cmd_hds(int argc, char **argv)
 // zremote umount
 //****************************************************************************
 
+void cmd_umount_usage(void)
+{
+  printf(
+    "Usage:\t" PROGNAME " umount ドライブ名:\n"
+    "指定したドライブ名のリモートディレクトリやHDSをマウント解除します\n"
+  );
+  terminate(1);
+}
+
 void cmd_umount(int argc, char **argv)
 {
+  if (--argc <= 0) {
+    cmd_umount_usage();
+    return;
+  }
+  argv++;
+
+  int drive = (*argv)[0] & 0xdf;
+  if (!(strlen(*argv) == 2 &&
+        drive >= 'A' && drive <= 'Z' &&
+        (*argv)[1] == ':')) {
+    cmd_umount_usage();
+  }
+
+  int res = 0;
+  int unit;
+  if ((unit = getdbpunit(drive - 'A' + 1, "\x01ZUSBRMT")) >= 0) {
+    struct cmd_setrmtdrv rcmd;
+    struct res_setrmtdrv rres;
+    rcmd.command = CMD_SETRMTDRV;
+    rcmd.unit = unit;
+    rcmd.path[0] = '\0';
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    res = rres.status;
+  } else if ((unit = getdbpunit(drive - 'A' + 1, "\x01ZUSBHDS")) >= 0) {
+    struct cmd_setrmthds rcmd;
+    struct res_setrmthds rres;
+    rcmd.command = CMD_SETRMTHDS;
+    rcmd.unit = unit;
+    rcmd.path[0] = '\0';
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    res = rres.status;
+  } else {
+    printf(PROGNAME ": ドライブ%c:はリモートドライブ/HDSではありません\n", drive);
+    terminate(1);
+  }
+
+  if (res != 0) {
+    printf(PROGNAME ": ドライブ%c:のマウント解除に失敗しました\n", drive);
+    terminate(1);
+  }
 }
 
 //****************************************************************************
