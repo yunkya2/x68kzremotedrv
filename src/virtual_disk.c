@@ -51,6 +51,18 @@
 // Static variables
 //****************************************************************************
 
+#define DTYPE_NOTUSED       0
+#define DTYPE_HDS           1
+#define DTYPE_REMOTEBOOT    2
+
+struct diskinfo {
+    int type;
+    struct hdsinfo *hds;
+    uint32_t size;
+} diskinfo[7];
+
+#define DISKSIZE(di)    ((di)->hds && (di)->hds->sfh ? (di)->hds->size : (di)->size)
+
 static int remoteunit;
 static bool remoteboot;
 static bool fastconnect;
@@ -201,12 +213,13 @@ int vd_init(void)
             if (strlen(config.hds[i]) == 0)
                 continue;
             diskinfo[id].type = DTYPE_HDS;
+            diskinfo[id].hds = &hdsinfo[i];
             diskinfo[id].size = 0xfffffe00; /* tentative size */
         }
     }
 
     for (int i = 0; i < 7; i++) {
-        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
+//        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     }
 
     strcpy(pscsiini, "[pscsi]\r\n");
@@ -250,10 +263,11 @@ int vd_init(void)
 #if 0
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     for (int i = 0; i < 7; i++) {
-        if (diskinfo[i].type != DTYPE_NOTUSED) {
+        struct diskinfo *di = &diskinfo[i];
+        if (di->type != DTYPE_NOTUSED) {
             char fn[12] = "DISKx   HDS";
             fn[4] = '0' + i;
-            init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, diskinfo[i].size);
+            init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
         }
     }
 #endif
@@ -293,13 +307,15 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             uint32_t *lbuf = (uint32_t *)buf;
             int id = (lba - 0x400) / 0x400;
             lba %= 0x400;
-            if (diskinfo[id].type != DTYPE_NOTUSED) {
+            struct diskinfo *di = &diskinfo[id];
+            if (di->type != DTYPE_NOTUSED) {
+                uint32_t size = DISKSIZE(di);
                 // 1セクタ分のFAT領域(512/4=128エントリ)が占めるディスク領域 (128*32kB = 4MB)
                 int fatdsz = FATENTS_SECT * CLUSTER_SIZE;
                 // ファイルに使用するFAT領域のセクタ数(1セクタ未満切り捨て)
-                int fatsects = diskinfo[id].size / fatdsz;
+                int fatsects = size / fatdsz;
                 // 1セクタに満たない分のFATエントリ数
-                int fatmod = (diskinfo[id].size % fatdsz) / CLUSTER_SIZE;
+                int fatmod = (size % fatdsz) / CLUSTER_SIZE;
                 // アクセスしようとしているFAT領域先頭のクラスタ番号
                 int clsno = 0x20000 + id * 0x20000 + FATENTS_SECT * lba;
                 if (lba < fatsects) {
@@ -352,15 +368,16 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         lba -= 0x00803fa0;
         int id = lba / 0x800000;
         lba %= 0x800000;
-        if (diskinfo[id].type == DTYPE_NOTUSED)
+        struct diskinfo *di = &diskinfo[id];
+        if (di->type == DTYPE_NOTUSED)
             return -1;
-        if (lba >= diskinfo[id].sects)
+        if (lba >= (DISKSIZE(di) + SECTOR_SIZE - 1) / SECTOR_SIZE)
             return -1;
         DPRINTF3("disk %d: read 0x%x\n", id, lba);
 
         vd_sync();
 
-        if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
+        if (di->hds != NULL && di->hds->sfh) {
             if (lba == 2) {
                 // boot loader
                 memcpy(buf, hdsboot, sizeof(hdsboot));
@@ -369,7 +386,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0x20 || lba == 0x21) {
                 lba -= 0x20 - 2;
             }
-            if (hds_cache_read(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
+            if (hds_cache_read(di->hds->smb2, di->hds->sfh, lba, buf) < 0)
                 return -1;
             return 0;
         }
@@ -409,24 +426,24 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 lba -= 0x8000 / 512;
                 uint64_t cur;
                 static uint32_t humanlbamax = (uint32_t)-1;
-                if (lba <= humanlbamax && diskinfo[id].sfh == NULL) {
+                static struct smb2_context *smb2 = NULL;
+                static struct smb2fh *sfh = NULL;
+                if (sfh == NULL) {
                     char human[256];
                     strcpy(human, rootpath[0]);
                     strcat(human, "/HUMAN.SYS");
-                    const char *shpath;
-                    diskinfo[id].smb2 = path2smb2(human, &shpath);
-                    char *p = strchr(human, '/') + 1;
-                    if ((diskinfo[id].sfh = smb2_open(diskinfo[id].smb2, p, O_RDONLY)) == NULL) {
+                    if ((sfh = smb2_open(rootsmb2[0], human, O_RDONLY)) == NULL) {
                         DPRINTF1("HUMAN.SYS open failure.\n");
                     } else {
+                        smb2 = rootsmb2[0];
                         DPRINTF1("HUMAN.SYS opened.\n");
                     }
                 }
-                if (diskinfo[id].sfh != NULL &&
-                    smb2_lseek(diskinfo[id].smb2, diskinfo[id].sfh, lba * 512, SEEK_SET, &cur) >= 0) {
-                    if (smb2_read(diskinfo[id].smb2, diskinfo[id].sfh, buf, 512) != 512) {
-                        smb2_close(diskinfo[id].smb2, diskinfo[id].sfh);
-                        diskinfo[id].sfh = NULL;
+                if (sfh != NULL &&
+                    smb2_lseek(smb2, sfh, lba * 512, SEEK_SET, &cur) >= 0) {
+                    if (smb2_read(smb2, sfh, buf, 512) != 512) {
+                        smb2_close(smb2, sfh);
+                        sfh = NULL;
                         humanlbamax = lba;
                         DPRINTF1("HUMAN.SYS closed.\n");
                     }
@@ -473,16 +490,17 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
         lba -= 0x00803fa0;
         int id = lba / 0x800000;
         lba %= 0x800000;
-        if (diskinfo[id].type == DTYPE_NOTUSED)
+        struct diskinfo *di = &diskinfo[id];
+        if (di->type == DTYPE_NOTUSED)
             return -1;
-        if (lba >= diskinfo[id].sects)
+        if (lba >= (DISKSIZE(di) + SECTOR_SIZE - 1) / SECTOR_SIZE)
             return -1;
         DPRINTF3("disk %d: write 0x%x\n", id, lba);
 
         vd_sync();
 
-        if (diskinfo[id].type == DTYPE_HDS && diskinfo[id].sfh != NULL) {
-            if (hds_cache_write(diskinfo[id].smb2, diskinfo[id].sfh, lba, buf) < 0)
+        if (di->hds != NULL && di->hds->sfh) {
+            if (hds_cache_write(di->hds->smb2, di->hds->sfh, lba, buf) < 0)
                 return -1;
             return 0;
         }

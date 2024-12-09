@@ -51,26 +51,14 @@ int vd_write_block(uint32_t lba, uint8_t *buf);
 
 /* remote disk information */
 
-#define DTYPE_NOTUSED       0
-#define DTYPE_HDS           1
-#define DTYPE_REMOTEBOOT    2
-
-struct diskinfo {
-    int type;
-    struct smb2fh *sfh;
-    struct smb2_context *smb2;
-    uint32_t size;
-    int sects;
-};
-
 struct hdsinfo {
-    struct diskinfo *disk;
+    struct smb2_context *smb2;
+    struct smb2fh *sfh;
+    uint32_t size;
 };
 
 extern const char *rootpath[N_REMOTE];
 extern struct smb2_context *rootsmb2[N_REMOTE];
-
-extern struct diskinfo diskinfo[7];
 extern struct hdsinfo hdsinfo[N_HDS];
 
 #endif  /* _VIRTUAL_DISK_H */

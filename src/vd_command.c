@@ -472,17 +472,17 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_hdsread *res = (struct res_hdsread *)rbuf;
       rsize = sizeof(*res) + cmd->nsect * 512;
 
-      printf("CMD_HDSREAD: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
+      DPRINTF2("CMD_HDSREAD: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
 
       res->nsect = cmd->nsect;
-      if (hdsinfo[cmd->unit].disk == NULL) {
+      if (hdsinfo[cmd->unit].smb2 == NULL) {
         res->status = VDERR_EINVAL;
         break;
       }
 
-      struct diskinfo *disk = hdsinfo[cmd->unit].disk;
+      struct hdsinfo *hds = &hdsinfo[cmd->unit];
       for (int i = 0; i < cmd->nsect; i++) {
-        res->status = hds_cache_read(disk->smb2, disk->sfh,
+        res->status = hds_cache_read(hds->smb2, hds->sfh,
                                      be32toh(cmd->pos) + i, res->data + i * 512);
         if (res->status < 0) {
           break;
@@ -497,16 +497,16 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       struct res_hdswrite *res = (struct res_hdswrite *)rbuf;
       rsize = sizeof(*res);
 
-      printf("CMD_HDSWRITE: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
+      DPRINTF2("CMD_HDSWRITE: unit=%d pos=0x%x nsect=%d\n", cmd->unit, be32toh(cmd->pos), cmd->nsect);
 
-      if (hdsinfo[cmd->unit].disk == NULL) {
+      if (hdsinfo[cmd->unit].smb2 == NULL) {
         res->status = VDERR_EINVAL;
         break;
       }
 
-      struct diskinfo *disk = hdsinfo[cmd->unit].disk;
+      struct hdsinfo *hds = &hdsinfo[cmd->unit];
       for (int i = 0; i < cmd->nsect; i++) {
-        res->status = hds_cache_write(disk->smb2, disk->sfh,
+        res->status = hds_cache_write(hds->smb2, hds->sfh,
                                       be32toh(cmd->pos) + i, cmd->data + i * 512);
         if (res->status < 0) {
           break;
