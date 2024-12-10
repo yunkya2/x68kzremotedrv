@@ -42,6 +42,8 @@
 
 #include "bootloader.inc"
 #include "hdsboot.inc"
+#include "zremotedrv_boot.inc"
+#include "zremotehds_boot.inc"
 
 //****************************************************************************
 // Global variables
@@ -200,26 +202,22 @@ int vd_init(void)
             diskinfo[i].size = 0x800;
         }
     } else {
-        /* Set up remote drive boot */
-        int id = 0;
-        if (remoteboot) {
-            diskinfo[id].type = DTYPE_REMOTEBOOT;
-            diskinfo[id].size = 0x20000;
-            id++;
-        }
+        int id;
+
+        /* Set up remote drive */
+        id = remoteboot ? 0 : N_HDS;
+        diskinfo[id].type = DTYPE_REMOTEBOOT;
+        diskinfo[id].size = 0x20000;
 
         /* Set up remote HDS */
-        for (int i = 0; i < countof(config.hds); i++, id++) {
+        id = remoteboot ? 1 : 0;
+        for (int i = 0; i < N_HDS; i++, id++) {
             if (strlen(config.hds[i]) == 0)
                 continue;
             diskinfo[id].type = DTYPE_HDS;
             diskinfo[id].hds = &hdsinfo[i];
             diskinfo[id].size = 0xfffffe00; /* tentative size */
         }
-    }
-
-    for (int i = 0; i < 7; i++) {
-//        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
     }
 
     strcpy(pscsiini, "[pscsi]\r\n");
@@ -251,16 +249,12 @@ int vd_init(void)
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
 
-    if (!fastconnect)
-        vd_sync();
-
     /* Initialize "X68000Z" directory */
 
     memset(x68zdir, 0,  sizeof(x68zdir));
     dirent = (struct dir_entry *) x68zdir;
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
-#if 0
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     for (int i = 0; i < 7; i++) {
         struct diskinfo *di = &diskinfo[i];
@@ -270,7 +264,6 @@ int vd_init(void)
             init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
         }
     }
-#endif
 
     return 0;
 }
@@ -395,7 +388,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
-                memcpy(&buf[16], "X68000ZRemoteDrv", 16);
+                memcpy(&buf[16], "ZUSBRMTDRV boot ", 16);
                 return 0;
             } else if (lba == 2) {
                 // boot loader
@@ -407,18 +400,15 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 4) {
                 // SCSI partition signature
                 memcpy(buf, "X68K", 4);
-                for (int i = 0; i < remoteunit; i++) {
-                    memcpy(buf + 16 + i * 16, "Human68k", 8);
-                }
+                memcpy(buf + 16, "Human68k", 8);
                 return 0;
-            } else if (lba >= (0x0c00 / 512) && lba < (0x4000 / 512)) {
-                // SCSI device driver
+            } else if (lba >= (0x0c00 / 512) && lba < (0x8000 / 512)) {
+                // zremotedrv device driver
                 lba -= 0xc00 / 512;
-#if 0
-                if (lba <= sizeof(scsiremote) / 512) {
-                    memcpy(buf, &scsiremote[lba * 512], 512);
+                if (lba <= sizeof(zremotedrv_boot) / 512) {
+                    size_t remain = sizeof(zremotedrv_boot) - lba * 512;
+                    memcpy(buf, &zremotedrv_boot[lba * 512], remain >= 512 ? 512 : remain);
                 }
-#endif
                 return 0;
             }
             if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
@@ -428,7 +418,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 static uint32_t humanlbamax = (uint32_t)-1;
                 static struct smb2_context *smb2 = NULL;
                 static struct smb2fh *sfh = NULL;
-                if (sfh == NULL) {
+                if (lba <= humanlbamax && sfh == NULL) {
                     char human[256];
                     strcpy(human, rootpath[0]);
                     strcat(human, "/HUMAN.SYS");

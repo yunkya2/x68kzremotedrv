@@ -53,8 +53,8 @@ CFLAGS += -DDEBUG
 endif
 
 all: bootloader.inc hdsboot.inc clrconfig.uf2
-all: zremotedrv.sys zremotedrv.hds
-all: zremotehds.sys zremotehds.hds
+all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
+all: zremotehds.sys zremotehds.hds zremotehds_boot.inc
 all: zremote.x
 
 uitest:
