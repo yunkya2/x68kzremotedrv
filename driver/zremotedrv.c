@@ -67,6 +67,7 @@ void *_HSTA = heap;
 void *_HEND = heap + 1024;
 void *_PSP;
 
+#ifndef CONFIG_BOOTDRIVER
 void DPRINTF(int level, char *fmt, ...)
 {
   char buf[256];
@@ -80,6 +81,11 @@ void DPRINTF(int level, char *fmt, ...)
   va_end(ap);
   _iocs_b_print(buf);
 }
+#else
+void DPRINTF(int level, char *fmt, ...)
+{
+}
+#endif
 
 void DNAMEPRINT(void *n, bool full, char *head)
 {

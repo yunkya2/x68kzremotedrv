@@ -88,6 +88,7 @@ void *_HSTA = heap;
 void *_HEND = heap + 1024;
 void *_PSP;
 
+#ifndef CONFIG_BOOTDRIVER
 void DPRINTF(int level, char *fmt, ...)
 {
   char buf[256];
@@ -101,6 +102,11 @@ void DPRINTF(int level, char *fmt, ...)
   va_end(ap);
   _iocs_b_print(buf);   // _dos_print()だとリダイレクト時に動作しなくなる
 }
+#else
+void DPRINTF(int level, char *fmt, ...)
+{
+}
+#endif
 #else
 #define DPRINTF(...)
 #endif
