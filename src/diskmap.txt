@@ -55,6 +55,7 @@ off         sect        clus
 0x00081c000 0x00040e0   0x000005    log.txt
 0x000824000 0x0004120   0x000006    config.txt
                                     (update時: write 0x4020～0x4027 -> 0x4120)
+0x00082c000 0x0004160   0x000007    "X68000Z/image" subdir
 
 0x1007f4000 0x0803fa0   0x020000    image-0
 0x2007f4000 0x1003fa0   0x040000    image-1

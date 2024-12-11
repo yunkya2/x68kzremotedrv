@@ -159,7 +159,7 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
     entry->crtTime =  entry->wrtTime =
         ((12 << 11) | (0 << 5) | (0 >> 1));
     entry->crtDate = entry->wrtDate = entry->lstAccDate =
-        (((2023 - 1980) << 9) | (1 << 5) | (1));
+        (((2025 - 1980) << 9) | (1 << 5) | (1));
     entry->fstClusHI = cluster >> 16;
     entry->fstClusLO = cluster & 0xffff;
     entry->fileSize = len;
@@ -171,8 +171,10 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
 
 static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
-static uint8_t x68zdir[32 * 16];
+static uint8_t x68zdir[32 * 8];
+static uint8_t imagedir[32 * 16];
 static uint8_t pscsiini[256];
+static int imagedir_init = false;
 
 static void vd_sync(void)
 {
@@ -223,9 +225,11 @@ int vd_init(void)
     strcpy(pscsiini, "[pscsi]\r\n");
     for (int i = 0; i < 7; i++) {
         if (diskinfo[i].type != DTYPE_NOTUSED) {
-            char str[32] = "IDx=diskx.hds\r\n";
-            str[2] = '0' + i;
-            str[8] = '0' + i;
+            char str[32];
+            sprintf(str, "ID%d=image/%s%d.hds\r\n",
+                i,
+                diskinfo[i].type == DTYPE_REMOTEBOOT ? "rmtdrv" : "rmthds",
+                i);
             strcat(pscsiini, str);
         }
     }
@@ -240,6 +244,7 @@ int vd_init(void)
     fat[4] = 0x0fffffff;    /* cluster 4: pscsi.ini */
     fat[5] = 0x0fffffff;    /* cluster 5: log.txt */
     fat[6] = 0x0fffffff;    /* cluster 6: config.txt */
+    fat[7] = 0x0fffffff;    /* cluster 7: X68000Z/image directory */
 
     /* Initialize root directory */
 
@@ -252,18 +257,11 @@ int vd_init(void)
     /* Initialize "X68000Z" directory */
 
     memset(x68zdir, 0,  sizeof(x68zdir));
-    dirent = (struct dir_entry *) x68zdir;
+    dirent = (struct dir_entry *)x68zdir;
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
-    for (int i = 0; i < 7; i++) {
-        struct diskinfo *di = &diskinfo[i];
-        if (di->type != DTYPE_NOTUSED) {
-            char fn[12] = "DISKx   HDS";
-            fn[4] = '0' + i;
-            init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
-        }
-    }
+    init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
 
     return 0;
 }
@@ -353,6 +351,31 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     if (lba >= 0x4120 && lba < 0x4124) {
         // "config.txt" file
         memcpy(buf, &configtxt[(lba - 0x4120) * SECTOR_SIZE], SECTOR_SIZE);
+        return 0;
+    }
+
+    if (lba == 0x4160) {
+        // "X68000Z/image" directory
+        if (!imagedir_init) {
+            /* Lazy initialization of "X68000Z/image" directory */
+            struct dir_entry *dirent;
+            vd_sync();
+            memset(imagedir, 0,  sizeof(imagedir));
+            dirent = (struct dir_entry *)imagedir;
+            init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 4, 0);
+            init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+            for (int i = 0; i < 7; i++) {
+                struct diskinfo *di = &diskinfo[i];
+                if (di->type != DTYPE_NOTUSED) {
+                    char fn[16];
+                    sprintf(fn, "%s%d HDS",
+                        diskinfo[i].type == DTYPE_REMOTEBOOT ? "RMTDRV" : "RMTHDS", i);
+                    init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
+                }
+            }
+            imagedir_init = true;
+        }
+        memcpy(buf, imagedir, sizeof(imagedir));
         return 0;
     }
 
