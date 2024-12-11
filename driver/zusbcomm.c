@@ -53,18 +53,22 @@
 // ZUSBRMT デバイスドライバが既に存在すれば zsub_rmtdata へのポインタを返す
 struct zusb_rmtdata *find_zusbrmt(void)
 {
-  struct dos_dpbptr dpb;
-  for (int i = 1; i <= 26; i++) {
-    if (_dos_getdpb(i, &dpb) >= 0) {
-      char *p = (char *)dpb.driver + 14;
-      if (memcmp(p, "\x01ZUSBRMT", 8) == 0 ||
-          memcmp(p, "\x01ZUSBHDS", 8) == 0) {
-        struct zusb_rmtdata *rd = &(*(struct zusb_rmtdata **)(p - 4))[-1];
-        zusb_set_channel(rd->zusb_ch);
-        return rd;
-      }
-    }
+  const char *devh = (const char *)0x006800;
+  // Human68k初期化中はDOS _GETDPBが使えないため、直接デバイスドライバのリンクリストを検索する
+  while (memcmp(devh, "NUL     ", 8) != 0) {
+    devh += 2;
   }
+  devh -= 14;
+  do {
+    const char *p = devh + 14;
+    if (memcmp(p, "\x01ZUSBRMT", 8) == 0 ||
+        memcmp(p, "\x01ZUSBHDS", 8) == 0) {
+      struct zusb_rmtdata *rd = &(*(struct zusb_rmtdata **)(p - 4))[-1];
+      zusb_set_channel(rd->zusb_ch);
+      return rd;
+    }
+    devh = *(const char **)devh;
+  } while (devh != (char *)-1);
   return NULL;
 }
 
