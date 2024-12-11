@@ -44,15 +44,16 @@ struct config_data {
     char smb2_workgroup[16];
     char smb2_server[32];
 
-    char selfboot[4];
-    char remoteboot[4];
-    char remoteunit[4];
-    char hdsunit[4];
+    uint8_t selfboot;
+    uint8_t remoteboot;
+    uint8_t remoteunit;
+    uint8_t hdsscsi;
+    uint8_t hdsunit;
     char remote[N_REMOTE][128];
     char hds[N_HDS][128];
 
     char tz[16];
-    char tadjust[4];
+    int8_t tadjust;
 };
 
 /* remote communication protocol definition */

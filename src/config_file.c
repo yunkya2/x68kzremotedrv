@@ -61,6 +61,7 @@ struct config_data config;
 
 #define CF_HIDDEN   1
 #define CF_URL      2
+#define CF_INT      4
 
 const struct config_item {
     const char *item;
@@ -83,14 +84,16 @@ const struct config_item {
     { "SMB2_SERVER:",               NULL,
       config.smb2_server,           sizeof(config.smb2_server),     0 },
 
-    { "SELFBOOT:",                  "0",
-      config.selfboot,              sizeof(config.selfboot),        0 },
-    { "REMOTE_BOOT:",               "0",
-      config.remoteboot,            sizeof(config.remoteboot),      0 },
-    { "REMOTE_UNIT:",               "0",
-      config.remoteunit,            sizeof(config.remoteunit),      0 },
-    { "HDS_UNIT:",                  "0",
-      config.hdsunit,               sizeof(config.hdsunit),         0 },
+    { "SELFBOOT:",                  (char *)0,
+      (char *)&config.selfboot,     sizeof(config.selfboot),        CF_INT },
+    { "REMOTE_BOOT:",               (char *)0,
+      (char *)&config.remoteboot,   sizeof(config.remoteboot),      CF_INT },
+    { "REMOTE_UNIT:",               (char *)0,
+      (char *)&config.remoteunit,   sizeof(config.remoteunit),      CF_INT },
+    { "HDS_SCSI:",                  (char *)0,
+      (char *)&config.hdsscsi,      sizeof(config.hdsscsi),         CF_INT },
+    { "HDS_UNIT:",                  (char *)0,
+      (char *)&config.hdsunit,      sizeof(config.hdsunit),         CF_INT },
 
     { "REMOTE0:",                   NULL,
       config.remote[0],             sizeof(config.remote[0]),       CF_URL },
@@ -109,19 +112,19 @@ const struct config_item {
     { "REMOTE7:",                   NULL,
       config.remote[7],             sizeof(config.remote[7]),       CF_URL },
 
-    { "HDS0:",                       NULL,
-      config.hds[0],                sizeof(config.hds[0]),           CF_URL },
-    { "HDS1:",                       NULL,
-      config.hds[1],                sizeof(config.hds[1]),           CF_URL },
-    { "HDS2:",                       NULL,
-      config.hds[2],                sizeof(config.hds[2]),           CF_URL },
-    { "HDS3:",                       NULL,
-      config.hds[3],                sizeof(config.hds[3]),           CF_URL },
+    { "HDS0:",                      NULL,
+      config.hds[0],                sizeof(config.hds[0]),          CF_URL },
+    { "HDS1:",                      NULL,
+      config.hds[1],                sizeof(config.hds[1]),          CF_URL },
+    { "HDS2:",                      NULL,
+      config.hds[2],                sizeof(config.hds[2]),          CF_URL },
+    { "HDS3:",                      NULL,
+      config.hds[3],                sizeof(config.hds[3]),          CF_URL },
 
     { "TZ:",                        "JST-9",
       config.tz,                    sizeof(config.tz),              0 },
-    { "TADJUST:",                   "2",
-      config.tadjust,               sizeof(config.tadjust),         0 },
+    { "TADJUST:",                   (char *)2,
+      (char *)&config.tadjust,      sizeof(config.tadjust),         CF_INT },
 };
 
 //****************************************************************************
@@ -153,8 +156,12 @@ void config_read(void)
     } else {
         for (i = 0; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
-            if (c->defval)
-                strcpy(c->value, c->defval);
+            if (c->defval) {
+                if (c->flag & CF_INT)
+                    *c->value = (long)c->defval;
+                else
+                    strcpy(c->value, c->defval);
+            }
         }
     }
 
@@ -175,8 +182,8 @@ void config_read(void)
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
              config.wifi_ssid,
              config.smb2_user, config.smb2_workgroup, config.smb2_server,
-             config.selfboot, config.remoteboot,
-             config.remoteunit, config.hdsunit,
+             config.selfboot, config.remoteboot, config.remoteunit,
+             config.hdsscsi, config.hdsunit,
              config.remote[0],
              config.remote[1],
              config.remote[2],
@@ -253,19 +260,23 @@ void config_parse(uint8_t *buf)
                     if (*r < ' ')
                         continue;
                 }
-                for (int j = 0; j < c->valuesz - 1; j++) {
-                    if (*p < ' ')
-                        break;
-                    if (c->flag & CF_URL) {
-                        char c = *p++;
-                        if (c == '"')
-                            continue;
-                        *q++ = (c == '\\') ? '/' : c;
-                    } else {
-                        *q++ = *p++;
+                if (c->flag & CF_INT) {
+                    *q = atoi(p);
+                } else {
+                    for (int j = 0; j < c->valuesz - 1; j++) {
+                        if (*p < ' ')
+                            break;
+                        if (c->flag & CF_URL) {
+                            char c = *p++;
+                            if (c == '"')
+                                continue;
+                            *q++ = (c == '\\') ? '/' : c;
+                        } else {
+                            *q++ = *p++;
+                        }
                     }
+                    *q = '\0';
                 }
-                *q = '\0';
                 p++;
                 break;
             }

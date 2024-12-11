@@ -50,15 +50,13 @@
 // Global variables
 //****************************************************************************
 
-int hdsscsi = true;
-
 //****************************************************************************
 // Static variables
 //****************************************************************************
 
 #define DTYPE_NOTUSED       0
-#define DTYPE_HDS           1
-#define DTYPE_REMOTEBOOT    2
+#define DTYPE_REMOTEHDS     1
+#define DTYPE_REMOTEDRV     2
 
 struct diskinfo {
     int type;
@@ -67,11 +65,6 @@ struct diskinfo {
 } diskinfo[7];
 
 #define DISKSIZE(di)    ((di)->hds && (di)->hds->sfh ? (di)->hds->size : (di)->size)
-
-static bool selfboot;
-static bool remoteboot;
-static int remoteunit;
-static int hdsunit;
 
 //****************************************************************************
 // BPB
@@ -197,35 +190,30 @@ int vd_init(void)
 
     setenv("TZ", config.tz, true);
 
-    selfboot = atoi(config.selfboot);
-    remoteboot = atoi(config.remoteboot);
-    remoteunit = atoi(config.remoteunit);
-    hdsunit = atoi(config.hdsunit);
-
     if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
         /* not configured */
         for (int i = 0; i < 6; i++) {
-            diskinfo[i].type = DTYPE_REMOTEBOOT;
+            diskinfo[i].type = DTYPE_REMOTEDRV;
             diskinfo[i].size = 0x800;
         }
     } else {
         int id;
 
         /* Set up remote drive */
-        id = remoteboot ? 0 : N_HDS;
-        diskinfo[id].type = DTYPE_REMOTEBOOT;
+        id = config.remoteboot ? 0 : N_HDS;
+        diskinfo[id].type = DTYPE_REMOTEDRV;
         diskinfo[id].size = 0x20000;
 
         /* Set up remote HDS */
-        id = remoteboot ? 1 : 0;
-        if (hdsscsi) {
-            for (int i = 0; i < hdsunit; i++, id++) {
-                diskinfo[id].type = DTYPE_HDS;
+        id = config.remoteboot ? 1 : 0;
+        if (config.hdsscsi) {
+            for (int i = 0; i < config.hdsunit; i++, id++) {
+                diskinfo[id].type = DTYPE_REMOTEHDS;
                 diskinfo[id].hds = &hdsinfo[i];
                 diskinfo[id].size = 0xfffffe00; /* tentative size */
             }
         } else {
-            diskinfo[id].type = DTYPE_HDS;
+            diskinfo[id].type = DTYPE_REMOTEHDS;
             diskinfo[id].size = 0x20000;
         }
     }
@@ -236,7 +224,7 @@ int vd_init(void)
             char str[32];
             sprintf(str, "ID%d=image/%s%d.hds\r\n",
                 i,
-                diskinfo[i].type == DTYPE_REMOTEBOOT ? "rmtdrv" : "rmthds",
+                diskinfo[i].type == DTYPE_REMOTEDRV ? "rmtdrv" : "rmthds",
                 i);
             strcat(pscsiini, str);
         }
@@ -268,7 +256,8 @@ int vd_init(void)
     dirent = (struct dir_entry *)x68zdir;
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
-    init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
+    if (config.selfboot)
+        init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
 
     return 0;
@@ -377,7 +366,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 if (di->type != DTYPE_NOTUSED) {
                     char fn[16];
                     sprintf(fn, "%s%d HDS",
-                        diskinfo[i].type == DTYPE_REMOTEBOOT ? "RMTDRV" : "RMTHDS", i);
+                        diskinfo[i].type == DTYPE_REMOTEDRV ? "RMTDRV" : "RMTHDS", i);
                     init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
                 }
             }
@@ -416,9 +405,9 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return 0;
         }
 
-        if ((diskinfo[id].type == DTYPE_REMOTEBOOT) ||
-            (diskinfo[id].type == DTYPE_HDS && !hdsscsi)) {
-            int ishds = diskinfo[id].type != DTYPE_REMOTEBOOT;
+        if ((diskinfo[id].type == DTYPE_REMOTEDRV) ||
+            (diskinfo[id].type == DTYPE_REMOTEHDS && !config.hdsscsi)) {
+            int ishds = diskinfo[id].type != DTYPE_REMOTEDRV;
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
@@ -427,7 +416,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
-                buf[5] = remoteboot ? sysstatus : 0;
+                buf[5] = config.remoteboot ? sysstatus : 0;
                 return 0;
             }
             if (lba == 4) {

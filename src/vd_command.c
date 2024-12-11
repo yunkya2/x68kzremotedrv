@@ -162,9 +162,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
 
       memset(res, 0, rsize);
 
-      if (boottime != 0 && atoi(config.tadjust) != 0) {
+      if (boottime != 0 && config.tadjust != 0) {
         time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
-        tt += atoi(config.tadjust);
+        tt += config.tadjust;
         struct tm *tm = localtime(&tt);
         res->year = htobe16(tm->tm_year + 1900);
         res->mon = tm->tm_mon + 1;
@@ -174,8 +174,8 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
         res->sec = tm->tm_sec;
       }
 
-      res->remoteunit = atoi(config.remoteunit);
-      res->hdsunit = atoi(config.hdsunit);
+      res->remoteunit = config.remoteunit;
+      res->hdsunit = config.hdsunit;
 
       res->version = PROTO_VERSION;
       strncpy(res->verstr, GIT_REPO_VERSION, sizeof(res->verstr) - 1);
