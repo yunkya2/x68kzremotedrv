@@ -83,10 +83,15 @@ const struct config_item {
     { "SMB2_SERVER:",               NULL,
       config.smb2_server,           sizeof(config.smb2_server),     0 },
 
+    { "SELFBOOT:",                  "0",
+      config.selfboot,              sizeof(config.selfboot),        0 },
     { "REMOTE_BOOT:",               "0",
       config.remoteboot,            sizeof(config.remoteboot),      0 },
     { "REMOTE_UNIT:",               "0",
       config.remoteunit,            sizeof(config.remoteunit),      0 },
+    { "HDS_UNIT:",                  "0",
+      config.hdsunit,               sizeof(config.hdsunit),         0 },
+
     { "REMOTE0:",                   NULL,
       config.remote[0],             sizeof(config.remote[0]),       CF_URL },
     { "REMOTE1:",                   NULL,
@@ -117,8 +122,6 @@ const struct config_item {
       config.tz,                    sizeof(config.tz),              0 },
     { "TADJUST:",                   "2",
       config.tadjust,               sizeof(config.tadjust),         0 },
-    { "FASTCONNECT:",               "0",
-      config.fastconnect,           sizeof(config.fastconnect),     0 },
 };
 
 //****************************************************************************
@@ -129,8 +132,7 @@ const struct config_item {
 
 #define CONFIG_FLASH_OFFSET     (0x1f0000)
 #define CONFIG_FLASH_ADDR       ((uint8_t *)(0x10000000 + CONFIG_FLASH_OFFSET))
-#define CONFIG_FLASH_MAGIC_v3   "X68000Z Remote Drive Config v3"
-#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v4"
+#define CONFIG_FLASH_MAGIC      "X68000Z Remote Drive Config v5"
 
 void config_read(void)
 {
@@ -148,13 +150,6 @@ void config_read(void)
             memcpy(c->value, p, c->valuesz);
             p += c->valuesz;
         }
-    } else if (memcmp(&config_flash_addr[0], CONFIG_FLASH_MAGIC_v3, sizeof(CONFIG_FLASH_MAGIC_v3)) == 0) {
-        for (i = 0; i < CONFIG_ITEMS - 1; i++) {
-            const struct config_item *c = &config_items[i];
-            memcpy(c->value, p, c->valuesz);
-            p += c->valuesz;
-        }
-        strcpy(config.fastconnect, "0");
     } else {
         for (i = 0; i < CONFIG_ITEMS; i++) {
             const struct config_item *c = &config_items[i];
@@ -180,11 +175,8 @@ void config_read(void)
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
              config.wifi_ssid,
              config.smb2_user, config.smb2_workgroup, config.smb2_server,
-             config.hds[0],
-             config.hds[1],
-             config.hds[2],
-             config.hds[3],
-             config.remoteboot, config.remoteunit,
+             config.selfboot, config.remoteboot,
+             config.remoteunit, config.hdsunit,
              config.remote[0],
              config.remote[1],
              config.remote[2],
@@ -193,9 +185,12 @@ void config_read(void)
              config.remote[5],
              config.remote[6],
              config.remote[7],
+             config.hds[0],
+             config.hds[1],
+             config.hds[2],
+             config.hds[3],
              config.tz,
-             config.tadjust,
-             config.fastconnect);
+             config.tadjust);
 
     for (i = 0; i < 8; i++) {
         for (char *p = config.remote[i]; *p != '\0'; p++) {

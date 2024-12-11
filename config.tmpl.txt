@@ -1,4 +1,4 @@
-[X68000Z Remote Drive Service Configuration]
+[X68000 Z Remote Drive Service Configuration]
 
 # WiFi 接続先の SSID、パスワード
 WIFI_SSID: %s
@@ -10,16 +10,14 @@ SMB2_PASSWORD: ********
 SMB2_WORKGROUP: %s
 SMB2_SERVER: %s
 
-# X68000Z に見せるHDSファイルの場所
-HDS0: %s
-HDS1: %s
-HDS2: %s
-HDS3: %s
-
+# リモートドライブのみで起動を行うかどうか (0=行わない/1=行う)
+SELFBOOT: %s
 # リモートドライブからの起動を行うかどうか (0=行わない/1=行う)
 REMOTE_BOOT: %s
 # リモートドライブのユニット数 (0-4) 0ならリモートドライブは使用しない
 REMOTE_UNIT: %s
+# リモートHDSのユニット数 (0-4) 0ならリモートHDSは使用しない
+HDS_UNIT: %s
 
 # X68000Z に見せるリモートドライブの場所
 REMOTE0: %s
@@ -31,11 +29,13 @@ REMOTE5: %s
 REMOTE6: %s
 REMOTE7: %s
 
+# X68000Z に見せるHDSファイルの場所
+HDS0: %s
+HDS1: %s
+HDS2: %s
+HDS3: %s
+
 # タイムゾーン設定
 TZ: %s
 # 起動時の日時補正値 (サーバから取得した日時からのオフセット/空欄なら補正しない)
 TADJUST: %s
-# リモートドライブサービスの接続を高速化するか (0=高速化しない/1=高速化する)
-# 1に設定した場合はHDSファイルのイメージサイズが正しく取得できない副作用がある
-# 通常は問題ないがformat.xで装置初期化を行う際は0を設定しておく必要がある
-FASTCONNECT: %s

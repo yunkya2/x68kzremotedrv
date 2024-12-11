@@ -249,7 +249,7 @@ int com_init(struct dos_req_header *req)
       return 0x700d;
     }
 
-    drives = res.remotehds;
+    drives = res.hdsunit;
   }
 
   int units = 0;

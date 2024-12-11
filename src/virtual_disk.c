@@ -68,9 +68,10 @@ struct diskinfo {
 
 #define DISKSIZE(di)    ((di)->hds && (di)->hds->sfh ? (di)->hds->size : (di)->size)
 
-static int remoteunit;
+static bool selfboot;
 static bool remoteboot;
-static bool fastconnect;
+static int remoteunit;
+static int hdsunit;
 
 //****************************************************************************
 // BPB
@@ -196,9 +197,10 @@ int vd_init(void)
 
     setenv("TZ", config.tz, true);
 
-    remoteunit = atoi(config.remoteunit);
+    selfboot = atoi(config.selfboot);
     remoteboot = atoi(config.remoteboot);
-    fastconnect = atoi(config.fastconnect);
+    remoteunit = atoi(config.remoteunit);
+    hdsunit = atoi(config.hdsunit);
 
     if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
         /* not configured */
@@ -217,9 +219,7 @@ int vd_init(void)
         /* Set up remote HDS */
         id = remoteboot ? 1 : 0;
         if (hdsscsi) {
-            for (int i = 0; i < N_HDS; i++, id++) {
-                if (strlen(config.hds[i]) == 0)
-                    continue;
+            for (int i = 0; i < hdsunit; i++, id++) {
                 diskinfo[id].type = DTYPE_HDS;
                 diskinfo[id].hds = &hdsinfo[i];
                 diskinfo[id].size = 0xfffffe00; /* tentative size */

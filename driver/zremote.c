@@ -204,8 +204,7 @@ void cmd_config_usage(void)
 int cmd_config_show(void)
 {
   printf("TZ=%s\n", config_data.tz);
-  printf("tadjust=%s\n", config_data.tadjust);
-  printf("fastconnect=%s\n", config_data.fastconnect);
+  printf("tadjust=%u\n", config_data.tadjust);
 }
 
 void cmd_config(int argc, char **argv)

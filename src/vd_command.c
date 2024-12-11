@@ -175,14 +175,7 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       }
 
       res->remoteunit = atoi(config.remoteunit);
-
-      int remotehds = 0;
-      for (int i = 0; i < N_HDS; i++, remotehds++) {
-        if (strlen(config.hds[i]) == 0) {
-          break;
-        }
-      }
-      res->remotehds = remotehds;
+      res->hdsunit = atoi(config.hdsunit);
 
       res->version = PROTO_VERSION;
       strncpy(res->verstr, GIT_REPO_VERSION, sizeof(res->verstr) - 1);
