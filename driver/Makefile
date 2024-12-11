@@ -54,7 +54,7 @@ endif
 
 all: bootloader.inc hdsboot.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
-all: zremotehds.sys zremotehds.hds zremotehds_boot.inc
+all: zremotehds.sys zremotehds.hds zremotehds_boot.inc human.inc
 all: zremote.x
 
 uitest:
@@ -80,6 +80,9 @@ zremotehds_boot.sys: head_hds_boot.o zremotehds_boot.o zusbcomm.o
 
 zremotehds.hds: zremotehds_boot.bin bootloader.bin HUMAN.SYS
 	./createhds.py $@ bootloader.bin HUMAN.SYS zremotehds_boot.bin
+
+human.inc: HUMAN.SYS
+	./bindump.py $< humansys > $@
 
 zrmtrescue.xdf: rescueboot.bin settingui.bin
 	./createrescue.py $^ $@

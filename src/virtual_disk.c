@@ -44,10 +44,13 @@
 #include "hdsboot.inc"
 #include "zremotedrv_boot.inc"
 #include "zremotehds_boot.inc"
+#include "human.inc"
 
 //****************************************************************************
 // Global variables
 //****************************************************************************
+
+int hdsscsi = true;
 
 //****************************************************************************
 // Static variables
@@ -213,12 +216,17 @@ int vd_init(void)
 
         /* Set up remote HDS */
         id = remoteboot ? 1 : 0;
-        for (int i = 0; i < N_HDS; i++, id++) {
-            if (strlen(config.hds[i]) == 0)
-                continue;
+        if (hdsscsi) {
+            for (int i = 0; i < N_HDS; i++, id++) {
+                if (strlen(config.hds[i]) == 0)
+                    continue;
+                diskinfo[id].type = DTYPE_HDS;
+                diskinfo[id].hds = &hdsinfo[i];
+                diskinfo[id].size = 0xfffffe00; /* tentative size */
+            }
+        } else {
             diskinfo[id].type = DTYPE_HDS;
-            diskinfo[id].hds = &hdsinfo[i];
-            diskinfo[id].size = 0xfffffe00; /* tentative size */
+            diskinfo[id].size = 0x20000;
         }
     }
 
@@ -393,6 +401,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
         vd_sync();
 
+        // HDS SCSI remote drive
         if (di->hds != NULL && di->hds->sfh) {
             if (lba == 2) {
                 // boot loader
@@ -407,17 +416,18 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             return 0;
         }
 
-        if (diskinfo[id].type == DTYPE_REMOTEBOOT) {
+        if ((diskinfo[id].type == DTYPE_REMOTEBOOT) ||
+            (diskinfo[id].type == DTYPE_HDS && !hdsscsi)) {
+            int ishds = diskinfo[id].type != DTYPE_REMOTEBOOT;
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
-                memcpy(&buf[16], "ZUSBRMTDRV boot ", 16);
+                memcpy(&buf[16], ishds ? "ZUSBRMTHDS boot " : "ZUSBRMTDRV boot ", 16);
                 return 0;
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
-                if (diskinfo[id].type == DTYPE_REMOTEBOOT)
-                    buf[5] = remoteboot ? sysstatus : 0;
+                buf[5] = remoteboot ? sysstatus : 0;
                 return 0;
             }
             if (lba == 4) {
@@ -426,17 +436,31 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 memcpy(buf + 16, "Human68k", 8);
                 return 0;
             } else if (lba >= (0x0c00 / 512) && lba < (0x8000 / 512)) {
-                // zremotedrv device driver
+                // zremotedrv/zremotehds device driver
+                size_t size = ishds ? sizeof(zremotehds_boot) : sizeof(zremotedrv_boot);
+                const uint8_t *driver = ishds ? zremotehds_boot : zremotedrv_boot;
+
                 lba -= 0xc00 / 512;
-                if (lba <= sizeof(zremotedrv_boot) / 512) {
-                    size_t remain = sizeof(zremotedrv_boot) - lba * 512;
-                    memcpy(buf, &zremotedrv_boot[lba * 512], remain >= 512 ? 512 : remain);
+                if (lba <= size / 512) {
+                    size_t remain = size - lba * 512;
+                    memcpy(buf, &driver[lba * 512], remain >= 512 ? 512 : remain);
                 }
                 return 0;
             }
             if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
+
+                if (ishds) {
+                    // use embedded HUMAN.SYS image
+                    size_t size = sizeof(humansys);
+                    if (lba <= size / 512) {
+                        size_t remain = size - lba * 512;
+                        memcpy(buf, &humansys[lba * 512], remain >= 512 ? 512 : remain);
+                    }
+                    return 0;
+                }
+
                 uint64_t cur;
                 static uint32_t humanlbamax = (uint32_t)-1;
                 static struct smb2_context *smb2 = NULL;
