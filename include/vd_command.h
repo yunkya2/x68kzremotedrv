@@ -64,19 +64,20 @@ struct config_data {
 #define CMD_GETCONFIG   0xff01
 #define CMD_SETCONFIG   0xff02
 #define CMD_GETSTATUS   0xff03
-#define CMD_FLASHCONFIG 0xff07
-#define CMD_FLASHCLEAR  0xff08
-#define CMD_REBOOT      0xff09
+#define CMD_FLASHCONFIG 0xff04
+#define CMD_FLASHCLEAR  0xff05
+#define CMD_REBOOT      0xff06
 
-#define CMD_WIFI_SCAN   0xff04
-#define CMD_WIFI_CONFIG 0xff12
+#define CMD_WIFI_SCAN   0xff10
+#define CMD_WIFI_CONFIG 0xff11
 
-#define CMD_SMB2_ENUM   0xff05
-#define CMD_SMB2_LIST   0xff06
-#define CMD_SMB2_CONFIG 0xff13
+#define CMD_SMB2_ENUM   0xff20
+#define CMD_SMB2_LIST   0xff21
+#define CMD_SMB2_CONFIG 0xff22
 
-#define CMD_SETRMTDRV   0xff10
-#define CMD_SETRMTHDS   0xff11
+#define CMD_SETRMTDRV   0xff30
+#define CMD_SETRMTHDS   0xff31
+#define CMD_SETRMTCFG   0xff32
 
 #define CMD_HDSREAD     0xff80
 #define CMD_HDSWRITE    0xff81
@@ -214,7 +215,6 @@ struct res_smb2_config {
     uint8_t status;
 };
 
-
 //////////////////////////////////////////////////////////////////////////////
 // Remote drive & HDS configuration
 
@@ -233,6 +233,18 @@ struct cmd_setrmthds {
     uint8_t path[128];
 };
 struct res_setrmthds {
+    uint8_t status;
+};
+
+struct cmd_setrmtcfg {
+    uint16_t command;
+    uint8_t selfboot;
+    uint8_t remoteboot;
+    uint8_t remoteunit;
+    uint8_t hdsscsi;
+    uint8_t hdsunit;
+};
+struct res_setrmtcfg{
     uint8_t status;
 };
 

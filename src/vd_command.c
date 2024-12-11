@@ -456,6 +456,20 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       break;
     }
 
+  case CMD_SETRMTCFG:
+    {
+      struct cmd_setrmtcfg *cmd = (struct cmd_setrmtcfg *)cbuf;
+      struct res_setrmtcfg *res = (struct res_setrmtcfg *)rbuf;
+      rsize = sizeof(*res);
+      config.selfboot = cmd->selfboot;
+      config.remoteboot = cmd->remoteboot;
+      config.remoteunit = cmd->remoteunit;
+      config.hdsscsi = cmd->hdsscsi;
+      config.hdsunit = cmd->hdsunit;
+      res->status = VDERR_OK;
+      break;
+    }
+
   ////////////////////////////////////////////////////////////////////////////
   // Remote HDS read/write
 

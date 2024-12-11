@@ -474,8 +474,42 @@ void cmd_mounthds(int ishds, int argc, char **argv)
     if (n < 0 || n > (ishds ? 4 : 8)) {
       cmd_mounthds_usage(ishds);
     }
-    printf("set remoteunit=%d\n", n);
-    // TBD
+    struct cmd_setrmtcfg rcmd;
+    struct res_setrmtcfg rres;
+    rcmd.command = CMD_SETRMTCFG;
+    rcmd.selfboot = config_data.selfboot;
+    rcmd.remoteboot = config_data.remoteboot;
+    rcmd.remoteunit = config_data.remoteunit;
+    rcmd.hdsscsi = config_data.hdsscsi;
+    rcmd.hdsunit = config_data.hdsunit;
+    if (ishds) {
+      rcmd.hdsunit = n;
+    } else {
+      rcmd.remoteunit = n;
+    }
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    return;
+  } else if (strcmp(*argv, "-r") == 0) {
+    struct cmd_setrmtcfg rcmd;
+    struct res_setrmtcfg rres;
+    rcmd.command = CMD_SETRMTCFG;
+    rcmd.selfboot = config_data.selfboot;
+    rcmd.remoteboot = config_data.remoteboot;
+    rcmd.remoteunit = config_data.remoteunit;
+    rcmd.hdsscsi = 0;
+    rcmd.hdsunit = config_data.hdsunit;
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    return;
+  } else if (strcmp(*argv, "-s") == 0) {
+    struct cmd_setrmtcfg rcmd;
+    struct res_setrmtcfg rres;
+    rcmd.command = CMD_SETRMTCFG;
+    rcmd.selfboot = config_data.selfboot;
+    rcmd.remoteboot = config_data.remoteboot;
+    rcmd.remoteunit = config_data.remoteunit;
+    rcmd.hdsscsi = 1;
+    rcmd.hdsunit = config_data.hdsunit;
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
     return;
   } else if (strcmp(*argv, "-l") == 0) {
     struct cmd_smb2_enum rcmd;
