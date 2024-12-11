@@ -617,6 +617,31 @@ void cmd_date(int argc, char **argv)
 }
 
 //****************************************************************************
+// zremote save
+//****************************************************************************
+
+void cmd_save_usage(void)
+{
+  printf(
+    "Usage:\t" PROGNAME " save\n"
+    "現在の設定値をRaspberry Pi Pico Wに保存します\n"
+  );
+  terminate(1);
+}
+
+void cmd_save(int argc, char **argv)
+{
+  if (argc != 1) {
+    cmd_config_usage();
+  }
+
+  struct cmd_flashconfig cmd;
+  struct res_flashconfig res;
+  cmd.command = CMD_FLASHCONFIG;
+  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+}
+
+//****************************************************************************
 // Other func
 //****************************************************************************
 
@@ -692,6 +717,7 @@ int main(int argc, char **argv)
     { "hds", cmd_hds },
     { "umount", cmd_umount },
     { "date", cmd_date },
+    { "save", cmd_save },
   };
 
   for (int i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
