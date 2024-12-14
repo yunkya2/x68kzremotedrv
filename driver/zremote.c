@@ -28,6 +28,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdint.h>
+#include <ctype.h>
 #include <errno.h>
 #include <setjmp.h>
 #include <x68k/iocs.h>
@@ -441,13 +442,22 @@ void cmd_mounthds_usage(int ishds)
 
 void cmd_mounthds_show(int ishds)
 {
+  char unit2drive[N_HDS];
+
+  for (int i = 0; i < N_HDS; i++) {
+    unit2drive[i] = '?';
+  }
+
   for (int drive = 1; drive <= 26; drive++) {
     int unit = getdbpunit(drive, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
-    if (unit < 0) {
-      continue;
+    if (unit >= 0) {
+      unit2drive[unit] = drive + 'A' - 1;
     }
-    char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
-    printf("%c: %s\n", 'A' + drive - 1, s);
+  }
+
+  for (int i = 0; i < (ishds ? config_data.hdsunit : config_data.remoteunit); i++) {
+    char *s = ishds ? config_data.hds[i] : config_data.remote[i];
+    printf("(%u) %c: %s\n", i, unit2drive[i], s);
   }
 }
 
@@ -526,23 +536,35 @@ void cmd_mounthds(int ishds, int argc, char **argv)
       terminate(1);
     }
   }
-  
-  int drive = (*argv)[0] & 0xdf;
-  if (!(strlen(*argv) == 2 &&
-        drive >= 'A' && drive <= 'Z' &&
-        (*argv)[1] == ':')) {
-    cmd_mounthds_usage(ishds);
-  }
 
-  int unit = getdbpunit(drive - 'A' + 1, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
-  if (unit < 0) {
-    printf(PROGNAME ": ドライブ%c:はリモート%sではありません\n", drive, ishds ? "HDS" : "ドライブ");
-    terminate(1);
+  int unit;
+  int drive = toupper((*argv)[0]);
+
+  if (strlen(*argv) == 1 && drive >= '0' && drive <= '9') {
+    unit = drive - '0';
+    if (unit >= (ishds ? config_data.hdsunit : config_data.remoteunit)) {
+      printf(PROGNAME ": ユニット番号が範囲外です\n");
+      terminate(1);
+    }
+    for (drive = 1; drive <= 26; drive++) {
+      if (getdbpunit(drive, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT") == unit) {
+        break;
+      }
+    }
+    drive = (drive > 26) ? '?' : drive + 'A' - 1;
+  } else if (strlen(*argv) == 2 && drive >= 'A' && drive <= 'Z' && (*argv)[1] == ':') {
+    unit = getdbpunit(drive - 'A' + 1, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
+    if (unit < 0) {
+      printf(PROGNAME ": ドライブ%c:はリモート%sではありません\n", drive, ishds ? "HDS" : "ドライブ");
+      terminate(1);
+    }
+  } else {
+    cmd_mounthds_usage(ishds);
   }
 
   if (!umount && --argc <= 0) {
     char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
-    printf("%c: %s\n", drive, s);
+    printf("(%u) %c: %s\n", unit, drive, s);
   } else {
     argv++;
     struct cmd_setrmtdrv rcmd;
