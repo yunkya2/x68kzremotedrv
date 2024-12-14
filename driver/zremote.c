@@ -177,6 +177,16 @@ static int getdbpunit(int drive, uint8_t *drvname)
   return dpb.unit;
 }
 
+static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
+{
+    rcmd->command = CMD_SETRMTCFG;
+    rcmd->selfboot = config_data.selfboot;
+    rcmd->remoteboot = config_data.remoteboot;
+    rcmd->remoteunit = config_data.remoteunit;
+    rcmd->hdsscsi = config_data.hdsscsi;
+    rcmd->hdsunit = config_data.hdsunit;
+}
+
 static int getpasswd(const char *prompt, char *passwd, int len)
 {
   int res = -1;
@@ -261,7 +271,7 @@ void cmd_wifi_usage(void)
   struct usage_message m[] = {
     { "",                        "WiFiアクセスポイントの接続状態を表示します" },
     { "-l",                      "接続可能なWiFiアクセスポイントのリストを表示します" },
-    { "<SSID> [-p <パスワード>]", "WiFiアクセスポイントへ接続します" },
+    { "<SSID> [-p パスワード]", "WiFiアクセスポイントへ接続します" },
     { NULL, NULL }
   };
   show_usage("wifi", m, 25);
@@ -281,13 +291,32 @@ int cmd_wifi_show(void)
 
 void cmd_wifi(int argc, char **argv)
 {
-  if (--argc <= 0) {
-    cmd_wifi_show();
-    return;
-  }
-  argv++;
+  int opt_list = 0;
+  const char *opt_ssid = NULL;
+  const char *opt_passwd = NULL;
 
-  if (strcmp(*argv, "-l") == 0) {
+  int i;
+  for (i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-l") == 0) {
+      opt_list = 1;
+    } else if (strcmp(argv[i], "-p") == 0) {
+      if (++i >= argc) {
+        break;
+      }
+      opt_passwd = argv[i];
+    } else if (argv[i][0] == '-') {
+      break;
+    } else if (opt_ssid == NULL) {
+      opt_ssid = argv[i];
+    } else {
+      break;
+    }
+  }
+  if (i < argc) {
+    cmd_wifi_usage();
+  }
+ 
+  if (opt_list) {
     struct cmd_wifi_scan rcmd;
     struct res_wifi_scan rres;
     rcmd.command = CMD_WIFI_SCAN;
@@ -311,26 +340,23 @@ void cmd_wifi(int argc, char **argv)
       printf("%s\n", rres.ssid[i]);
     }
     return;
-  } else if (argv[0][0] == '-') {
-    cmd_wifi_usage();
+  }
+
+  if (opt_ssid == NULL) {
+    cmd_wifi_show();
+    return;
   }
 
   struct cmd_wifi_config rcmd;
   struct res_wifi_config rres;
-  rcmd.command = CMD_WIFI_CONFIG;
-  strncpy(rcmd.wifi_ssid, *argv, sizeof(rcmd.wifi_ssid));
-  rcmd.wifi_ssid[sizeof(rcmd.wifi_ssid) - 1] = '\0';
-  argv++;
 
-  if (--argc > 0) {
-    if (strcmp(*argv, "-p") == 0) {
-      if (--argc <= 0) {
-        cmd_wifi_usage();
-      }
-      argv++;
-      strncpy(rcmd.wifi_passwd, *argv, sizeof(rcmd.wifi_passwd));
-      rcmd.wifi_passwd[sizeof(rcmd.wifi_passwd) - 1] = '\0';
-    }
+  rcmd.command = CMD_WIFI_CONFIG;
+  strncpy(rcmd.wifi_ssid, opt_ssid, sizeof(rcmd.wifi_ssid));
+  rcmd.wifi_ssid[sizeof(rcmd.wifi_ssid) - 1] = '\0';
+
+  if (opt_passwd) {
+    strncpy(rcmd.wifi_passwd, opt_passwd, sizeof(rcmd.wifi_passwd));
+    rcmd.wifi_passwd[sizeof(rcmd.wifi_passwd) - 1] = '\0';
   } else {
     if (getpasswd("Password: ", rcmd.wifi_passwd, sizeof(rcmd.wifi_passwd)) < 0) {
       return;
@@ -354,7 +380,7 @@ void cmd_server_usage(void)
     { "-s",                       "接続中のサーバとの時刻同期を行います" },
     { "-t オフセット [-z タイムゾーン文字列]", "" },
     { NULL,                       "サーバとの時刻同期設定を行います" },
-    { "<サーバ名> <ユーザ名> [<ワークグループ名>] [-p <パスワード>]", "" },
+    { "サーバ名 ユーザ名 [ワークグループ名] [-p パスワード]", "" },
     { NULL,                       "Windowsファイル共有サーバへ接続します" },
     { NULL, NULL }
   };
@@ -367,54 +393,123 @@ int cmd_server_show(void)
   printf("Server=%-32s\n", config_data.smb2_server);
   printf("User=%-16s\n", config_data.smb2_user);
   printf("Workgroup=%-16s\n", config_data.smb2_workgroup);
+  printf("TZ=%s\n", config_data.tz);
+  printf("tadjust=%u\n", config_data.tadjust);
 }
 
 void cmd_server(int argc, char **argv)
 {
-  if (--argc <= 0) {
-    cmd_server_show();
+  int opt_list = 0;
+  int opt_sync = 0;
+  int opt_offset = 0;
+  const char *opt_tz = NULL;
+  const char *opt_server = NULL;
+  const char *opt_user = NULL;
+  const char *opt_workgroup = "WORKGROUP";
+  const char *opt_passwd = NULL;
+
+  int i;
+  for (i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-l") == 0) {
+      opt_list = 1;
+    } else if (strcmp(argv[i], "-s") == 0) {
+      opt_sync = 1;
+    } else if (strcmp(argv[i], "-t") == 0) {
+      if (++i >= argc) {
+        break;
+      }
+      opt_offset = atoi(argv[i]);
+    } else if (strcmp(argv[i], "-z") == 0) {
+      if (++i >= argc) {
+        break;
+      }
+      opt_tz = argv[i];
+    } else if (strcmp(argv[i], "-p") == 0) {
+      if (++i >= argc) {
+        break;
+      }
+      opt_passwd = argv[i];
+    } else if (argv[i][0] == '-') {
+      break;
+    } else {
+      if (opt_server == NULL) {
+        opt_server = argv[i];
+      } else if (opt_user == NULL) {
+        opt_user = argv[i];
+      } else if (opt_workgroup == NULL) {
+        opt_workgroup = argv[i];
+      } else {
+        break;
+      }
+    }
+  }
+  if (i < argc) {
+    cmd_server_usage();
+  }
+
+  if (opt_list) {
+    struct cmd_smb2_enum rcmd;
+    struct res_smb2_enum rres;
+    rcmd.command = CMD_SMB2_ENUM;
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    if (rres.status == VDERR_OK) {
+      for (int i = 0; i < rres.n_items; i++) {
+        printf("%-64s\n", rres.share[i]);
+      }
+      return;
+    } else {
+      printf(PROGNAME ": ファイル共有リストの取得に失敗しました\n");
+      terminate(1);
+    }
     return;
   }
-  argv++;
 
-  if (argv[0][0] == '-') {
-    cmd_server_usage();
+  if (opt_sync) {
+    struct cmd_getinfo cmd;
+    struct res_getinfo res;
+    cmd.command = CMD_GETINFO;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+
+    if (res.year > 0) {
+      printf("%04d/%02d/%02d %02d:%02d:%02d\n",
+             res.year, res.mon, res.day, res.hour, res.min, res.sec);
+
+      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
+      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+    }
+    return;
+  }
+
+  if (opt_offset != 0) {
+    config_data.tadjust = opt_offset;
+    if (opt_tz) {
+      strncpy(config_data.tz, opt_tz, sizeof(config_data.tz));
+      config_data.tz[sizeof(config_data.tz) - 1] = '\0';
+    }
+    // TBD: save config
+    return;
+  }
+
+  if (opt_server == NULL || opt_user == NULL) {
+    cmd_server_show();
+    return;
   }
 
   struct cmd_smb2_config rcmd;
   struct res_smb2_config rres;
+
   rcmd.command = CMD_SMB2_CONFIG;
-  strncpy(rcmd.smb2_server, *argv, sizeof(rcmd.smb2_server));
+  strncpy(rcmd.smb2_server, opt_server, sizeof(rcmd.smb2_server));
   rcmd.smb2_server[sizeof(rcmd.smb2_server) - 1] = '\0';
-  argv++;
-
-  if (--argc <= 0) {
-    cmd_server_usage();
-  }
-  strncpy(rcmd.smb2_user, *argv, sizeof(rcmd.smb2_user));
+  strncpy(rcmd.smb2_user, opt_user, sizeof(rcmd.smb2_user));
   rcmd.smb2_user[sizeof(rcmd.smb2_user) - 1] = '\0';
-  argv++;
+  strncpy(rcmd.smb2_workgroup, opt_workgroup, sizeof(rcmd.smb2_workgroup));
+  rcmd.smb2_workgroup[sizeof(rcmd.smb2_workgroup) - 1] = '\0';
 
-  rcmd.smb2_passwd[0] = '\0';
-  strcpy(rcmd.smb2_workgroup, "WORKGROUP");
-
-  while (--argc > 0) {
-    if (strcmp(*argv, "-p") == 0) {
-      if (--argc <= 0) {
-        cmd_wifi_usage();
-      }
-      argv++;
-      strncpy(rcmd.smb2_passwd, *argv, sizeof(rcmd.smb2_passwd));
-      rcmd.smb2_passwd[sizeof(rcmd.smb2_passwd) - 1] = '\0';
-      argv++;
-    } else {
-      strncpy(rcmd.smb2_workgroup, *argv, sizeof(rcmd.smb2_workgroup));
-      rcmd.smb2_workgroup[sizeof(rcmd.smb2_workgroup) - 1] = '\0';
-      argv++;
-    }
-  }
-
-  if (rcmd.smb2_passwd[0] == '\0') {
+  if (opt_passwd) {
+    strncpy(rcmd.smb2_passwd, opt_passwd, sizeof(rcmd.smb2_passwd));
+    rcmd.smb2_passwd[sizeof(rcmd.smb2_passwd) - 1] = '\0';
+  } else {
     if (getpasswd("Password: ", rcmd.smb2_passwd, sizeof(rcmd.smb2_passwd)) < 0) {
       return;
     }
@@ -486,125 +581,105 @@ void cmd_mounthds_show(int ishds)
 
 void cmd_mounthds(int ishds, int argc, char **argv)
 {
-  int umount = 0;
+  int opt_nosave = 0;
+  int opt_umount = 0;
+  int opt_drives = -1;
+  const char *opt_path = NULL;  
+  int unit = -1;
+  int drive;
 
-  if (--argc <= 0) {
-    cmd_mounthds_show(ishds);
-    return;
-  }
-  argv++;
-
-  if (strcmp(*argv, "-D") == 0) {
-    umount = 1;
-    argc--;
-    argv++;
-  } else if (strcmp(*argv, "-n") == 0) {
-    if (--argc <= 0) {
-      cmd_mounthds_usage(ishds);
-    }
-    argv++;
-    int n = atoi(*argv);
-    if (n < 0 || n > (ishds ? 4 : 8)) {
-      cmd_mounthds_usage(ishds);
-    }
-    struct cmd_setrmtcfg rcmd;
-    struct res_setrmtcfg rres;
-    rcmd.command = CMD_SETRMTCFG;
-    rcmd.selfboot = config_data.selfboot;
-    rcmd.remoteboot = config_data.remoteboot;
-    rcmd.remoteunit = config_data.remoteunit;
-    rcmd.hdsscsi = config_data.hdsscsi;
-    rcmd.hdsunit = config_data.hdsunit;
-    if (ishds) {
-      rcmd.hdsunit = n;
-    } else {
-      rcmd.remoteunit = n;
-    }
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    return;
-  } else if (strcmp(*argv, "-r") == 0) {
-    struct cmd_setrmtcfg rcmd;
-    struct res_setrmtcfg rres;
-    rcmd.command = CMD_SETRMTCFG;
-    rcmd.selfboot = config_data.selfboot;
-    rcmd.remoteboot = config_data.remoteboot;
-    rcmd.remoteunit = config_data.remoteunit;
-    rcmd.hdsscsi = 0;
-    rcmd.hdsunit = config_data.hdsunit;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    return;
-  } else if (strcmp(*argv, "-s") == 0) {
-    struct cmd_setrmtcfg rcmd;
-    struct res_setrmtcfg rres;
-    rcmd.command = CMD_SETRMTCFG;
-    rcmd.selfboot = config_data.selfboot;
-    rcmd.remoteboot = config_data.remoteboot;
-    rcmd.remoteunit = config_data.remoteunit;
-    rcmd.hdsscsi = 1;
-    rcmd.hdsunit = config_data.hdsunit;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    return;
-  } else if (strcmp(*argv, "-l") == 0) {
-    struct cmd_smb2_enum rcmd;
-    struct res_smb2_enum rres;
-    rcmd.command = CMD_SMB2_ENUM;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status == VDERR_OK) {
-      for (int i = 0; i < rres.n_items; i++) {
-        printf("%-64s\n", rres.share[i]);
-      }
-      return;
-    } else {
-      printf(PROGNAME ": ファイル共有リストの取得に失敗しました\n");
-      terminate(1);
-    }
-  }
-
-  int unit;
-  int drive = toupper((*argv)[0]);
-
-  if (strlen(*argv) == 1 && drive >= '0' && drive <= '9') {
-    unit = drive - '0';
-    if (unit >= (ishds ? config_data.hdsunit : config_data.remoteunit)) {
-      printf(PROGNAME ": ユニット番号が範囲外です\n");
-      terminate(1);
-    }
-    for (drive = 1; drive <= 26; drive++) {
-      if (getdbpunit(drive, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT") == unit) {
+  int i;
+  for (i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-D") == 0) {
+      opt_umount = 1;
+    } else if (strcmp(argv[i], "-n") == 0) {
+      opt_nosave = 1;
+    } else if (strcmp(argv[i], "-d") == 0) {
+      if (++i >= argc) {
         break;
       }
+      opt_drives = atoi(argv[i]);
+      if (opt_drives < 0 || opt_drives > (ishds ? 4 : 8)) {
+        cmd_mounthds_usage(ishds);
+      }
+    } else if (argv[i][0] == '-') {
+      break;
+    } else if (unit < 0) {
+      drive = toupper(argv[i][0]);
+      if (strlen(argv[i]) == 1 && drive >= '0' && drive <= '9') {
+        unit = drive - '0';
+        if (unit >= (ishds ? config_data.hdsunit : config_data.remoteunit)) {
+          printf(PROGNAME ": ユニット番号が範囲外です\n");
+          terminate(1);
+        }
+        for (drive = 1; drive <= 26; drive++) {
+          if (getdbpunit(drive, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT") == unit) {
+            break;
+          }
+        }
+        drive = (drive > 26) ? '?' : drive + 'A' - 1;
+      } else if (strlen(argv[i]) == 2 && drive >= 'A' && drive <= 'Z' && argv[i][1] == ':') {
+        unit = getdbpunit(drive - 'A' + 1, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
+        if (unit < 0) {
+          printf(PROGNAME ": ドライブ%c:はリモート%sではありません\n", drive, ishds ? "HDS" : "ドライブ");
+          terminate(1);
+        }
+      } else {
+        break;
+      }
+    } else if (opt_path == NULL) {
+      opt_path = argv[i];
+    } else {
+      break;
     }
-    drive = (drive > 26) ? '?' : drive + 'A' - 1;
-  } else if (strlen(*argv) == 2 && drive >= 'A' && drive <= 'Z' && (*argv)[1] == ':') {
-    unit = getdbpunit(drive - 'A' + 1, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT");
-    if (unit < 0) {
-      printf(PROGNAME ": ドライブ%c:はリモート%sではありません\n", drive, ishds ? "HDS" : "ドライブ");
-      terminate(1);
-    }
-  } else {
+  }
+  if (i < argc) {
     cmd_mounthds_usage(ishds);
   }
 
-  if (!umount && --argc <= 0) {
-    char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
-    printf("(%u) %c: %s\n", unit, drive, s);
-  } else {
-    argv++;
-    struct cmd_setrmtdrv rcmd;
-    struct res_setrmtdrv rres;
-    rcmd.unit = unit;
-    rcmd.command = ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV;
-    if (umount) {
-      rcmd.path[0] = '\0';
+  if (opt_drives >= 0) {
+    if (unit >= 0 || opt_umount || opt_path) {
+      cmd_mounthds_usage(ishds);
+    }
+    struct cmd_setrmtcfg rcmd;
+    struct res_setrmtcfg rres;
+    init_rmtcfg(&rcmd);
+    if (ishds) {
+      rcmd.hdsunit = opt_drives;
     } else {
-      strncpy(rcmd.path, *argv, sizeof(rcmd.path) - 1);
-      rcmd.path[sizeof(rcmd.path) - 1] = '\0';
+      rcmd.remoteunit = opt_drives;
     }
     com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status != 0) {
-      printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
-      terminate(1);
-    }
+    return;
+  }
+
+  if (unit < 0) {
+    cmd_mounthds_show(ishds);
+    return;
+  }
+
+  if (!opt_umount && !opt_path) {
+    char *s = ishds ? config_data.hds[unit] : config_data.remote[unit];
+    printf("(%u) %c: %s\n", unit, drive, s);
+    return;
+  } else if (opt_umount && opt_path) {
+    cmd_mounthds_usage(ishds);
+  }
+
+  struct cmd_setrmtdrv rcmd;
+  struct res_setrmtdrv rres;
+  rcmd.unit = unit;
+  rcmd.command = ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV;
+  if (opt_umount) {
+    rcmd.path[0] = '\0';
+  } else {
+    strncpy(rcmd.path, opt_path, sizeof(rcmd.path) - 1);
+    rcmd.path[sizeof(rcmd.path) - 1] = '\0';
+  }
+  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  if (rres.status != 0) {
+    printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
+    terminate(1);
   }
 }
 
@@ -677,27 +752,97 @@ void cmd_umount(int argc, char **argv)
 }
 
 //****************************************************************************
-// zremote date
+// zremote selfboot
+// zremote hdsscsi
 //****************************************************************************
 
-void cmd_date(int argc, char **argv)
+void cmd_selfboot_usage(void)
 {
-  struct cmd_getinfo cmd;
-  struct res_getinfo res;
-  cmd.command = CMD_GETINFO;
-  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  struct usage_message m[] = {
+    { "",     "現在の設定状態を表示します" },
+    { "on",   "起動ドライブをリモートドライブ/HDSにします" },
+    { "off",  "起動ドライブを他のUSBメモリにします" },
+    { NULL,   "※設定変更の反映には再起動が必要です" },
+    { NULL, NULL }
+  };
+  show_usage("selfboot", m, 16);
+  terminate(1);
+}
 
-  if (res.year > 0) {
-    printf("%04d/%02d/%02d %02d:%02d:%02d\n",
-           res.year, res.mon, res.day, res.hour, res.min, res.sec);
+void cmd_selfboot_show(void)
+{
+  printf("リモートドライブ/HDS起動は %s です\n", config_data.selfboot ? "on" : "off");  
+}
 
-    _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
-    _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+void cmd_selfboot(int argc, char **argv)
+{
+  int onoff = -1;
+
+  if (argc <= 1) {
+    cmd_selfboot_show();
+    return;
   }
+
+  if (strcmp(argv[1], "on") == 0) {
+    onoff = 1;
+  } else if (strcmp(argv[1], "off") == 0) {
+    onoff = 0;
+  } else {
+    cmd_selfboot_usage();
+  }
+
+  struct cmd_setrmtcfg rcmd;
+  struct res_setrmtcfg rres;
+  init_rmtcfg(&rcmd);
+  rcmd.selfboot = onoff;
+  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+}
+
+void cmd_hdsscsi_usage(void)
+{
+  struct usage_message m[] = {
+    { "",     "現在の設定状態を表示します" },
+    { "on",   "リモートHDSを純正SCSIドライバで使用します" },
+    { "off",  "リモートHDSをリモートHDSドライバで使用します" },
+    { NULL,   "※設定変更の反映には再起動が必要です" },
+    { NULL, NULL }
+  };
+  show_usage("hdsscsi", m, 16);
+  terminate(1);
+}
+
+void cmd_hdsscsi_show(void)
+{
+  printf("リモートHDSは %sドライバ です\n", config_data.hdsscsi ? "純正SCSI" : "リモートHDS");
+}
+
+void cmd_hdsscsi(int argc, char **argv)
+{
+  int onoff = -1;
+
+  if (argc <= 1) {
+    cmd_hdsscsi_show();
+    return;
+  }
+
+  if (strcmp(argv[1], "on") == 0) {
+    onoff = 1;
+  } else if (strcmp(argv[1], "off") == 0) {
+    onoff = 0;
+  } else {
+    cmd_hdsscsi_usage();
+  }
+
+  struct cmd_setrmtcfg rcmd;
+  struct res_setrmtcfg rres;
+  init_rmtcfg(&rcmd);
+  rcmd.hdsscsi = onoff;
+  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 }
 
 //****************************************************************************
 // zremote save
+// zremote erase
 //****************************************************************************
 
 void cmd_save_usage(void)
@@ -722,51 +867,7 @@ void cmd_save(int argc, char **argv)
   com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 }
 
-//****************************************************************************
-// zremote config
-//****************************************************************************
-
-void cmd_config_usage(void)
-{
-  printf(
-    "Usage:\t" PROGNAME " config [スイッチ]\n"
-  );
-  terminate(1);
-}
-
-int cmd_config_show(void)
-{
-  printf("TZ=%s\n", config_data.tz);
-  printf("tadjust=%u\n", config_data.tadjust);
-}
-
-void cmd_selfboot(int argc, char **argv)
-{
-  struct usage_message m[] = {
-    { "",     "現在の設定状態を表示します" },
-    { "on",   "起動ドライブをリモートドライブ/HDSにします" },
-    { "off",  "起動ドライブを他のUSBメモリにします" },
-    { NULL,   "※設定変更の反映には再起動が必要です" },
-    { NULL, NULL }
-  };
-  show_usage("selfboot", m, 16);
-  terminate(1);
-}
-
-void cmd_hdsscsi(int argc, char **argv)
-{
-  struct usage_message m[] = {
-    { "",     "現在の設定状態を表示します" },
-    { "on",   "リモートHDSを純正SCSIドライバで使用します" },
-    { "off",  "リモートHDSをリモートHDSドライバで使用します" },
-    { NULL,   "※設定変更の反映には再起動が必要です" },
-    { NULL, NULL }
-  };
-  show_usage("hdsscsi", m, 16);
-  terminate(1);
-}
-
-void cmd_erase(int argc, char **argv)
+void cmd_erase_usage(void)
 {
   struct usage_message m[] = {
     { "", "不揮発メモリに保存されている設定内容を全消去します" },
@@ -776,7 +877,23 @@ void cmd_erase(int argc, char **argv)
   terminate(1);
 }
 
-void cmd_show(int argc, char **argv)
+void cmd_erase(int argc, char **argv)
+{
+  if (argc != 1) {
+    cmd_erase_usage();
+  }
+
+  struct cmd_flashclear cmd;
+  struct res_flashclear res;
+  cmd.command = CMD_FLASHCLEAR;
+  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+}
+
+//****************************************************************************
+// zremote show
+//****************************************************************************
+
+void cmd_show_usage(void)
 {
   struct usage_message m[] = {
     { "", "現在の設定内容一覧を表示します" },
@@ -786,19 +903,21 @@ void cmd_show(int argc, char **argv)
   terminate(1);
 }
 
-//****************************************************************************
-// Other func
-//****************************************************************************
-
-void show_all(void)
+void cmd_show(int argc, char **argv)
 {
+  if (argc > 1) {
+    cmd_show_usage();
+  }
+
+  cmd_selfboot_show();
+  cmd_hdsscsi_show();
   cmd_wifi_show();
   cmd_server_show();
-  printf("Remote drive:\n");
+
+  printf("\nリモートドライブ:\n");
   cmd_mounthds_show(false);
-  printf("Remote HDS:\n");
+  printf("\nリモートHDS:\n");
   cmd_mounthds_show(true);
-  cmd_config_show();
 }
 
 //****************************************************************************
@@ -847,7 +966,7 @@ int main(int argc, char **argv)
   config_data = res.data;
 
   if (argc < 2) {
-    show_all();
+    cmd_show(0, NULL);
     terminate(0);
   }
 
