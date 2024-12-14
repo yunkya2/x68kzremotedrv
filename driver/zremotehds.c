@@ -67,11 +67,11 @@ static union {
   struct cmd_hdswrite_full cmd_hdswrite_full;
 } b;
 
-struct dos_bpb bpb[N_HDS][15];
-struct dos_bpb *bpbtable[N_HDS * 15];
+const struct dos_bpb defaultbpb =
+{ 512, 1, 2, 1, 224, 2880, 0xf7, 9, 0, 0 };
 
-int drive_parts[N_HDS];   // 各ドライブのパーティション数
-int drive_index[N_HDS];   // 各ドライブのbpb配列インデックス
+struct dos_bpb bpb[N_HDS];
+struct dos_bpb *bpbtable[N_HDS];
 
 #ifdef CONFIG_BOOTDRIVER
 #define _dos_putchar(...)   _iocs_b_putc(__VA_ARGS__)
@@ -130,10 +130,10 @@ static int sector_read(int drive, uint8_t *buf, uint32_t pos, int nsect)
   cmd->pos = pos;
   com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + nsect * 512);
 
-  if (res->status == -2) {
-    return 0x1001;      // Bad unit number
+  if (res->status == VDERR_EINVAL) {
+    return 0x1002;      // Drive not ready
   }
-  if (res->status != 0) {
+  if (res->status != VDERR_OK) {
     return 0x7007;      // Medium error
   }
 
@@ -153,10 +153,10 @@ static int sector_write(int drive, uint8_t *buf, uint32_t pos, int nsect)
   memcpy(cmd->data, buf, 512 * nsect);
   com_cmdres(cmd, sizeof(*cmd) + 512 * nsect, res, sizeof(*res));
 
-  if (res->status == -2) {
-    return 0x1001;      // Bad unit number
+  if (res->status == VDERR_EINVAL) {
+    return 0x1002;      // Drive not ready
   }
-  if (res->status != 0) {
+  if (res->status != VDERR_OK) {
     return 0x7007;      // Medium error
   }
 
@@ -165,7 +165,6 @@ static int sector_write(int drive, uint8_t *buf, uint32_t pos, int nsect)
 
 static int read_bpb(int drive)
 {
-  int part = 0;
   uint8_t sector[512];
 
   // SCSIイメージ signature を確認する
@@ -186,8 +185,7 @@ static int read_bpb(int drive)
     return -1;
   }
 
-  // Human68k パーティションからBPBを取得する
-
+  // 最初の使用可能なHuman68kパーティションを検索してBPBを取得する
   uint8_t *p = sector + 16;
   for (int i = 0; i < 15; i++, p += 16) {
     if (memcmp(p, "Human68k", 8) == 0) {
@@ -201,12 +199,13 @@ static int read_bpb(int drive)
       if (sector_read(drive, bootsect, sect * 2, 1) != 0) {
         return -1;
       }
-      memcpy(&bpb[drive][part], &bootsect[0x12], sizeof(*bpb));
-      part++;
+      memcpy(&bpb[drive], &bootsect[0x12], sizeof(*bpb));
+      return 1;
+
     }
   }
 
-  return part;
+  return 0;
 }
 
 //****************************************************************************
@@ -216,8 +215,6 @@ static int read_bpb(int drive)
 int com_init(struct dos_req_header *req)
 {
   _dos_print("\r\nX68000 Z Remote HDS Driver (version " GIT_REPO_VERSION ")\r\n");
-
-// ドライブ番号範囲を確認 Z以上ならエラー
 
   // ZUSB デバイスをオープンする
   // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
@@ -252,36 +249,26 @@ int com_init(struct dos_req_header *req)
     drives = res.hdsunit;
   }
 
-  int units = 0;
+  // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   for (int i = 0; i < drives; i++) {
-    drive_parts[i] = 0;
-    drive_index[i] = units;
-
-    // 各パーティションのBPBを読み込む
-    int part = read_bpb(i);
-    DPRINTF1("drive %d part=%d\r\n", i, part);
-
-    if (part > 0) {
-      drive_parts[i] = part;
-      for (int j = 0; j < part; j++) {
-        bpbtable[units++] = &bpb[i][j];
-      }
-    }
+    bpb[i] = defaultbpb;
+    read_bpb(i);
+    bpbtable[i] = &bpb[i];
   }
-  if (units == 0) {
-    _dos_print("使用可能なパーティションがありません\r\n");
+  req->status = (uint32_t)bpbtable;
+
+  if (*(char *)&req->fcb + drives > 26) {
+    _dos_print("ドライブ数が多すぎます\r\n");
     return -0x700d;
   }
-
-  req->status = (uint32_t)bpbtable;
 
 #ifndef CONFIG_BOOTDRIVER
   _dos_print("ドライブ");
   _dos_putchar('A' + *(char *)&req->fcb);
   _dos_putchar(':');
-  if (units > 1) {
+  if (drives > 1) {
     _dos_putchar('-');
-    _dos_putchar('A' + *(char *)&req->fcb + units - 1);
+    _dos_putchar('A' + *(char *)&req->fcb + drives - 1);
     _dos_putchar(':');
   }
   _dos_print("でリモートHDSが利用可能です\r\n");
@@ -297,7 +284,7 @@ int com_init(struct dos_req_header *req)
   *(char *)&req->fcb = bootpart;
 #endif
 
-  return units;
+  return drives;
 }
 
 int interrupt(void)
@@ -334,17 +321,7 @@ int interrupt(void)
     return 0x7002;      // ドライブの準備が出来ていない
   }
 
-  // ユニット番号をドライブ番号、パーティション番号に変換する
-  int drive;
-  for (drive = 0; drive < N_HDS; drive++) {
-    if (drive_index[drive] <= req->unit &&
-        req->unit < drive_index[drive] + drive_parts[drive]) {
-      break;
-    }
-  }
-  if (drive == N_HDS) {
-    return 0x1001;      // Bad unit number
-  }
+  int drive = req->unit;
 
   switch (req->command) {
   case 0x01: /* disk check */
