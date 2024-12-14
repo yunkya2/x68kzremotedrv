@@ -63,6 +63,43 @@ jmp_buf jenv;                       //タイムアウト時のジャンプ先
 struct config_data config_data;
 
 //****************************************************************************
+// Command table
+//****************************************************************************
+
+void cmd_wifi(int argc, char **argv);
+void cmd_server(int argc, char **argv);
+void cmd_mount(int argc, char **argv);
+void cmd_hds(int argc, char **argv);
+void cmd_umount(int argc, char **argv);
+void cmd_selfboot(int argc, char **argv);
+void cmd_hdsscsi(int argc, char **argv);
+void cmd_save(int argc, char **argv);
+void cmd_erase(int argc, char **argv);
+void cmd_show(int argc, char **argv);
+
+const struct {
+  const char *name;
+  void (*func)(int argc, char **argv);
+  const char *usage;
+} cmd_table[] = {
+  { "wifi",     cmd_wifi,     "WiFiアクセスポイントへの接続設定" },
+  { "server",   cmd_server,   "Windowsファイル共有サーバへの接続設定" },
+  { "mount",    cmd_mount,    "リモートドライブの接続設定" },
+  { "hds",      cmd_hds,      "リモートHDSの接続設定" },
+  { "umount",   cmd_umount,   "リモートドライブ/HDSの接続解除" },
+  { "selfboot", cmd_selfboot, "リモートドライブ/HDSからの起動設定" },
+  { "hdsscsi",  cmd_hdsscsi,  "リモートHDSの接続モード設定" },
+  { "save",     cmd_save,     "現在の接続設定の保存" },
+  { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
+  { "show",     cmd_show,     "現在の設定内容一覧表示" },
+};
+
+struct usage_message {
+  const char *cmdline;
+  const char *message;
+};
+
+//****************************************************************************
 // for debugging
 //****************************************************************************
 
@@ -190,32 +227,29 @@ static int getpasswd(const char *prompt, char *passwd, int len)
   return res;
 }
 
-//****************************************************************************
-// zremote config
-//****************************************************************************
-
-void cmd_config_usage(void)
+static void show_usage(char *name, struct usage_message *m, int w)
 {
-  printf(
-    "Usage:\t" PROGNAME " config [スイッチ]\n"
-  );
-  terminate(1);
-}
-
-int cmd_config_show(void)
-{
-  printf("TZ=%s\n", config_data.tz);
-  printf("tadjust=%u\n", config_data.tadjust);
-}
-
-void cmd_config(int argc, char **argv)
-{
-  if (argc == 1) {
-    cmd_config_show();
+  int i;
+  for (i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
+    if (strcmp(name, cmd_table[i].name) == 0) {
+      break;
+    }
+  }
+  if (i == sizeof(cmd_table) / sizeof(cmd_table[0])) {
     return;
   }
 
-  cmd_config_usage();
+  printf(PROGNAME " %s -- %s\n使用法:\n", cmd_table[i].name, cmd_table[i].usage);
+
+  for (; m->message != NULL; m++) {
+    if (m->cmdline && m->cmdline[0] != '#') {
+      printf("  " PROGNAME " %s %*s %s\n", cmd_table[i].name, -w, m->cmdline, m->message);
+    } else if (m->cmdline) {
+      printf("  " PROGNAME " %*s %s\n", -w, m->cmdline + 1, m->message);
+    } else {
+      printf("%*s %s\n", 4 + strlen(PROGNAME) + strlen(cmd_table[i].name) + w, "", m->message);
+    }
+  }
 }
 
 //****************************************************************************
@@ -224,17 +258,13 @@ void cmd_config(int argc, char **argv)
 
 void cmd_wifi_usage(void)
 {
-  printf(
-    "Usage:\t" PROGNAME " wifi [オプション]\n"
-    "WiFiアクセスポイントへの接続設定を行います\n"
-    "\t" PROGNAME " wifi\n"
-    "\t\t現在のWiFiアクセスポイント接続状態を表示します\n"
-    "\t" PROGNAME " wifi <SSID> [<オプション>]\n"
-    "\t\tWiFiアクセスポイントへ接続します\n"
-    "\t\t-p <パスワード>\t\t接続時のパスワードを平文で指定します\n"
-    "\t" PROGNAME " wifi -l\n"
-    "\t\t接続可能なWiFiアクセスポイントのリストを表示します\n"
-  );
+  struct usage_message m[] = {
+    { "",                        "WiFiアクセスポイントの接続状態を表示します" },
+    { "-l",                      "接続可能なWiFiアクセスポイントのリストを表示します" },
+    { "<SSID> [-p <パスワード>]", "WiFiアクセスポイントへ接続します" },
+    { NULL, NULL }
+  };
+  show_usage("wifi", m, 25);
   terminate(1);
 }
 
@@ -318,15 +348,17 @@ void cmd_wifi(int argc, char **argv)
 
 void cmd_server_usage(void)
 {
-  printf(
-    "Usage:\t" PROGNAME " server [オプション]\n"
-    "Windowsファイル共有サーバへの接続設定を行います\n"
-    "\t" PROGNAME " server\n"
-    "\t\t現在のWindowsファイル共有サーバ接続設定状態を表示します\n"
-    "\t" PROGNAME " server <サーバ名> <ユーザ名> [<ワークグループ名>] [<オプション>]\n"
-    "\t\tWindowsファイル共有サーバへ接続します\n"
-    "\t\t-p <パスワード>\t\t接続時のパスワードを平文で指定します\n"
-  );
+  struct usage_message m[] = {
+    { "",                         "サーバの接続状態を表示します" },
+    { "-l",                       "接続中のサーバで利用可能な共有名のリストを表示します" },
+    { "-s",                       "接続中のサーバとの時刻同期を行います" },
+    { "-t オフセット [-z タイムゾーン文字列]", "" },
+    { NULL,                       "サーバとの時刻同期設定を行います" },
+    { "<サーバ名> <ユーザ名> [<ワークグループ名>] [-p <パスワード>]", "" },
+    { NULL,                       "Windowsファイル共有サーバへ接続します" },
+    { NULL, NULL }
+  };
+  show_usage("server", m, 25);
   terminate(1);
 }
 
@@ -346,7 +378,7 @@ void cmd_server(int argc, char **argv)
   argv++;
 
   if (argv[0][0] == '-') {
-    cmd_wifi_usage();
+    cmd_server_usage();
   }
 
   struct cmd_smb2_config rcmd;
@@ -401,41 +433,32 @@ void cmd_server(int argc, char **argv)
 void cmd_mounthds_usage(int ishds)
 {
   if (ishds) {
-    printf(
-      "Usage:\t" PROGNAME " hds [オプション]\n"
-      "指定したドライブ名にリモートHDSを接続します\n"
-      "\t" PROGNAME " hds\n"
-      "\t\t現在のリモートHDS設定状態を表示します\n"
-      "\t" PROGNAME " hds ドライブ名:\n"
-      "\t\t指定したドライブのリモートHDS設定状態を表示します\n"
-      "\t" PROGNAME " hds ドライブ名: リモートパス\n"
-      "\t\t指定したドライブにリモートHDSを接続します\n"
-      "\t" PROGNAME " hds -D ドライブ名:\n"
-      "\t" PROGNAME " umount ドライブ名:\n"
-      "\t\t指定のドライブのリモートHDS設定を解除します\n"
-      "\t" PROGNAME " hds -n ドライブ数\n"
-      "\t\tリモートHDSの数を設定します (0-4)\n"
-      "\t" PROGNAME " hds -l\n"
-      "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
-    );
+    struct usage_message m[] = {
+      { "",                     "リモートHDSの接続状態を表示します" },
+      { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
+      { "[-n] ドライブ名: リモートパス名", "指定したドライブ名にリモートHDSを接続します" },
+      { "-D [-n] ドライブ名:",   "リモートHDS接続を解除します" },
+      { "#umount [-n] ドライブ名:", "\t\t〃" },
+      { NULL,                   "(-n : 設定内容を保存しません)\n" },
+      { "-d ドライブ数",        "リモートHDSのドライブ数を設定します (0-4)" },
+      { NULL,                   "※設定変更の反映には再起動が必要です" },
+      { NULL, NULL }
+    };
+    show_usage("hds", m, 32);
   } else {
-    printf(
-      "Usage:\t" PROGNAME " mount [オプション]\n"
-      "指定したドライブ名にリモートディレクトリをマウントします\n"
-      "\t" PROGNAME " mount\n"
-      "\t\t現在のリモートドライブ設定状態を表示します\n"
-      "\t" PROGNAME " mount ドライブ名:\n"
-      "\t\t指定したドライブのリモートドライブ設定状態を表示します\n"
-      "\t" PROGNAME " mount ドライブ名: リモートパス\n"
-      "\t\t指定したドライブにリモートパスを接続します\n"
-      "\t" PROGNAME " mount -D ドライブ名:\n"
-      "\t" PROGNAME " umount ドライブ名:\n"
-      "\t\t指定のドライブのリモートドライブ設定を解除します\n"
-      "\t" PROGNAME " mount -n ドライブ数\n"
-      "\t\tリモートドライブの数を設定します (0-8)\n"
-      "\t" PROGNAME " mount -l\n"
-      "\t\t接続可能なWindowsファイル共有のリストを表示します\n"
-    );
+    struct usage_message m[] = {
+      { "",                     "リモートドライブの接続状態を表示します" },
+      { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
+      { "[-n] ドライブ名: リモートパス名", "" },
+      { NULL,                   "指定したドライブ名にリモートドライブを接続します" },
+      { "-D [-n] ドライブ名:",   "リモートドライブ接続を解除します" },
+      { "#umount [-n] ドライブ名:", "\t\t〃" },
+      { NULL,                   "(-n : 設定内容を保存しません)\n" },
+      { "-d ドライブ数",        "リモートドライブのドライブ数を設定します (0-8)" },
+      { NULL,                   "※設定変更の反映には再起動が必要です" },
+      { NULL, NULL }
+    };
+    show_usage("mount", m, 25);
   }
   terminate(1);
 }
@@ -601,10 +624,11 @@ void cmd_hds(int argc, char **argv)
 
 void cmd_umount_usage(void)
 {
-  printf(
-    "Usage:\t" PROGNAME " umount ドライブ名:\n"
-    "指定したドライブ名のリモートディレクトリやHDSをマウント解除します\n"
-  );
+  struct usage_message m[] = {
+    { "ドライブ名:", "指定したドライブ名の接続を解除します" },
+    { NULL, NULL }
+  };
+  show_usage("umount", m, 20);
   terminate(1);
 }
 
@@ -678,23 +702,88 @@ void cmd_date(int argc, char **argv)
 
 void cmd_save_usage(void)
 {
-  printf(
-    "Usage:\t" PROGNAME " save\n"
-    "現在の設定値をRaspberry Pi Pico Wに保存します\n"
-  );
+  struct usage_message m[] = {
+    { "", "現在の接続設定を不揮発メモリに保存します" },
+    { NULL, NULL }
+  };
+  show_usage("save", m, 20);
   terminate(1);
 }
 
 void cmd_save(int argc, char **argv)
 {
   if (argc != 1) {
-    cmd_config_usage();
+    cmd_save_usage();
   }
 
   struct cmd_flashconfig cmd;
   struct res_flashconfig res;
   cmd.command = CMD_FLASHCONFIG;
   com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+}
+
+//****************************************************************************
+// zremote config
+//****************************************************************************
+
+void cmd_config_usage(void)
+{
+  printf(
+    "Usage:\t" PROGNAME " config [スイッチ]\n"
+  );
+  terminate(1);
+}
+
+int cmd_config_show(void)
+{
+  printf("TZ=%s\n", config_data.tz);
+  printf("tadjust=%u\n", config_data.tadjust);
+}
+
+void cmd_selfboot(int argc, char **argv)
+{
+  struct usage_message m[] = {
+    { "",     "現在の設定状態を表示します" },
+    { "on",   "起動ドライブをリモートドライブ/HDSにします" },
+    { "off",  "起動ドライブを他のUSBメモリにします" },
+    { NULL,   "※設定変更の反映には再起動が必要です" },
+    { NULL, NULL }
+  };
+  show_usage("selfboot", m, 16);
+  terminate(1);
+}
+
+void cmd_hdsscsi(int argc, char **argv)
+{
+  struct usage_message m[] = {
+    { "",     "現在の設定状態を表示します" },
+    { "on",   "リモートHDSを純正SCSIドライバで使用します" },
+    { "off",  "リモートHDSをリモートHDSドライバで使用します" },
+    { NULL,   "※設定変更の反映には再起動が必要です" },
+    { NULL, NULL }
+  };
+  show_usage("hdsscsi", m, 16);
+  terminate(1);
+}
+
+void cmd_erase(int argc, char **argv)
+{
+  struct usage_message m[] = {
+    { "", "不揮発メモリに保存されている設定内容を全消去します" },
+    { NULL, NULL }
+  };
+  show_usage("erase", m, 19);
+  terminate(1);
+}
+
+void cmd_show(int argc, char **argv)
+{
+  struct usage_message m[] = {
+    { "", "現在の設定内容一覧を表示します" },
+    { NULL, NULL }
+  };
+  show_usage("show", m, 20);
+  terminate(1);
 }
 
 //****************************************************************************
@@ -712,22 +801,22 @@ void show_all(void)
   cmd_config_show();
 }
 
-void usage(void)
-{
-  printf(
-    "使用法:" PROGNAME " <command> [引数]\n"
-    "\n"
-    PROGNAME " wifi\n"
-    PROGNAME " server\n"
-    PROGNAME " mount\n"
-    PROGNAME " hds\n"
-  );
-  terminate(1);
-}
-
 //****************************************************************************
 // Main routine
 //****************************************************************************
+
+void usage(void)
+{
+  printf(
+    "X68000 Z Remote Drive Service version " GIT_REPO_VERSION "\n" 
+    "使用法: " PROGNAME " サブコマンド名 [引数]\n\n"
+    "以下のサブコマンドが利用できます\n"
+  );
+  for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
+    printf("  " PROGNAME " %-12s%s\n", cmd_table[i].name, cmd_table[i].usage);
+  }
+  terminate(1);
+}
 
 int main(int argc, char **argv)
 {
@@ -762,23 +851,9 @@ int main(int argc, char **argv)
     terminate(0);
   }
 
-  static const struct {
-    const char *name;
-    void (*func)(int argc, char **argv);
-  } cmds[] = {
-    { "config", cmd_config },
-    { "wifi", cmd_wifi },
-    { "server", cmd_server },
-    { "mount", cmd_mount },
-    { "hds", cmd_hds },
-    { "umount", cmd_umount },
-    { "date", cmd_date },
-    { "save", cmd_save },
-  };
-
-  for (int i = 0; i < sizeof(cmds) / sizeof(cmds[0]); i++) {
-    if (strcmp(argv[1], cmds[i].name) == 0) {
-      cmds[i].func(argc - 1, &argv[1]);
+  for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
+    if (strcmp(argv[1], cmd_table[i].name) == 0) {
+      cmd_table[i].func(argc - 1, &argv[1]);
       terminate(0);
     }
   }
