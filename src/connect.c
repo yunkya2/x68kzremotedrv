@@ -178,12 +178,12 @@ int hds_mount(int unit, const char *path)
 static int mountall(void)
 {
     /* Set up remote drive */
-    for (int i = 0; i < config.remoteunit; i++) {
+    for (int i = 0; i < N_REMOTE; i++) {
         remote_mount(i, config.remote[i]);
     }
 
     /* Set up remote HDS */
-    for (int i = 0; i < config.hdsunit; i++) {
+    for (int i = 0; i < N_HDS; i++) {
         hds_mount(i, config.hds[i]);
     }
 
@@ -193,12 +193,12 @@ static int mountall(void)
 static int disconnectall(void)
 {
     /* Unmount remote drive */
-    for (int i = 0; i < config.remoteunit; i++) {
+    for (int i = 0; i < N_REMOTE; i++) {
         remote_disconnect(i);
     }
 
     /* Unmount remote HDS */
-    for (int i = 0; i < config.hdsunit; i++) {
+    for (int i = 0; i < N_HDS; i++) {
         hds_disconnect(i);
     }
 
