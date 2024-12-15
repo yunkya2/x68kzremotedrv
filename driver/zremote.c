@@ -666,6 +666,13 @@ void cmd_mounthds(int ishds, int argc, char **argv)
     cmd_mounthds_usage(ishds);
   }
 
+  if (drive != '?' && _dos_drvctrl(9, drive - '@') < 0) {
+    printf(PROGNAME ": ドライブ%c:でオープンしているファイルがあります\n", drive);
+    terminate(1);
+  }
+
+  _dos_fflush();
+
   struct cmd_setrmtdrv rcmd;
   struct res_setrmtdrv rres;
   rcmd.unit = unit;
@@ -680,6 +687,14 @@ void cmd_mounthds(int ishds, int argc, char **argv)
   if (rres.status != 0) {
     printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
     terminate(1);
+  }
+
+  if (ishds && zusb_rmtdata) {
+    zusb_rmtdata->hds_changed |= (1 << unit);
+    zusb_rmtdata->hds_ready &= ~(1 << unit);
+    if (!opt_umount) {
+      zusb_rmtdata->hds_ready |= (1 << unit);
+    }
   }
 }
 

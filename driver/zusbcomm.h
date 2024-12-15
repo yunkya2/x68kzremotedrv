@@ -29,8 +29,8 @@
 
 struct zusb_rmtdata {       // must be 4bytes (head.S)
     uint8_t zusb_ch;
-    uint8_t units_drv;
-    uint8_t units_hds;
+    uint8_t hds_changed;
+    uint8_t hds_ready;
     uint8_t _reserved;
 };
 

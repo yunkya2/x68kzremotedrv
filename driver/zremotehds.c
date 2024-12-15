@@ -167,6 +167,8 @@ static int read_bpb(int drive)
 {
   uint8_t sector[512];
 
+  bpb[drive] = defaultbpb;    // BPBが取得できなかった場合のデフォルト値
+
   // SCSIイメージ signature を確認する
 
   if (sector_read(drive, sector, 0, 1) != 0) {
@@ -251,7 +253,6 @@ int com_init(struct dos_req_header *req)
 
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   for (int i = 0; i < drives; i++) {
-    bpb[i] = defaultbpb;
     read_bpb(i);
     bpbtable[i] = &bpb[i];
   }
@@ -326,12 +327,19 @@ int interrupt(void)
   switch (req->command) {
   case 0x01: /* disk check */
   {
-    *(int8_t *)&req->addr = 1;    // media not changed
+    if (!(rmtp->hds_changed & (1 << req->unit))) {
+      *(int8_t *)&req->addr = 1;    // media not changed
+    } else {
+      DPRINTF1("media changed\r\n");
+      *(int8_t *)&req->addr = -1;   // media changed
+      rmtp->hds_changed &= ~(1 << req->unit);
+    }
     break;
   }
 
   case 0x02: /* rebuild BPB */
   {
+    read_bpb(req->unit);
     req->status = (uint32_t)&bpbtable[req->unit];
     req->attr = bpbtable[req->unit]->mediabyte;
     break;
@@ -339,7 +347,11 @@ int interrupt(void)
 
   case 0x05: /* drive control & sense */
   {
-    req->attr = 0x02;
+    if (!(rmtp->hds_ready & (1 << req->unit))) {
+      req->attr = 0x04;   // drive not ready
+    } else {
+      req->attr = 0x02;
+    }
     break;
   }
 
