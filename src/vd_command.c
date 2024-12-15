@@ -198,7 +198,9 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       config = cmd->data;
       res->status = VDERR_OK;
       rsize = sizeof(*res);
-      xTaskNotify(connect_th, cmd->mode | CONNECT_WAIT, eSetBits);
+      if (cmd->mode != CONNECT_NONE) {
+        xTaskNotify(connect_th, cmd->mode | CONNECT_WAIT, eSetBits);
+      }
       break;
     }
 

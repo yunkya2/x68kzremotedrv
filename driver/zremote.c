@@ -486,7 +486,12 @@ void cmd_server(int argc, char **argv)
       strncpy(config_data.tz, opt_tz, sizeof(config_data.tz));
       config_data.tz[sizeof(config_data.tz) - 1] = '\0';
     }
-    // TBD: save config
+    struct cmd_setconfig cmd;
+    struct res_setconfig res;
+    cmd.command = CMD_SETCONFIG;
+    cmd.data = config_data;
+    cmd.mode = CONNECT_NONE;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
     return;
   }
 
