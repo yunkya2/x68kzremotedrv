@@ -233,7 +233,7 @@ int com_init(struct dos_req_header *req)
   if (setjmp(jenv)) {
     zusb_disconnect_device();
     _dos_print("リモートHDS用 Raspberry Pi Pico W が接続されていません\r\n");
-    return 0x700d;
+    return -0x700d;
   }
   {
     struct cmd_getinfo cmd;
@@ -243,7 +243,7 @@ int com_init(struct dos_req_header *req)
 
     if (res.version != PROTO_VERSION) {
       _dos_print("リモートHDS用 Raspberry Pi Pico W のバージョンが異なります\r\n");
-      return 0x700d;
+      return -0x700d;
     }
 
     drives = res.hdsunit;
