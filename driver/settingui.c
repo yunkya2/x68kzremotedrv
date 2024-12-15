@@ -27,24 +27,31 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 #include <x68k/iocs.h>
+#include <x68k/dos.h>
+
+#include <zusb.h>
 
 #include "config.h"
 #include "vd_command.h"
 #include "settinguisub.h"
 
+#include "zusbcomm.h"
+
 //****************************************************************************
 // Global variables
 //****************************************************************************
 
+struct zusb_rmtdata *zusb_rmtdata;
+jmp_buf jenv;                       //タイムアウト時のジャンプ先
+
 int sysstatus = STAT_WIFI_DISCONNECTED;
-int remoteunit = 0;
 struct config_data config
 #ifdef XTEST
 = {
   .tz = "JST-9",
-  .tadjust= "2",
-  .fastconnect = "0",
+  .tadjust= 2,
 }
 #endif
 ;
@@ -55,7 +62,7 @@ struct config_data config
 
 #define isvisible(n)  (((itemtbl[n].stat) & 0xf) <= sysstatus && \
                        !((itemtbl[n].stat & 0x20) && \
-                         (remoteunit <= ((itemtbl[n].stat & 0xf00) >> 8))))
+                         (config.remoteunit <= ((itemtbl[n].stat & 0xf00) >> 8))))
 #define istabstop(n)  ((itemtbl[n].stat) & 0x10)
 #define issetconf(n)  ((itemtbl[n].stat) & 0x40)
 #define isupdconf(n)  ((itemtbl[n].stat) & 0x80)
@@ -129,12 +136,12 @@ struct itemtbl itemtbl[] = {
     "リモートドライブからの起動を行うかどうかを設定します",
     "リモートドライブからの起動を行うかどうかを選択してください (0=行わない/1=行う)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    16, 76, config.remoteboot,      sizeof(config.remoteboot),     input_numlist, &opt_bool },
+    16, 76, (char *)&config.remoteboot, sizeof(config.remoteboot), input_numlist, &opt_bool },
   { 0x084, 4, 21, -1,  "RMTUNIT",
     "リモートドライブの個数を設定します (0-4)",
     "リモートドライブの個数を選択してください (0=リモートドライブは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    16, 76, config.remoteunit,      sizeof(config.remoteunit),     input_numlist, &opt_rmtunit },
+    16, 76, (char *)&config.remoteunit, sizeof(config.remoteunit), input_numlist, &opt_rmtunit },
   { 0x024, 4, 22, -1,  "REMOTE0",
     "リモートドライブ 0 のファイル共有のパス名を設定します",
     "リモートドライブ 0 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
@@ -171,12 +178,7 @@ struct itemtbl itemtbl[] = {
     "Windows から取得した時刻を X68000Z に設定する際のオフセット値を設定します",
     "Windows から取得した時刻を設定する際のオフセット値を選択してください (0=設定しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    64, 8, config.tadjust,          sizeof(config.tadjust),        input_numlist, &opt_tadjust },
-  { 0x000, 52, 6, 1,   "FASTCONN",
-    "リモートドライブサービスの接続を高速化するかどうかを設定します",
-    "起動時にリモートドライブサービスの認識に失敗する場合のみ 1 を設定してください",
-    "(HDSのイメージサイズが正しく取得できないためformat.xの装置初期化の際は 0 にしてください)",
-    64, 4, config.fastconnect,      sizeof(config.fastconnect),    input_numlist, &opt_bool },
+    64, 8, (char *)&config.tadjust,  sizeof(config.tadjust),       input_numlist, &opt_tadjust },
 
   { 0x080, 82, 27, 16, "設定クリア",
     "保存されている設定内容をクリアします",
@@ -212,7 +214,7 @@ int topview(void)
     drawframe3(2, 14, 92, 4, 2, 10);
 
     drawmsg(4, 19, 3, "リモートドライブ設定");
-    drawframe3(2, 20, 92, remoteunit + 2, 2, 10);
+    drawframe3(2, 20, 92, config.remoteunit + 2, 2, 10);
 
     drawframe3(2, 27, 14, 1, 2, -1);
     /* fall through */
@@ -354,10 +356,10 @@ int flash_clear(struct itemtbl *it, void *v)
 
 int main()
 {
-#ifdef XTEST
+//#ifdef XTEST
   printf("\x1b[2J\x1b[>1h");
   fflush(stdout);
-#endif
+//#endif
   _iocs_os_curof();
 
   _iocs_b_clr_st();
@@ -368,19 +370,26 @@ int main()
   drawmsg(3, 1, 3, title);
 
 #ifndef XTEST
-  com_init();
+  int8_t *zusb_channels = NULL;
 
-  {
-    char buf[512];
-    _iocs_s_readext(0, 1, 6, 1, buf);
-    if (memcmp(buf, "X68SCSI1", 8) != 0 ||
-        memcmp(&buf[16], "X68000ZRemoteDrv", 16) != 0) {
+  _dos_super(0);
+
+  // ZUSB デバイスをオープンする
+  // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
+  if ((zusb_rmtdata = find_zusbrmt()) == NULL) {
+    if (zusb_open() < 0) {
        drawframe2(1, 28, 94, 4, 1, -1);
       _iocs_b_putmes(3, 3, 29, 89, "X68000 Z Remote Drive Service が見つかりません");
       _iocs_b_putmes(3, 3, 30, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
-      while (1)
-        ;
+      exit(1);
     }
+  }
+
+  if (setjmp(jenv)) {
+    zusb_disconnect_device();
+    zusb_close();
+    printf("settingui : ZUSB デバイスが切断されました\n");
+    exit(1);
   }
 
   {
@@ -392,8 +401,7 @@ int main()
        drawframe2(1, 28, 94, 4, 1, -1);
       _iocs_b_putmes(3, 3, 29, 89, "X68000 Z Remote Drive Service のバージョンが合致しません");
       _iocs_b_putmes(3, 3, 30, 89, "同一バージョンのレスキューディスクを使用してください");
-      while (1)
-        ;
+      exit(1);
     }
   }
 
@@ -404,7 +412,6 @@ int main()
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
     config = res.data;
   }
-  remoteunit = atoi(config.remoteunit);
 
   {
     struct cmd_getstatus cmd;
@@ -473,7 +480,6 @@ int main()
         int res = it->func(it, it->opt);
         _iocs_b_putmes(3, 3, 29, 89, it->help1);
         drawhelp(3, 3, 30, 89, "#a #b (選択) #e  (確定)");
-        remoteunit = atoi(config.remoteunit);
         if (res == 1) {
           update = isupdconf(n);
           if (issetconf(n)) {
@@ -492,10 +498,10 @@ int main()
           }
         }
       }
-#ifdef XTEST
+//#ifdef XTEST
     } else if (c == '\x1b') {                 /* ESC */
       break;
-#endif
+//#endif
     }
 
     drawmsg(it->x, it->y, 3, it->msg);
@@ -527,13 +533,13 @@ int main()
   }
 
 #ifndef XTEST
-  while (1)
-    ;
+//  while (1)
+//    ;
 #endif
-#ifdef XTEST
+//#ifdef XTEST
   printf("\x1b[0m\x1b[2J\x1b[>1l");
   _iocs_os_curon();
-#endif
+//#endif
 
   return 0;
 }

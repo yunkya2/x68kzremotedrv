@@ -38,22 +38,6 @@
 //****************************************************************************
 
 //****************************************************************************
-// Communication
-//****************************************************************************
-
-#ifndef XTEST
-
-void com_init(void)
-{
-}
-
-void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
-{
-}
-
-#endif
-
-//****************************************************************************
 // Drawing
 //****************************************************************************
 
@@ -185,7 +169,9 @@ void drawvalue(int c, struct itemtbl *it, const char *s, int mask)
     if (it->func != input_numlist) {
       _iocs_b_putmes(c, it->xd, it->y, it->wd - 1, s);
     } else {
-      _iocs_b_putmes(c, it->xd, it->y, 0, s);
+      char str[4];
+      sprintf(str, "%u", *(uint8_t *)s);
+      _iocs_b_putmes(c, it->xd, it->y, 0, str);
     }
   }
 }
@@ -386,21 +372,19 @@ int input_numlist(struct itemtbl *it, void *v)
 {
   struct numlist_opt *opt = (struct numlist_opt *)v;
   int res = 0;
-  int value = atoi(it->value);
-  char temp[4];
+  uint8_t value = *(uint8_t *)it->value;
 
   value = max(value, opt->min);
   value = min(value, opt->max);
 
   while (1) {
-    sprintf(temp, "%u", value);
-    drawvalue(10, it, temp, 0);
+    drawvalue(10, it, (char *)&value, 0);
 
     /* キー入力処理 */
     int k = keyinp(-1);
     int c = k & 0xff;
     if (c == '\r') {                          // CR
-      strcpy(it->value, temp);
+      *(uint8_t *)it->value = value;
       res = 1;
       break;
     } else if (c == '\x1b') {                 // ESC

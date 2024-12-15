@@ -56,6 +56,7 @@ all: bootloader.inc hdsboot.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
 all: zremotehds.sys zremotehds.hds zremotehds_boot.inc human.inc
 all: zremote.x
+all: settingui.x
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -113,7 +114,7 @@ settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h sett
 settingui.bin: settingui.o settinguisub.o
 	$(LD) -o $@ $^ -Ttext=0x6800 -s -specs=x68knodos.specs
 
-settingui.x: settingui.o settinguisub.o
+settingui.x: settingui.o settinguisub.o zusbcomm.o
 	$(LD) -o $@ $^
 
 clrconfig.uf2: clrconfig.py
