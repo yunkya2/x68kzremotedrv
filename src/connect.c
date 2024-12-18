@@ -294,9 +294,7 @@ void connect_task(void *params)
         xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
         if (!(nvalue & CONNECT_WAIT))
             continue;
-        if ((nvalue & CONNECT_MASK) <= CONNECT_SMB2) {
-            disconnectall();
-        }
+        disconnectall();
         connection(nvalue & CONNECT_MASK);
         if (sysstatus >= STAT_SMB2_CONNECTED) {
             mountall();

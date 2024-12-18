@@ -91,7 +91,8 @@ struct config_data {
 
 #define CONNECT_WIFI                0
 #define CONNECT_SMB2                1
-#define CONNECT_NONE                2
+#define CONNECT_REMOUNT             2
+#define CONNECT_NONE                3
 #define CONNECT_MASK                0x0f
 #define CONNECT_WAIT                0x10
 
