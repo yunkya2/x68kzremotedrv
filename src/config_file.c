@@ -84,9 +84,9 @@ const struct config_item {
     { "SMB2_SERVER:",               NULL,
       config.smb2_server,           sizeof(config.smb2_server),     0 },
 
-    { "SELFBOOT:",                  (char *)0,
+    { "SELFBOOT:",                  (char *)1,
       (char *)&config.selfboot,     sizeof(config.selfboot),        CF_INT },
-    { "REMOTE_BOOT:",               (char *)0,
+    { "REMOTE_BOOT:",               (char *)1,
       (char *)&config.remoteboot,   sizeof(config.remoteboot),      CF_INT },
     { "REMOTE_UNIT:",               (char *)0,
       (char *)&config.remoteunit,   sizeof(config.remoteunit),      CF_INT },
