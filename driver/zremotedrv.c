@@ -145,6 +145,9 @@ int com_init(struct dos_req_header *req)
     }
 
     if (res.year > 0) {
+      *(volatile uint8_t *)0xe8e000 = 'T';
+      *(volatile uint8_t *)0xe8e000 = 'W';
+      *(volatile uint8_t *)0xe8e000 = 0;    // disable RTC auto adjust
       _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
       _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
     }
