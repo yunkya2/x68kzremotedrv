@@ -56,7 +56,7 @@ all: bootloader.inc hdsboot.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
 all: zremotehds.sys zremotehds.hds zremotehds_boot.inc human.inc
 all: zremote.x
-all: settingui.x
+all: settingui.x settingui.inc
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
@@ -111,8 +111,11 @@ zremotedrv.o:  ../include/config.h remotedrv.h x68kremote.h ../include/vd_comman
 settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 
-settingui.bin: settingui.o settinguisub.o
+settingui.bin: settingui_boot.o settinguisub.o zusbcomm.o
 	$(LD) -o $@ $^ -Ttext=0x6800 -s -specs=x68knodos.specs
+
+settingui_boot.o: settingui.c
+	$(CC) $(CFLAGS) -c -o $@ $< -DBOOTSETTING
 
 settingui.x: settingui.o settinguisub.o zusbcomm.o
 	$(LD) -o $@ $^

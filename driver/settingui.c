@@ -75,10 +75,17 @@ int crtmode;
 #define issetconf(n)  ((itemtbl[menumode][n].stat) & 0x40)
 #define isupdconf(n)  ((itemtbl[menumode][n].stat) & 0x80)
 
+int switch_menu(struct itemtbl *it, void *v);
 int flash_config(struct itemtbl *it, void *v);
 int flash_clear(struct itemtbl *it, void *v);
 
-int switch_menu(struct itemtbl *it, void *v);
+#ifdef BOOTSETTING
+int _dos_bus_err(void *src, void *dst, int size)
+{
+  memcpy(dst, src, size);
+  return 0;
+}
+#endif
 
 //****************************************************************************
 // Menu data
@@ -467,6 +474,8 @@ int main()
   crtmode = _dos_c_width(-1);
   _dos_c_width(0);
   _iocs_os_curof();
+
+  _dos_super(0);
 #endif
 
   char title[200];
@@ -477,8 +486,6 @@ int main()
 
 #ifndef XTEST
   int8_t *zusb_channels = NULL;
-
-  _dos_super(0);
 
   if (setjmp(jenv)) {
     zusb_disconnect_device();
