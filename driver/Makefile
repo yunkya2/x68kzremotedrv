@@ -55,11 +55,16 @@ endif
 all: bootloader.inc hdsboot.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
 all: zremotehds.sys zremotehds.hds zremotehds_boot.inc human.inc
-all: zremotecli.x
-all: settingui.x settingui.inc
+all: zremote.x settingui.inc
 
 uitest:
 	$(MAKE) CFLAGS_XTEST=-DXTEST clean settingui.x
+
+zremote.x: zremote0.x zremotecli.x settingui.x
+	./bind.py $@ $^
+
+zremote0.x: zremote0.o
+	$(LD) -o $@ $^ -s -nostartfiles -s
 
 zremotecli.x: zremotecli.o zusbcomm.o
 	$(LD) -o $@ $^ -s
