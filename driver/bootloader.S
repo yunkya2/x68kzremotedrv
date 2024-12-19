@@ -29,21 +29,18 @@
 entry:
     bra.w   start
 
-sysstat:
-    .word   0                   /* system status */
+settingboot:
+    .word   0                   /* setting boot flag */
 
 start:
-#if 0
-    move.w  %pc@(sysstat),%d0
-    cmpi.w  #5,%d0              /* STAT_CONFIGURED */
-    blt     loadsetting         /* not configured -> setting UI */
+    move.w  %pc@(settingboot),%d0
+    bne     loadsetting         /* not configured -> setting UI */
 
     moveq.l #0x04,%d0           /* B_BITSNS */
     moveq.l #0x0c,%d1
     trap    #15
     andi.b  #0x08,%d0           /* check F1 key */
     bne     loadsetting
-#endif
 
 loadhuman:
     move.l  #(0x8000/512),%d2   /* HUMAN.SYS */
@@ -51,7 +48,6 @@ loadhuman:
 
 loadsetting:
     move.l  #(0x20000/512),%d2  /* Setting UI menu */
-    moveq.l #6,%d4              /* SCSI ID 6 */
 
 1:
     moveq.l #1,%d3

@@ -45,6 +45,7 @@
 #include "zremotedrv_boot.inc"
 #include "zremotehds_boot.inc"
 #include "human.inc"
+#include "settingui.inc"
 
 //****************************************************************************
 // Global variables
@@ -192,9 +193,9 @@ int vd_init(void)
 
     if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
         /* not configured */
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 7; i++) {
             diskinfo[i].type = DTYPE_REMOTEDRV;
-            diskinfo[i].size = 0x800;
+            diskinfo[i].size = 0x40000;
         }
     } else {
         int id;
@@ -202,7 +203,7 @@ int vd_init(void)
         /* Set up remote drive */
         id = config.remoteboot ? 0 : N_HDS;
         diskinfo[id].type = DTYPE_REMOTEDRV;
-        diskinfo[id].size = 0x20000;
+        diskinfo[id].size = 0x40000;
 
         /* Set up remote HDS */
         id = config.remoteboot ? 1 : 0;
@@ -214,7 +215,7 @@ int vd_init(void)
             }
         } else {
             diskinfo[id].type = DTYPE_REMOTEHDS;
-            diskinfo[id].size = 0x20000;
+            diskinfo[id].size = 0x40000;
         }
     }
 
@@ -392,6 +393,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
         // HDS SCSI remote drive
         if (di->hds != NULL && di->hds->sfh) {
+#if 0
             if (lba == 2) {
                 // boot loader
                 memcpy(buf, hdsboot, sizeof(hdsboot));
@@ -400,6 +402,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0x20 || lba == 0x21) {
                 lba -= 0x20 - 2;
             }
+#endif
             if (hds_cache_read(di->hds->smb2, di->hds->sfh, lba, buf) < 0)
                 return -1;
             return 0;
@@ -416,7 +419,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             } else if (lba == 2) {
                 // boot loader
                 memcpy(buf, bootloader, sizeof(bootloader));
-                buf[5] = config.remoteboot ? sysstatus : 0;
+                buf[5] = sysstatus != STAT_CONFIGURED;
                 return 0;
             }
             if (lba == 4) {
@@ -475,6 +478,14 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                     }
                 }
                 return 0;
+            } else if (lba >= (0x20000 / 512)) {
+                // settingui
+                lba -= 0x20000 / 512;
+                size_t size = sizeof(settingui);
+                if (lba <= size / 512) {
+                    size_t remain = size - lba * 512;
+                    memcpy(buf, &settingui[lba * 512], remain >= 512 ? 512 : remain);
+                }
             }
         }
     }

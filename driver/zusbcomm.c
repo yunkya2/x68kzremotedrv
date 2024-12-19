@@ -117,11 +117,13 @@ int com_connect(int protected)
 {
   int ch;
 
+#ifndef BOOTSETTING
   // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
   selfopen = false;
   if (com_rmtdata = find_zusbrmt()) {
     return com_rmtdata->zusb_ch;
   }
+#endif
 
   // オープンされていなければ新規にオープンする
   ch = (protected ? zusb_open_protected() : zusb_open());

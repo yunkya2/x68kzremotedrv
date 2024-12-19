@@ -116,10 +116,13 @@ zremotedrv.o:  ../include/config.h remotedrv.h x68kremote.h ../include/vd_comman
 settingui.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 settinguisub.o:  ../include/config.h ../include/vd_command.h settinguipat.h settinguisub.h
 
-settingui.bin: settingui_boot.o settinguisub.o zusbcomm.o
+settingui.bin: settingui_boot.o settinguisub.o zusbcomm_boot.o
 	$(LD) -o $@ $^ -Ttext=0x6800 -s -specs=x68knodos.specs
 
 settingui_boot.o: settingui.c
+	$(CC) $(CFLAGS) -c -o $@ $< -DBOOTSETTING
+
+zusbcomm_boot.o: zusbcomm.c
 	$(CC) $(CFLAGS) -c -o $@ $< -DBOOTSETTING
 
 settingui.x: settingui.o settinguisub.o zusbcomm.o
