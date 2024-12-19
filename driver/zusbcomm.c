@@ -47,11 +47,23 @@
 #endif
 
 //****************************************************************************
+// Global variables
+//****************************************************************************
+
+struct zusb_rmtdata *com_rmtdata = NULL;
+
+//****************************************************************************
+// Local variables
+//****************************************************************************
+
+static bool selfopen;
+
+//****************************************************************************
 // USB device connection
 //****************************************************************************
 
 // ZUSBRMT デバイスドライバが既に存在すれば zsub_rmtdata へのポインタを返す
-struct zusb_rmtdata *find_zusbrmt(void)
+static struct zusb_rmtdata *find_zusbrmt(void)
 {
   const char *devh = (const char *)0x006800;
   // Human68k初期化中はDOS _GETDPBが使えないため、直接デバイスドライバのリンクリストを検索する
@@ -79,7 +91,7 @@ static const zusb_endpoint_config_t epcfg_tmpl[ZUSB_N_EP] = {
 };
 
 // デバイスの接続処理を行う
-int connect_device(void)
+static int connect_device(void)
 {
   int devid;
   zusb_endpoint_config_t epcfg[ZUSB_N_EP];
@@ -97,8 +109,39 @@ int connect_device(void)
 }
 
 //****************************************************************************
-// Communication
+// Communication APIs
 //****************************************************************************
+
+// ZUSB デバイスをオープンしてチャネル番号を返す
+int com_connect(int protected)
+{
+  int ch;
+
+  // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
+  selfopen = false;
+  if (com_rmtdata = find_zusbrmt()) {
+    return com_rmtdata->zusb_ch;
+  }
+
+  // オープンされていなければ新規にオープンする
+  ch = (protected ? zusb_open_protected() : zusb_open());
+  if (ch < 0) {
+    return -1;
+  }
+  selfopen = true;
+  connect_device();
+  return ch;
+}
+
+// 自分で ZUSB デバイスをオープンしていたらクローズする
+void com_disconnect(void)
+{
+  if (selfopen) {
+    zusb_disconnect_device();
+    zusb_close();
+  }
+  com_rmtdata = NULL;
+}
 
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {
@@ -125,6 +168,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     if (stat & ZUSB_STAT_ERROR) {
       int err = zusb->err & 0xff;
       if (err == ZUSB_ENOTCONN || err == ZUSB_ENODEV) {
+        // USBデバイスが繋ぎ変えられていたら一度切断して再接続を試みる
         zusb_disconnect_device();
         if (connect_device() > 0) {
           continue;

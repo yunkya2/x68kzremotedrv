@@ -34,8 +34,10 @@ struct zusb_rmtdata {       // must be 4bytes (head.S)
     uint8_t _reserved;
 };
 
-struct zusb_rmtdata *find_zusbrmt(void);
-int connect_device(void);
+extern struct zusb_rmtdata *com_rmtdata;
+
+int com_connect(int protected);
+void com_disconnect(void);
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize);
 
 #endif /* _ZUSBCOMM_H_ */

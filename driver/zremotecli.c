@@ -57,9 +57,7 @@
 int debuglevel = 0;
 #endif
 
-struct zusb_rmtdata *zusb_rmtdata;
 jmp_buf jenv;                       //タイムアウト時のジャンプ先
-
 struct config_data config_data;
 
 //****************************************************************************
@@ -115,10 +113,7 @@ struct usage_message {
 
 static void terminate(int code)
 {
-  zusb_disconnect_device();
-  if (zusb_rmtdata == NULL) {
-    zusb_close();
-  }
+  com_disconnect();
   exit(code);
 }
 
@@ -652,11 +647,11 @@ void cmd_mounthds(int ishds, int argc, char **argv)
     terminate(1);
   }
 
-  if (ishds && zusb_rmtdata) {
-    zusb_rmtdata->hds_changed |= (1 << unit);
-    zusb_rmtdata->hds_ready &= ~(1 << unit);
+  if (ishds && com_rmtdata) {
+    com_rmtdata->hds_changed |= (1 << unit);
+    com_rmtdata->hds_ready &= ~(1 << unit);
     if (!opt_umount) {
-      zusb_rmtdata->hds_ready |= (1 << unit);
+      com_rmtdata->hds_ready |= (1 << unit);
     }
   }
 }
@@ -921,18 +916,12 @@ int main(int argc, char **argv)
 
   _dos_super(0);
 
-  // ZUSB デバイスをオープンする
-  // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
-  if ((zusb_rmtdata = find_zusbrmt()) == NULL) {
-    if (zusb_open() < 0) {
-      printf(PROGNAME ": ZUSB デバイスが見つかりません\n");
-      exit(1);
-    }
+  if (com_connect(false) < 0) {
+    printf(PROGNAME ": ZUSB デバイスが見つかりません\n");
+    exit(1);
   }
 
   if (setjmp(jenv)) {
-    zusb_disconnect_device();
-    zusb_close();
     printf(PROGNAME ": ZUSB デバイスが切断されました\n");
     terminate(1);
   }

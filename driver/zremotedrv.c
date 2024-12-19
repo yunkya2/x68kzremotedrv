@@ -44,9 +44,7 @@
 // Global variables
 //****************************************************************************
 
-// リモートドライブドライバ間で共有するデータ
-extern struct zusb_rmtdata zusb_rmtdata;
-struct zusb_rmtdata *rmtp = &zusb_rmtdata;
+extern struct zusb_rmtdata zusb_rmtdata;  // リモートドライブドライバ間で共有するデータ
 
 #ifdef DEBUG
 int debuglevel = 0;
@@ -116,20 +114,17 @@ int com_init(struct dos_req_header *req)
 
   int units = 0;
 
-  // ZUSB デバイスをオープンする
-  // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
-  struct zusb_rmtdata *rd = find_zusbrmt();
-  if (rd) {
-    rmtp = rd;
-  } else {
-    if ((rmtp->zusb_ch = zusb_open_protected()) < 0) {
-      _dos_print("ZUSB デバイスが見つかりません\r\n");
-      return -0x700d;
-    }
+  int ch = com_connect(true);
+  if (ch < 0) {
+    _dos_print("ZUSB デバイスが見つかりません\r\n");
+    return -0x700d;
+  } else if (com_rmtdata == NULL) {
+    com_rmtdata = &zusb_rmtdata;
+    com_rmtdata->zusb_ch = ch;
   }
 
   if (setjmp(jenv)) {
-    zusb_disconnect_device();
+    com_disconnect();
     _dos_print("リモートドライブ用 Raspberry Pi Pico W が接続されていません\r\n");
     return -0x700d;
   }
@@ -140,7 +135,7 @@ int com_init(struct dos_req_header *req)
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 
     if (res.version != PROTO_VERSION) {
-      zusb_disconnect_device();
+      com_disconnect();
       _dos_print("リモートドライブ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
@@ -162,7 +157,7 @@ int com_init(struct dos_req_header *req)
   }
 
   if (units == 0) {
-    zusb_disconnect_device();
+    com_disconnect();
     return -0x700d;   // リモートドライブが1台もないので登録しない
   }
 

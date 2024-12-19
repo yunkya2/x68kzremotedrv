@@ -43,7 +43,6 @@
 // Global variables
 //****************************************************************************
 
-struct zusb_rmtdata *zusb_rmtdata;
 jmp_buf jenv;                       //タイムアウト時のジャンプ先
 
 int sysstatus = STAT_WIFI_DISCONNECTED;
@@ -453,6 +452,7 @@ int flash_clear(struct itemtbl *it, void *v)
 
 void terminate(int waitkey)
 {
+  com_disconnect();
 #ifndef BOOTSETTING
   if (waitkey) {
     _iocs_b_putmes(3, 3, 29, 89, "何かキーを押すと終了します");
@@ -488,22 +488,16 @@ int main()
   int8_t *zusb_channels = NULL;
 
   if (setjmp(jenv)) {
-    zusb_disconnect_device();
-    zusb_close();
     _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ デバイスが切断されました");
     _iocs_b_putmes(3, 3, 29, 89, "");
     terminate(true);
   }
 
-  // ZUSB デバイスをオープンする
-  // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
-  if ((zusb_rmtdata = find_zusbrmt()) == NULL) {
-    if (zusb_open() < 0) {
-       drawframe2(1, 26, 94, 5, 1, -1);
-      _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service が見つかりません");
-      _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
-      terminate(true);
-    }
+  if (com_connect(false) < 0) {
+    drawframe2(1, 26, 94, 5, 1, -1);
+    _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service が見つかりません");
+    _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
+    terminate(true);
   }
 
   {
