@@ -455,6 +455,7 @@ void terminate(int waitkey)
   com_disconnect();
 #ifndef BOOTSETTING
   if (waitkey) {
+    drawframe2(1, 26, 94, 5, 1, -1);
     _iocs_b_putmes(3, 3, 29, 89, "何かキーを押すと終了します");
     keyinp(-1);
   }
@@ -488,15 +489,14 @@ int main()
   int8_t *zusb_channels = NULL;
 
   if (setjmp(jenv)) {
-    _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ デバイスが切断されました");
-    _iocs_b_putmes(3, 3, 29, 89, "");
+    _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service が見つかりません");
+    _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
     terminate(true);
   }
 
   if (com_connect(false) < 0) {
-    drawframe2(1, 26, 94, 5, 1, -1);
-    _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service が見つかりません");
-    _iocs_b_putmes(3, 3, 28, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");
+    _iocs_b_putmes(3, 3, 27, 89, "ZUSB デバイスが見つかりません");
+    _iocs_b_putmes(3, 3, 28, 89, "X68000 Z 本体のファームウェアを ZUSB 対応に更新してください");
     terminate(true);
   }
 
@@ -506,7 +506,6 @@ int main()
     cmd.command = CMD_GETINFO;
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
     if (res.version != PROTO_VERSION) {
-       drawframe2(1, 26, 94, 5, 1, -1);
       _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service のファームウェアバージョンが合致しません");
       _iocs_b_putmes(3, 3, 28, 89, "同一バージョンのファームウェアを使用してください");
       terminate(true);
