@@ -383,17 +383,17 @@ int flash_config(struct itemtbl *it, void *v)
     if (c == 'y' || c == 'Y') {         // Y
 #ifndef XTEST
       {
-        struct cmd_flashconfig cmd;
-        struct res_flashconfig res;
-        cmd.command = CMD_FLASHCONFIG;
-        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-      }
-      {
         struct cmd_setconfig cmd;
         struct res_setconfig res;
         cmd.command = CMD_SETCONFIG;
         cmd.mode = CONNECT_REMOUNT;
         cmd.data = config;
+        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+      }
+      {
+        struct cmd_flashconfig cmd;
+        struct res_flashconfig res;
+        cmd.command = CMD_FLASHCONFIG;
         com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
       }
 #endif
