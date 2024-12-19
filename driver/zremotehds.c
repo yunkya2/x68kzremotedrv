@@ -119,13 +119,13 @@ void DPRINTF(int level, char *fmt, ...)
 // Private functions
 //****************************************************************************
 
-static int sector_read(int drive, uint8_t *buf, uint32_t pos, int nsect)
+static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
   struct cmd_hdsread *cmd = &b.cmd_hdsread;
   struct res_hdsread *res = &b.res_hdsread;
 
   cmd->command = CMD_HDSREAD;
-  cmd->unit = drive;
+  cmd->unit = unit;
   cmd->nsect = nsect;
   cmd->pos = pos;
   com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + nsect * 512);
@@ -141,13 +141,13 @@ static int sector_read(int drive, uint8_t *buf, uint32_t pos, int nsect)
   return 0;
 }
 
-static int sector_write(int drive, uint8_t *buf, uint32_t pos, int nsect)
+static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
   struct cmd_hdswrite *cmd = &b.cmd_hdswrite;
   struct res_hdswrite *res = &b.res_hdswrite;
 
   cmd->command = CMD_HDSWRITE;
-  cmd->unit = drive;
+  cmd->unit = unit;
   cmd->nsect = nsect;
   cmd->pos = pos;
   memcpy(cmd->data, buf, 512 * nsect);
@@ -163,15 +163,14 @@ static int sector_write(int drive, uint8_t *buf, uint32_t pos, int nsect)
   return 0;
 }
 
-static int read_bpb(int drive)
+static int read_bpb(int unit)
 {
   uint8_t sector[512];
 
-  bpb[drive] = defaultbpb;    // BPBが取得できなかった場合のデフォルト値
+  bpb[unit] = defaultbpb;    // BPBが取得できなかった場合のデフォルト値
 
   // SCSIイメージ signature を確認する
-
-  if (sector_read(drive, sector, 0, 1) != 0) {
+  if (sector_read(unit, sector, 0, 1) != 0) {
     return -1;
   }
   if (memcmp(sector, "X68SCSI1", 8) != 0) {
@@ -179,8 +178,7 @@ static int read_bpb(int drive)
   }
 
   // パーティション情報を取得する
-
-  if (sector_read(drive, sector, 2 * 2, 1) != 0) {
+  if (sector_read(unit, sector, 2 * 2, 1) != 0) {
     return -1;
   }
   if (memcmp(sector, "X68K", 4) != 0) {
@@ -198,10 +196,10 @@ static int read_bpb(int drive)
       uint32_t sect = *(uint32_t *)(p + 8) & 0xffffff;
       uint8_t bootsect[512];
 
-      if (sector_read(drive, bootsect, sect * 2, 1) != 0) {
+      if (sector_read(unit, bootsect, sect * 2, 1) != 0) {
         return -1;
       }
-      memcpy(&bpb[drive], &bootsect[0x12], sizeof(*bpb));
+      memcpy(&bpb[unit], &bootsect[0x12], sizeof(*bpb));
       return 1;
 
     }
@@ -218,6 +216,8 @@ int com_init(struct dos_req_header *req)
 {
   _dos_print("\r\nX68000 Z Remote HDS Driver (version " GIT_REPO_VERSION ")\r\n");
 
+  int units = 0;
+
   // ZUSB デバイスをオープンする
   // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
   struct zusb_rmtdata *rd = find_zusbrmt();
@@ -230,13 +230,12 @@ int com_init(struct dos_req_header *req)
     }
   }
 
-  int drives;
-
   if (setjmp(jenv)) {
     zusb_disconnect_device();
     _dos_print("リモートHDS用 Raspberry Pi Pico W が接続されていません\r\n");
     return -0x700d;
   }
+
   {
     struct cmd_getinfo cmd;
     struct res_getinfo res;
@@ -244,21 +243,27 @@ int com_init(struct dos_req_header *req)
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 
     if (res.version != PROTO_VERSION) {
+      zusb_disconnect_device();
       _dos_print("リモートHDS用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
 
-    drives = res.hdsunit;
+    units = res.hdsunit;
+  }
+
+  if (units == 0) {
+    zusb_disconnect_device();
+    return -0x700d;   // リモートHDSが1台もないので登録しない
   }
 
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
-  for (int i = 0; i < drives; i++) {
+  for (int i = 0; i < units; i++) {
     read_bpb(i);
     bpbtable[i] = &bpb[i];
   }
   req->status = (uint32_t)bpbtable;
 
-  if (*(char *)&req->fcb + drives > 26) {
+  if (*(char *)&req->fcb + units > 26) {
     _dos_print("ドライブ数が多すぎます\r\n");
     return -0x700d;
   }
@@ -267,9 +272,9 @@ int com_init(struct dos_req_header *req)
   _dos_print("ドライブ");
   _dos_putchar('A' + *(char *)&req->fcb);
   _dos_putchar(':');
-  if (drives > 1) {
+  if (units > 1) {
     _dos_putchar('-');
-    _dos_putchar('A' + *(char *)&req->fcb + drives - 1);
+    _dos_putchar('A' + *(char *)&req->fcb + units - 1);
     _dos_putchar(':');
   }
   _dos_print("でリモートHDSが利用可能です\r\n");
@@ -285,7 +290,7 @@ int com_init(struct dos_req_header *req)
   *(char *)&req->fcb = bootpart;
 #endif
 
-  return drives;
+  return units;
 }
 
 int interrupt(void)
@@ -322,7 +327,7 @@ int interrupt(void)
     return 0x7002;      // ドライブの準備が出来ていない
   }
 
-  int drive = req->unit;
+  int unit = req->unit;
 
   switch (req->command) {
   case 0x01: /* disk check */
@@ -366,7 +371,7 @@ int interrupt(void)
     while (sectors > 0) {
       int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
 
-      if ((err = sector_read(drive, p, pos, nsect)) != 0) {
+      if ((err = sector_read(unit, p, pos, nsect)) != 0) {
         break;
       }
       p += 512 * nsect;
@@ -388,7 +393,7 @@ int interrupt(void)
     while (sectors > 0) {
       int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
 
-      if ((err = sector_write(drive, p, pos, nsect)) != 0) {
+      if ((err = sector_write(unit, p, pos, nsect)) != 0) {
         break;
       }
       p += 512 * nsect;

@@ -114,7 +114,7 @@ int com_init(struct dos_req_header *req)
 {
   _dos_print("\r\nX68000 Z Remote Drive Driver (version " GIT_REPO_VERSION ")\r\n");
 
-  int units = 1;
+  int units = 0;
 
   // ZUSB デバイスをオープンする
   // 既にリモートドライブを使うドライバが存在する場合は、そのチャネルを使う
@@ -140,6 +140,7 @@ int com_init(struct dos_req_header *req)
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 
     if (res.version != PROTO_VERSION) {
+      zusb_disconnect_device();
       _dos_print("リモートドライブ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
@@ -158,6 +159,11 @@ int com_init(struct dos_req_header *req)
     struct res_init res;
     cmd.command = 0x00; /* init */
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  }
+
+  if (units == 0) {
+    zusb_disconnect_device();
+    return -0x700d;   // リモートドライブが1台もないので登録しない
   }
 
 #ifndef CONFIG_BOOTDRIVER
