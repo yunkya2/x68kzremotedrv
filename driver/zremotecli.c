@@ -110,48 +110,6 @@ struct usage_message {
 #endif
 
 //****************************************************************************
-// Communication
-//****************************************************************************
-
-static void com_cmdonly(void *wbuf, size_t wsize)
-{
-  while (1) {
-    *(uint32_t *)zusbbuf = wsize;
-    memcpy(zusbbuf + 4, wbuf, wsize);
-
-    zusb_set_ep_region(1, zusbbuf, wsize + 4);
-
-    zusb->stat = 0xffff;
-    zusb_send_cmd(ZUSB_CMD_SUBMITXFER(1));
-
-    uint16_t stat;
-    do {
-      stat = zusb->stat;
-      if (stat & ZUSB_STAT_ERROR) {
-        break;
-      }
-    } while ((stat & (ZUSB_STAT_PCOMPLETE(1))) !=
-                     (ZUSB_STAT_PCOMPLETE(1)));
-
-    if (stat & ZUSB_STAT_ERROR) {
-      int err = zusb->err & 0xff;
-      if (err == ZUSB_ENOTCONN || err == ZUSB_ENODEV) {
-        zusb_disconnect_device();
-        if (connect_device() > 0) {
-          continue;
-        } else {
-          zusb_send_cmd(ZUSB_CMD_CANCELXFER(0));
-          zusb_send_cmd(ZUSB_CMD_CANCELXFER(1));
-        }
-        longjmp(jenv, -1);
-      }
-    }
-
-    return;
-  }
-}
-
-//****************************************************************************
 // Utility routine
 //****************************************************************************
 
