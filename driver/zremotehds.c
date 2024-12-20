@@ -251,9 +251,14 @@ int com_init(struct dos_req_header *req)
     return -0x700d;   // リモートHDSが1台もないので登録しない
   }
 
+  com_rmtdata->hds_changed = 0xff;
+  com_rmtdata->hds_ready = 0;
+
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   for (int i = 0; i < units; i++) {
-    read_bpb(i);
+    if (read_bpb(i) > 0) {
+      com_rmtdata->hds_ready |= (1 << i);   // BPBが読めたので利用可能
+    }
     bpbtable[i] = &bpb[i];
   }
   req->status = (uint32_t)bpbtable;
@@ -342,7 +347,6 @@ int interrupt(void)
   {
     read_bpb(req->unit);
     req->status = (uint32_t)&bpbtable[req->unit];
-    req->attr = bpbtable[req->unit]->mediabyte;
     break;
   }
 
