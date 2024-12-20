@@ -641,6 +641,7 @@ int input_dirfile(struct itemtbl *it, void *v)
         if (sharelist) {
           strcpy(cmd_smb2_list.share, filelist[cur]);
           if (cur == 0) {
+            res = 1;
             done = 1;           // 最初のエントリだったら空文字列で終了
           } else {
             sharelist = false;  // 2番目以降のエントリはその共有名のファイル一覧へ移動

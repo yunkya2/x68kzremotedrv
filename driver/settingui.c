@@ -605,6 +605,15 @@ int main()
         if (n >= n_itemtbl[menumode] || !isvisible(n)) {
           n--;
         }
+        if (it->func == input_dirfile && it->opt == (void *)1) {
+          if (com_rmtdata) {
+            int unit = (it->stat & 0xf000) >> 12;
+            com_rmtdata->hds_changed |= (1 << unit);
+            if (strlen(it->value) > 0) {
+              com_rmtdata->hds_ready |= (1 << unit);
+            }
+          }
+        }
       } else if (res == 2) {
         update = true;
         n = 0;
