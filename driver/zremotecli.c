@@ -60,6 +60,8 @@ int debuglevel = 0;
 jmp_buf jenv;                       //タイムアウト時のジャンプ先
 struct config_data config_data;
 
+int needreboot = false;
+
 //****************************************************************************
 // Command table
 //****************************************************************************
@@ -71,7 +73,6 @@ void cmd_hds(int argc, char **argv);
 void cmd_umount(int argc, char **argv);
 void cmd_selfboot(int argc, char **argv);
 void cmd_hdsscsi(int argc, char **argv);
-void cmd_save(int argc, char **argv);
 void cmd_erase(int argc, char **argv);
 void cmd_show(int argc, char **argv);
 
@@ -87,7 +88,6 @@ const struct {
   { "umount",   cmd_umount,   "リモートドライブ/HDSの接続解除" },
   { "selfboot", cmd_selfboot, "リモートドライブ/HDSからの起動設定" },
   { "hdsscsi",  cmd_hdsscsi,  "リモートHDSの接続モード設定" },
-  { "save",     cmd_save,     "現在の接続設定の保存" },
   { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
   { "show",     cmd_show,     "現在の設定内容一覧表示" },
 };
@@ -114,6 +114,9 @@ struct usage_message {
 static void terminate(int code)
 {
   com_disconnect();
+  if (needreboot) {
+    printf("※設定変更を反映させるためには再起動が必要です\n");
+  }
   exit(code);
 }
 
@@ -138,6 +141,14 @@ static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
     rcmd->remoteunit = config_data.remoteunit;
     rcmd->hdsscsi = config_data.hdsscsi;
     rcmd->hdsunit = config_data.hdsunit;
+}
+
+static void save_config(void)
+{
+  struct cmd_flashconfig cmd;
+  struct res_flashconfig res;
+  cmd.command = CMD_FLASHCONFIG;
+  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 }
 
 static int getpasswd(const char *prompt, char *passwd, int len)
@@ -316,8 +327,7 @@ void cmd_wifi(int argc, char **argv)
     }
   }
 
-  printf("ssid=%s passwd=%s\n", rcmd.wifi_ssid, rcmd.wifi_passwd);
-
+  save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 }
 
@@ -424,7 +434,7 @@ void cmd_server(int argc, char **argv)
     com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 
     if (res.year > 0) {
-      printf("%04d/%02d/%02d %02d:%02d:%02d\n",
+      printf("現在時刻: %04d/%02d/%02d %02d:%02d:%02d\n",
              res.year, res.mon, res.day, res.hour, res.min, res.sec);
 
       _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
@@ -439,6 +449,7 @@ void cmd_server(int argc, char **argv)
       strncpy(config_data.tz, opt_tz, sizeof(config_data.tz));
       config_data.tz[sizeof(config_data.tz) - 1] = '\0';
     }
+    save_config();
     struct cmd_setconfig cmd;
     struct res_setconfig res;
     cmd.command = CMD_SETCONFIG;
@@ -473,8 +484,7 @@ void cmd_server(int argc, char **argv)
     }
   }
 
-  printf("server=%s user=%s workgroup=%s passwd=%s\n", rcmd.smb2_server, rcmd.smb2_user, rcmd.smb2_workgroup, rcmd.smb2_passwd);
-
+  save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 }
 
@@ -489,10 +499,9 @@ void cmd_mounthds_usage(int ishds)
     struct usage_message m[] = {
       { "",                     "リモートHDSの接続状態を表示します" },
       { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
-      { "[-n] ドライブ名: リモートパス名", "指定したドライブ名にリモートHDSを接続します" },
-      { "-D [-n] ドライブ名:",   "リモートHDS接続を解除します" },
-      { "#umount [-n] ドライブ名:", "\t\t〃" },
-      { NULL,                   "(-n : 設定内容を保存しません)\n" },
+      { "ドライブ名: リモートパス名", "指定したドライブ名にリモートHDSを接続します" },
+      { "-D ドライブ名:",   "リモートHDS接続を解除します" },
+      { "#umount ドライブ名:", "\t\t〃" },
       { "-d ドライブ数",        "リモートHDSのドライブ数を設定します (0-4)" },
       { NULL,                   "※設定変更の反映には再起動が必要です" },
       { NULL, NULL }
@@ -502,11 +511,10 @@ void cmd_mounthds_usage(int ishds)
     struct usage_message m[] = {
       { "",                     "リモートドライブの接続状態を表示します" },
       { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
-      { "[-n] ドライブ名: リモートパス名", "" },
+      { "ドライブ名: リモートパス名", "" },
       { NULL,                   "指定したドライブ名にリモートドライブを接続します" },
-      { "-D [-n] ドライブ名:",   "リモートドライブ接続を解除します" },
-      { "#umount [-n] ドライブ名:", "\t\t〃" },
-      { NULL,                   "(-n : 設定内容を保存しません)\n" },
+      { "-D ドライブ名:",   "リモートドライブ接続を解除します" },
+      { "#umount ドライブ名:", "\t\t〃" },
       { "-d ドライブ数",        "リモートドライブのドライブ数を設定します (0-8)" },
       { NULL,                   "※設定変更の反映には再起動が必要です" },
       { NULL, NULL }
@@ -539,7 +547,6 @@ void cmd_mounthds_show(int ishds)
 
 void cmd_mounthds(int ishds, int argc, char **argv)
 {
-  int opt_nosave = 0;
   int opt_umount = 0;
   int opt_drives = -1;
   const char *opt_path = NULL;  
@@ -550,8 +557,6 @@ void cmd_mounthds(int ishds, int argc, char **argv)
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-D") == 0) {
       opt_umount = 1;
-    } else if (strcmp(argv[i], "-n") == 0) {
-      opt_nosave = 1;
     } else if (strcmp(argv[i], "-d") == 0) {
       if (++i >= argc) {
         break;
@@ -607,7 +612,9 @@ void cmd_mounthds(int ishds, int argc, char **argv)
     } else {
       rcmd.remoteunit = opt_drives;
     }
+    save_config();
     com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    needreboot = true;
     return;
   }
 
@@ -646,6 +653,7 @@ void cmd_mounthds(int ishds, int argc, char **argv)
     printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
     terminate(1);
   }
+  save_config();
 
   if (ishds && com_rmtdata) {
     com_rmtdata->hds_changed |= (1 << unit);
@@ -722,6 +730,8 @@ void cmd_umount(int argc, char **argv)
     printf(PROGNAME ": ドライブ%c:のマウント解除に失敗しました\n", drive);
     terminate(1);
   }
+
+  save_config();
 }
 
 //****************************************************************************
@@ -768,7 +778,9 @@ void cmd_selfboot(int argc, char **argv)
   struct res_setrmtcfg rres;
   init_rmtcfg(&rcmd);
   rcmd.selfboot = onoff;
+  save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  needreboot = true;
 }
 
 void cmd_hdsscsi_usage(void)
@@ -810,35 +822,14 @@ void cmd_hdsscsi(int argc, char **argv)
   struct res_setrmtcfg rres;
   init_rmtcfg(&rcmd);
   rcmd.hdsscsi = onoff;
+  save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  needreboot = true;
 }
 
 //****************************************************************************
-// zremote save
 // zremote erase
 //****************************************************************************
-
-void cmd_save_usage(void)
-{
-  struct usage_message m[] = {
-    { "", "現在の接続設定を不揮発メモリに保存します" },
-    { NULL, NULL }
-  };
-  show_usage("save", m, 20);
-  terminate(1);
-}
-
-void cmd_save(int argc, char **argv)
-{
-  if (argc != 1) {
-    cmd_save_usage();
-  }
-
-  struct cmd_flashconfig cmd;
-  struct res_flashconfig res;
-  cmd.command = CMD_FLASHCONFIG;
-  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-}
 
 void cmd_erase_usage(void)
 {
