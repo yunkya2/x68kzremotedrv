@@ -78,10 +78,10 @@ zremotedrv_boot.sys: head_rmt_boot.o remotedrv.o zremotedrv_boot.o zusbcomm.o
 zremotedrv.hds: zremotedrv_boot.bin bootloader.bin HUMAN.SYS
 	./createhds.py $@ bootloader.bin HUMAN.SYS zremotedrv_boot.bin
 
-zremotehds.sys: head_hds.o zremotehds.o zusbcomm.o
+zremotehds.sys: head_hds.o zremotehds.o zusbcomm.o hdsscsi.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
-zremotehds_boot.sys: head_hds_boot.o zremotehds_boot.o zusbcomm.o
+zremotehds_boot.sys: head_hds_boot.o zremotehds_boot.o zusbcomm.o hdsscsi.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
 zremotehds.hds: zremotehds_boot.bin bootloader.bin HUMAN.SYS

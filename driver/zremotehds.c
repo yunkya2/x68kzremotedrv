@@ -34,6 +34,7 @@
 #include <x68k/dos.h>
 
 #include <zusb.h>
+#include <scsi_cmd.h>
 #include <config.h>
 #include <vd_command.h>
 
@@ -44,11 +45,17 @@
 // Global variables
 //****************************************************************************
 
-struct dos_req_header *reqheader;   // Human68kからのリクエストヘッダ
-
-jmp_buf jenv;
+struct dos_req_header *reqheader;         // Human68kからのリクエストヘッダ
+jmp_buf jenv;                             // ZUSB通信エラー時のジャンプ先
+int hds_scsiid;                           // リモートHDSのSCSI ID
 
 extern struct zusb_rmtdata zusb_rmtdata;  // リモートドライブドライバ間で共有するデータ
+extern void *scsidrv_org;                 // ベクタ変更前のIOCS _SCSIDRV処理アドレス
+extern uint8_t hdsscsi_mask;              // リモートHDSドライバのSCSI ID処理マスク
+extern void scsidrv_hds();                // 変更後のIOCS _SCSIDRV処理
+#ifdef CONFIG_BOOTDRIVER
+extern uint8_t scsiidd2;                  // デバイスドライバ登録時のSCSI ID + 1
+#endif
 
 #ifdef DEBUG
 int debuglevel = 0;
@@ -70,6 +77,8 @@ const struct dos_bpb defaultbpb =
 
 struct dos_bpb bpb[N_HDS];
 struct dos_bpb *bpbtable[N_HDS];
+uint32_t hds_size[N_HDS];
+uint8_t hds_type[N_HDS];
 
 #ifdef CONFIG_BOOTDRIVER
 #define _dos_putchar(...)   _iocs_b_putc(__VA_ARGS__)
@@ -251,11 +260,49 @@ int com_init(struct dos_req_header *req)
     return -0x700d;   // リモートHDSが1台もないので登録しない
   }
 
+  if (!(com_rmtdata->flag & 1)) {
+    // リモートHDSドライバ用にIOCS _SCSIDRV処理を変更する
+    volatile uint8_t *scsidrvflg = (volatile uint8_t *)0x000cec;
+#ifdef CONFIG_BOOTDRIVER
+    // 起動時ドライバであればHuman68kから渡されるSCSI IDを使用する
+    hds_scsiid = scsiidd2 - 1;
+#else
+    // DEVICE=で登録する場合は未使用のSCSI IDを探して使用する
+    hds_scsiid = -1;
+    int id;
+    for (id = 0; id < 7; id++) {
+      if (!(*scsidrvflg & (1 << id))) {
+        hds_scsiid = id;
+        break;
+      }
+    }
+#endif
+    if (hds_scsiid >= 0) {
+      for (int id = hds_scsiid; id < 7 && id < (hds_scsiid + units); id++) {
+        hdsscsi_mask |= (1 << id);
+      }
+      *scsidrvflg |= hdsscsi_mask;
+
+      // IOCS _SCSIDRV処理を変更する
+      scsidrv_org = _iocs_b_intvcs(0x01f5, scsidrv_hds);
+      com_rmtdata->flag |= 1;
+    }
+  }
+
   com_rmtdata->hds_changed = 0xff;
   com_rmtdata->hds_ready = 0;
 
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   for (int i = 0; i < units; i++) {
+    struct cmd_hdssize cmd;
+    struct res_hdssize res;
+    cmd.command = CMD_HDSSIZE;
+    cmd.unit = i;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    hds_size[i] = res.size;
+    hds_type[i] = res.type;
+    DPRINTF1("HDS%d: %08x %02x\r\n", i, hds_size[i], hds_type[i]);
+
     if (read_bpb(i) > 0) {
       com_rmtdata->hds_ready |= (1 << i);   // BPBが読めたので利用可能
     }
@@ -345,6 +392,14 @@ int interrupt(void)
 
   case 0x02: /* rebuild BPB */
   {
+    struct cmd_hdssize cmd;
+    struct res_hdssize res;
+    cmd.command = CMD_HDSSIZE;
+    cmd.unit = req->unit;
+    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    hds_size[req->unit] = res.size;
+    hds_type[req->unit] = res.type;
+
     read_bpb(req->unit);
     req->status = (uint32_t)&bpbtable[req->unit];
     break;
@@ -355,7 +410,7 @@ int interrupt(void)
     if (!(com_rmtdata->hds_ready & (1 << req->unit))) {
       req->attr = 0x04;   // drive not ready
     } else {
-      req->attr = 0x02;
+      req->attr = (hds_type[req->unit] & 1) ? 0x0a : 0x02;
     }
     break;
   }
@@ -422,6 +477,136 @@ int interrupt(void)
   }
 
   return err;
+}
+
+//****************************************************************************
+// HDS SCSI IOCS call
+//****************************************************************************
+
+int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, void *a1)
+{
+  DPRINTF1("hdsscsi[%02x]", d1);
+
+  int unit = (d4 & 7) - hds_scsiid;
+  if (unit < 0 || unit >= N_HDS) {
+    return -1;
+  }
+
+  if (!(com_rmtdata->hds_ready & (1 << unit))) {
+    return -1;
+  }
+
+  switch (d1) {
+  case 0x20: // _S_INQUIRY
+    struct scsi_inquiry_resp inqr = {
+      .peripheral_device_type = (hds_type[unit] & 0x80) ? 0x07 : 0x00,
+      .is_removable = (hds_type[unit] & 0x80) ? 0x80 : 0x00,
+      .version = 0x02,
+      .response_data_format = 0x02,
+      .additional_length = sizeof(inqr) - 5,
+      .vendor_id = "X68000 Z",
+      .product_id = "X68000 Z RMTHDS",
+      .product_rev = "1.00",
+    };
+    memcpy(a1, &inqr, d3);
+    break;
+
+  case 0x21: // _S_READ
+  case 0x26: // _S_READEXT
+  case 0x2e: // _S_READI
+  {
+    int err;
+    DPRINTF1("Read #%06x %04x %d:", d2, d3, d5);
+
+    int sectors = d3 << (d5 - 1);
+    uint32_t pos = d2 << (d5 - 1);
+    uint8_t *p = a1;
+    while (sectors > 0) {
+      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
+
+      if ((err = sector_read(unit, p, pos, nsect)) != 0) {
+        break;
+      }
+      p += (512 << (d5 - 1)) * nsect;
+      pos += nsect;
+      sectors -= nsect;
+    }
+    break;
+  }
+
+  case 0x22: // _S_WRITE
+  case 0x27: // _S_WRITEEXT
+  {
+    int err;
+    DPRINTF1("Write #%06x %04x %d:", d2, d3, d5);
+
+    int sectors = d3 << (d5 - 1);
+    uint32_t pos = d2 << (d5 - 1);
+    uint8_t *p = a1;
+    while (sectors > 0) {
+      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
+
+      if ((err = sector_write(unit, p, pos, nsect)) != 0) {
+        break;
+      }
+      p += (512 << (d5 - 1)) * nsect;
+      pos += nsect;
+      sectors -= nsect;
+    }
+    break;
+  }
+
+  case 0x23: // _S_FORMAT
+    break;
+
+  case 0x24: // _S_TESTUNIT
+    break;
+
+  case 0x25: // _S_READCAP
+    uint32_t sz = hds_size[unit];
+    DPRINTF1("ReadCapacity %u %u\r\n", (hds_size[unit] >> 9) - 1, 512);
+    struct scsi_read_capacity10_resp capr = {
+      .last_lba = (hds_size[unit] >> 9) - 1,
+      .block_size = 512,
+    };
+    memcpy(a1, &capr, sizeof(capr));
+    break;
+
+  case 0x28: // _S_VERIFYEXT
+    break;
+
+  case 0x29: // _S_MODESENSE
+    struct {
+      uint8_t mode_data_length;
+      uint8_t medium_type_code;
+      uint8_t wp_flag;
+      uint8_t block_descriptor_length;
+      uint32_t block_num;
+      uint32_t block_size;
+    } modr = {
+      .mode_data_length = sizeof(modr) - 1,
+      .medium_type_code = 0x00,
+      .wp_flag = hds_type[unit] & 1 ? 0x80 : 0x00,
+      .block_descriptor_length = 8,
+      .block_num = hds_size[unit] >> 9,
+      .block_size = 512,
+    };
+    memcpy(a1, &modr, d3);
+    break;
+
+  case 0x2a: // _S_MODESELECT
+    break;
+  case 0x2b: // _S_REZEROUNIT
+    break;
+  case 0x2c: // _S_REQUEST
+    break;
+  case 0x2d: // _S_SEEK
+    break;
+  case 0x2f: // _S_STARTSTOP
+    break;
+  }
+
+  return 0;
 }
 
 //****************************************************************************

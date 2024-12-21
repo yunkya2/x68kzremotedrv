@@ -22,22 +22,37 @@
  * THE SOFTWARE.
  */
 
-#ifndef _ZUSBCOMM_H_
-#define _ZUSBCOMM_H_
+    .text
 
-#include <stdint.h>
+    .global scsidrv_org
+scsidrv_org:
+    .long   0                   // 変更前のIOCS _SCSIDRV処理アドレス
 
-struct zusb_rmtdata {       // must be 4bytes (head.S)
-    uint8_t zusb_ch;
-    uint8_t hds_changed;
-    uint8_t hds_ready;
-    uint8_t flag;
-};
+    .global hdsscsi_mask
+hdsscsi_mask:
+    .byte   0                   // リモートHDSドライバのSCSI ID処理マスク
 
-extern struct zusb_rmtdata *com_rmtdata;
+    .even
 
-int com_connect(int protected);
-void com_disconnect(void);
-void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize);
+    .global scsidrv_hds
+scsidrv_hds:
+    cmpi.b  #0x20,%d1
+    bcs     999f                // low level commandは変更前の処理を実行
+    cmpi.b  #0x30,%d1
+    bcc     999f
 
-#endif /* _ZUSBCOMM_H_ */
+    moveq.l #1,%d0
+    lsl.b   %d4,%d0
+    and.b   %pc@(hdsscsi_mask),%d0
+    beq     999f                // SCSI IDがHDSドライバのものでなければ変更前の処理を実行
+
+    movem.l %d1-%d5/%a1-%a3,%sp@-
+    jsr     hdsscsi
+    movem.l %sp@+,%d1-%d5/%a1-%a3
+    rts
+
+999:                            // 変更前のIOCS _SCSIDRVを実行する
+    move.l  %pc@(scsidrv_org),%sp@-
+    rts
+
+    .end
