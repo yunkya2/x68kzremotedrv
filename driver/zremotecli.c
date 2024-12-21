@@ -249,8 +249,19 @@ int cmd_wifi_show(void)
   rcmd.command = CMD_GETSTATUS;
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 
-  printf("status=%d\n", rres.status);
-  printf("SSID=%-32s\n", config_data.wifi_ssid);
+  printf("WiFi接続状態:");
+  switch (rres.status) {
+  case STAT_WIFI_DISCONNECTED:
+    printf("未接続");
+    break;
+  case STAT_WIFI_CONNECTING:
+    printf("接続中");
+    break;
+  default:
+    printf("接続済");
+    break;
+  }
+  printf("\nSSID:%s\n", config_data.wifi_ssid);
 }
 
 void cmd_wifi(int argc, char **argv)
@@ -287,11 +298,18 @@ void cmd_wifi(int argc, char **argv)
     rcmd.clear = 1;
     com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 
+    printf("WiFiアクセスポイントを検索中です。しばらくお待ちください...");
+    fflush(stdout);
+
     int timeout = 100 * 5;
     struct iocs_time tm = _iocs_ontime();
-    while (_iocs_b_keysns() == 0) {
+    while (1) {
+      if (_iocs_b_keysns() > 0) {
+        printf("\n中断しました\n");
+        return;
+      }
       struct iocs_time tm2 = _iocs_ontime();
-      if ((timeout >= 0) && (tm2.sec - tm.sec > timeout)) {
+      if (tm2.sec - tm.sec > timeout) {
         break;
       }
     }
@@ -300,6 +318,7 @@ void cmd_wifi(int argc, char **argv)
     rcmd.clear = 0;
     com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 
+    printf("\033[2K\r");
     for (int i = 0; i < rres.n_items; i++) {
       printf("%s\n", rres.ssid[i]);
     }
@@ -329,6 +348,33 @@ void cmd_wifi(int argc, char **argv)
 
   save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+
+  printf("WiFiアクセスポイントへ接続中です...");
+  fflush(stdout);
+
+  while (1) {
+    struct cmd_getstatus rcmd;
+    struct res_getstatus rres;
+    rcmd.command = CMD_GETSTATUS;
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    if (rres.status == STAT_WIFI_DISCONNECTED) {
+      printf("接続に失敗しました\n");
+      return;
+    }
+    if (rres.status >= STAT_WIFI_CONNECTED) {
+      printf("接続しました\n");
+      return;
+    }
+
+    int timeout = 50;
+    struct iocs_time tm = _iocs_ontime();
+    while (1) {
+      struct iocs_time tm2 = _iocs_ontime();
+      if (tm2.sec - tm.sec > timeout) {
+        break;
+      }
+    }
+  }
 }
 
 //****************************************************************************
@@ -353,11 +399,30 @@ void cmd_server_usage(void)
 
 int cmd_server_show(void)
 {
-  printf("Server=%-32s\n", config_data.smb2_server);
-  printf("User=%-16s\n", config_data.smb2_user);
-  printf("Workgroup=%-16s\n", config_data.smb2_workgroup);
-  printf("TZ=%s\n", config_data.tz);
-  printf("tadjust=%u\n", config_data.tadjust);
+  struct cmd_getstatus rcmd;
+  struct res_getstatus rres;
+  rcmd.command = CMD_GETSTATUS;
+  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+
+  printf("サーバ接続状態:");
+  switch (rres.status) {
+  case STAT_WIFI_DISCONNECTED:
+  case STAT_WIFI_CONNECTING:
+  case STAT_WIFI_CONNECTED:
+    printf("未接続");
+    break;
+  case STAT_SMB2_CONNECTING:
+    printf("接続中");
+    break;
+  default:
+    printf("接続済");
+    break;
+  }
+
+  printf("\nファイル共有サーバ:%s", config_data.smb2_server);
+  printf(" ユーザ名:%s", config_data.smb2_user);
+  printf(" ワークグループ:%s\n", config_data.smb2_workgroup);
+  printf("時刻同期設定: %u (%s)\n", config_data.tadjust, config_data.tz);
 }
 
 void cmd_server(int argc, char **argv)
@@ -486,6 +551,33 @@ void cmd_server(int argc, char **argv)
 
   save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+
+  printf("ファイル共有サーバへ接続中です...");
+  fflush(stdout);
+
+  while (1) {
+    struct cmd_getstatus rcmd;
+    struct res_getstatus rres;
+    rcmd.command = CMD_GETSTATUS;
+    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    if (rres.status < STAT_SMB2_CONNECTING) {
+      printf("接続に失敗しました\n");
+      return;
+    }
+    if (rres.status >= STAT_SMB2_CONNECTED) {
+      printf("接続しました\n");
+      return;
+    }
+
+    int timeout = 50;
+    struct iocs_time tm = _iocs_ontime();
+    while (1) {
+      struct iocs_time tm2 = _iocs_ontime();
+      if (tm2.sec - tm.sec > timeout) {
+        break;
+      }
+    }
+  }
 }
 
 //****************************************************************************
