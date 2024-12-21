@@ -59,6 +59,7 @@ int menumode;
 
 #ifndef BOOTSETTING
 int crtmode;
+int needreboot;
 #endif
 
 //****************************************************************************
@@ -73,6 +74,7 @@ int crtmode;
 #define istabstop(n)  ((itemtbl[menumode][n].stat) & 0x10)
 #define issetconf(n)  ((itemtbl[menumode][n].stat) & 0x40)
 #define isupdconf(n)  ((itemtbl[menumode][n].stat) & 0x80)
+#define isneedreboot(n) ((itemtbl[menumode][n].stat) & 0x80000)
 
 int switch_menu(struct itemtbl *it, void *v);
 int flash_config(struct itemtbl *it, void *v);
@@ -96,7 +98,7 @@ static struct numlist_opt opt_hdsunit = { 0, 4 };
 static struct numlist_opt opt_tadjust = { 0, 4 };
 
 struct itemtbl itemtbl0[] = {
-  { 0x010, 4, 4, -1,   "SELFBOOT",
+  { 0x80010, 4, 4, -1,   "SELFBOOT",
     "リモートドライブ/HDSからの起動を行うかどうかを設定します",
     "リモートドライブ/HDSからの起動を行うかどうかを選択してください (0=他のUSBメモリから起動)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
@@ -162,7 +164,7 @@ struct itemtbl itemtbl1[] = {
     "リモートドライブ/HDSのどちらを優先するかを選択してください (0=HDS/1=リモートドライブ)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.remoteboot, sizeof(config.remoteboot), input_numlist, &opt_bool },
-  { 0x084, 4, 5, -1,  "RMTUNIT",
+  { 0x80084, 4, 5, -1,  "RMTUNIT",
     "リモートドライブのユニット数を設定します (0-8)",
     "リモートドライブのユニット数を選択してください (0=リモートドライブは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
@@ -208,12 +210,12 @@ struct itemtbl itemtbl1[] = {
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[7],       sizeof(config.remote[7]),      input_dirfile },
 
-  { 0x014, 4, 16, -1,  "HDSSCSI",
+  { 0x80014, 4, 16, -1,  "HDSSCSI",
     "リモートHDSの動作モードを設定します ※設定変更後は再起動が必要",
     "リモートHDSの動作モードを設定します (0=リモートHDSドライバ/1=純正SCSIドライバ)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.hdsscsi, sizeof(config.hdsscsi), input_numlist, &opt_bool },
-  { 0x084, 4, 17, -1,  "HDSUNIT",
+  { 0x80084, 4, 17, -1,  "HDSUNIT",
     "リモートHDSのユニット数を設定します (0-4)",
     "リモートHDSのユニット数を選択してください (0=リモートHDSは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
@@ -407,6 +409,7 @@ int flash_config(struct itemtbl *it, void *v)
 #endif
     } else if (c == 'n' || c == 'N') {  // N
 #ifndef BOOTSETTING
+      needreboot = false;
       return 3;
 #else
       return 0;
@@ -462,6 +465,9 @@ void terminate(int waitkey)
   _iocs_b_color(3);
   _iocs_os_curon();
   _dos_c_width(crtmode);
+  if (needreboot) {
+    printf("※設定変更を反映させるためには再起動が必要です\n");
+  }
   exit(0);
 #else
   while (1)
@@ -605,6 +611,7 @@ int main()
         if (n >= n_itemtbl[menumode] || !isvisible(n)) {
           n--;
         }
+#ifndef BOOTSETTING
         if (it->func == input_dirfile && it->opt == (void *)1) {
           if (com_rmtdata) {
             int unit = (it->stat & 0xf000) >> 12;
@@ -614,6 +621,10 @@ int main()
             }
           }
         }
+        if (isneedreboot(n)) {
+          needreboot = true;
+        }
+#endif
       } else if (res == 2) {
         update = true;
         n = 0;

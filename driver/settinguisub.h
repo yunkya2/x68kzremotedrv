@@ -37,12 +37,15 @@
 
 struct itemtbl {
   int stat;
-    // bit 11-8: 0xf00 remoteunitがこの値のとき表示
-    // bit 7:   0x80 isupdconf()    更新後画面を再描画する
-    // bit 6:   0x40 isusetconf()   設定を反映させる
-    // bit 5:   0x20 remoteunit
-    // bit 4:   0x10 istabstop()    TABでここまで飛ぶ
-    // bit 3-0: 0x0f sysstatusがこの値以上のとき表示
+    // bit 19:    0x80000 この項目変更の反映には再起動が必要
+    // bit 16:    0x10000 bit15-12が有効
+    // bit 15-12: 0x0f000 hdsunitがこの値のとき表示
+    // bit 11-8:  0x00f00 remoteunitがこの値のとき表示
+    // bit 7:     0x00080 isupdconf()    更新後画面を再描画する
+    // bit 6:     0x00040 isusetconf()   設定を反映させる
+    // bit 5:     0x00020 bit11-8が有効
+    // bit 4:     0x00010 istabstop()    TABでここまで飛ぶ
+    // bit 3-0:   0x0000f sysstatusがこの値以上のとき表示
   int x;
   int y;
   int xn;
