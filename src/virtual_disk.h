@@ -55,6 +55,7 @@ struct hdsinfo {
     struct smb2_context *smb2;
     struct smb2fh *sfh;
     uint32_t size;
+    uint8_t type;
 };
 
 extern const char *rootpath[N_REMOTE];

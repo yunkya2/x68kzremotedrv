@@ -144,13 +144,15 @@ static int hds_umount(int unit)
 
 int hds_mount(int unit, const char *path)
 {
+    int len;
+
     if (unit < 0 || unit >= N_HDS) {
         return VDERR_EINVAL;
     }
     if (hdsinfo[unit].smb2) {
         hds_umount(unit);
     }
-    if (strlen(path) == 0) {        // umount HDS
+    if ((len = strlen(path)) == 0) {        // umount HDS
         return VDERR_OK;
     }
 
@@ -165,13 +167,27 @@ int hds_mount(int unit, const char *path)
         return VDERR_ENOENT;
     }
     if ((hdsinfo[unit].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-        printf("File %s open failure.\n", path);
-        return VDERR_EIO;
+        if ((hdsinfo[unit].sfh = smb2_open(smb2, shpath, O_RDONLY)) == NULL) {
+            printf("File %s open failure.\n", path);
+            return VDERR_EIO;
+        }
+        hdsinfo[unit].type = 1;
+    } else {
+        hdsinfo[unit].type = 0;
     }
+
+    if (len > 4 &&
+        path[len - 4] == '.' &&
+        (path[len - 3] & 0xdf) == 'M' &&
+        (path[len - 2] & 0xdf) == 'O' &&
+        (path[len - 1] & 0xdf) == 'S') {
+        hdsinfo[unit].type |= 0x80;
+    }
+
     strcpy(config.hds[unit], path);
     hdsinfo[unit].smb2 = smb2;
     hdsinfo[unit].size = st.smb2_size;
-    printf("HDS%u: %s size=%lld\n", unit, config.hds[unit], st.smb2_size);
+    printf("HDS%u: %s size=%lld type=0x%02x\n", unit, config.hds[unit], st.smb2_size, hdsinfo[unit].type);
     return VDERR_OK;
 }
 

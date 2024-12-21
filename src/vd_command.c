@@ -546,6 +546,20 @@ int vd_command(uint8_t *cbuf, uint8_t *rbuf)
       break;
     }
 
+  case CMD_HDSSIZE:
+    {
+      struct cmd_hdssize *cmd = (struct cmd_hdssize *)cbuf;
+      struct res_hdssize *res = (struct res_hdssize *)rbuf;
+      rsize = sizeof(*res);
+      uint32_t size = (hdsinfo[cmd->unit].smb2 == NULL) ? 0 : hdsinfo[cmd->unit].size;
+      res->size = htobe32(size);
+      res->type = hdsinfo[cmd->unit].type;
+
+      DPRINTF2("CMD_HDSSIZE: unit=%d size=%d type=0x%02x\n", cmd->unit, size, res->type);
+      DPRINTF2("res->size=0x%08x\n", res->size);
+      break;
+    }
+
   default:
     break;
   }

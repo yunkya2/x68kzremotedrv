@@ -81,6 +81,7 @@ struct config_data {
 
 #define CMD_HDSREAD     0xff80
 #define CMD_HDSWRITE    0xff81
+#define CMD_HDSSIZE     0xff82
 
 #define STAT_WIFI_DISCONNECTED      0
 #define STAT_WIFI_CONNECTING        1
@@ -284,6 +285,16 @@ struct cmd_hdswrite_full {
 };
 struct res_hdswrite {
     int8_t status;
+};
+
+struct cmd_hdssize {
+    uint16_t command;
+    uint8_t unit;
+};
+struct res_hdssize {
+    uint32_t size;
+    uint8_t type;
+    uint8_t _reserved[3];
 };
 
 #define countof(array)      (sizeof(array) / sizeof(array[0]))
