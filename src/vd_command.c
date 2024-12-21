@@ -56,6 +56,7 @@ int lwip_poll(struct pollfd *fds, nfds_t nfds, int timeout);
 //****************************************************************************
 
 static struct res_wifi_scan wifi_scan_data;
+static int16_t wifi_rssi[countof(wifi_scan_data.ssid)];
 
 static int scan_result(void *env, const cyw43_ev_scan_result_t *result)
 {
@@ -77,7 +78,28 @@ static int scan_result(void *env, const cyw43_ev_scan_result_t *result)
   }
 
   if (wifi_scan_data.n_items < countof(wifi_scan_data.ssid)) {
+    wifi_rssi[wifi_scan_data.n_items] = result->rssi;
     strcpy(wifi_scan_data.ssid[wifi_scan_data.n_items++], result->ssid);
+  }
+
+  for (int i = 0; i < wifi_scan_data.n_items; i++) {
+    int maxrssi = -100;
+    int maxndx = -1;
+    for (int j = i; j < wifi_scan_data.n_items; j++) {
+      if (wifi_rssi[j] > maxrssi) {
+        maxrssi = wifi_rssi[j];
+        maxndx = j;
+      }
+    }
+    if (maxndx >= 0 && maxndx != i) {
+      int tmp = wifi_rssi[i];
+      wifi_rssi[i] = wifi_rssi[maxndx];
+      wifi_rssi[maxndx] = tmp;
+      char tmps[32];
+      strcpy(tmps, wifi_scan_data.ssid[i]);
+      strcpy(wifi_scan_data.ssid[i], wifi_scan_data.ssid[maxndx]);
+      strcpy(wifi_scan_data.ssid[maxndx], tmps);
+    }
   }
   return 0;
 }
