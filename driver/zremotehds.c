@@ -252,6 +252,15 @@ int com_init(struct dos_req_header *req)
       return -0x700d;
     }
 
+    // ファイル共有サーバから取得した現在時刻を設定する
+    if (res.year > 0 && !(com_rmtdata->rmtflag & 0x80)) {
+      *(volatile uint8_t *)0xe8e000 = 'T';
+      *(volatile uint8_t *)0xe8e000 = 'W';
+      *(volatile uint8_t *)0xe8e000 = 0;    // disable RTC auto adjust
+      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
+      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+      com_rmtdata->rmtflag |= 0x80;   // RTC adjusted
+    }
     units = res.hdsunit;
   }
 
@@ -260,7 +269,7 @@ int com_init(struct dos_req_header *req)
     return -0x700d;   // リモートHDSが1台もないので登録しない
   }
 
-  if (!(com_rmtdata->flag & 1)) {
+  if (!(com_rmtdata->rmtflag & 1)) {
     // リモートHDSドライバ用にIOCS _SCSIDRV処理を変更する
     volatile uint8_t *scsidrvflg = (volatile uint8_t *)0x000cec;
 #ifdef CONFIG_BOOTDRIVER
@@ -285,7 +294,7 @@ int com_init(struct dos_req_header *req)
 
       // IOCS _SCSIDRV処理を変更する
       scsidrv_org = _iocs_b_intvcs(0x01f5, scsidrv_hds);
-      com_rmtdata->flag |= 1;
+      com_rmtdata->rmtflag |= 1;    // SCSI IOCS patched
     }
   }
 

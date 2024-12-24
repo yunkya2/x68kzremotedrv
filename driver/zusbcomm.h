@@ -31,7 +31,7 @@ struct zusb_rmtdata {       // must be 4bytes (head.S)
     uint8_t zusb_ch;
     uint8_t hds_changed;
     uint8_t hds_ready;
-    uint8_t flag;
+    uint8_t rmtflag;        // bit 0:SCSI IOCS patch flag / bit 7:RTC adjust flag
 };
 
 extern struct zusb_rmtdata *com_rmtdata;
