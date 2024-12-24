@@ -201,12 +201,12 @@ int vd_init(void)
         int id;
 
         /* Set up remote drive */
-        id = config.remoteboot ? 0 : N_HDS;
+        id = (config.bootmode == 1) ? N_HDS : 0;
         diskinfo[id].type = DTYPE_REMOTEDRV;
         diskinfo[id].size = 0x40000;
 
         /* Set up remote HDS */
-        id = config.remoteboot ? 1 : 0;
+        id = (config.bootmode == 1) ? 0 : 1;
         if (config.hdsscsi) {
             for (int i = 0; i < config.hdsunit; i++, id++) {
                 diskinfo[id].type = DTYPE_REMOTEHDS;
@@ -257,7 +257,7 @@ int vd_init(void)
     dirent = (struct dir_entry *)x68zdir;
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
-    if (config.selfboot)
+    if (config.bootmode < 2)
         init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
 

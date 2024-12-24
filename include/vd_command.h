@@ -44,8 +44,7 @@ struct config_data {
     char smb2_workgroup[16];
     char smb2_server[32];
 
-    uint8_t selfboot;
-    uint8_t remoteboot;
+    uint8_t bootmode;
     uint8_t remoteunit;
     uint8_t hdsscsi;
     uint8_t hdsunit;
@@ -240,8 +239,7 @@ struct res_setrmthds {
 
 struct cmd_setrmtcfg {
     uint16_t command;
-    uint8_t selfboot;
-    uint8_t remoteboot;
+    uint8_t bootmode;
     uint8_t remoteunit;
     uint8_t hdsscsi;
     uint8_t hdsunit;

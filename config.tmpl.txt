@@ -1,5 +1,8 @@
 [X68000 Z Remote Drive Service Configuration]
 
+# 起動元ドライブ (0=リモートドライブ/1=リモートHDS/2=他のUSBメモリ)
+BOOTMODE: %u
+
 # WiFi 接続先の SSID、パスワード
 WIFI_SSID: %s
 WIFI_PASSWORD: ********
@@ -10,10 +13,6 @@ SMB2_PASSWORD: ********
 SMB2_WORKGROUP: %s
 SMB2_SERVER: %s
 
-# リモートドライブのみで起動を行うかどうか (0=行わない/1=行う)
-SELFBOOT: %u
-# リモートドライブからの起動を行うかどうか (0=行わない/1=行う)
-REMOTE_BOOT: %u
 # リモートドライブのユニット数 (0-8) 0ならリモートドライブは使用しない
 REMOTE_UNIT: %u
 # リモートHDSをSCSIドライバモードで利用するかどうか (0=リモートドライバ/1=SCSIドライバ)

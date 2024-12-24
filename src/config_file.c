@@ -70,6 +70,9 @@ const struct config_item {
     size_t valuesz;
     int flag;
 } config_items[] = {
+    { "BOOTMODE:",                  (char *)0,
+      (char *)&config.bootmode,     sizeof(config.bootmode),        CF_INT },
+
     { "WIFI_SSID:",                 NULL,
       config.wifi_ssid,             sizeof(config.wifi_ssid),       0 },
     { "WIFI_PASSWORD:",             NULL,
@@ -84,10 +87,6 @@ const struct config_item {
     { "SMB2_SERVER:",               NULL,
       config.smb2_server,           sizeof(config.smb2_server),     0 },
 
-    { "SELFBOOT:",                  (char *)1,
-      (char *)&config.selfboot,     sizeof(config.selfboot),        CF_INT },
-    { "REMOTE_BOOT:",               (char *)1,
-      (char *)&config.remoteboot,   sizeof(config.remoteboot),      CF_INT },
     { "REMOTE_UNIT:",               (char *)0,
       (char *)&config.remoteunit,   sizeof(config.remoteunit),      CF_INT },
     { "HDS_SCSI:",                  (char *)0,
@@ -180,10 +179,10 @@ void config_read(void)
 
     memset(configtxt, 0, sizeof(configtxt));
     snprintf(configtxt, sizeof(configtxt) - 1 , config_template,
+             config.bootmode,
              config.wifi_ssid,
              config.smb2_user, config.smb2_workgroup, config.smb2_server,
-             config.selfboot, config.remoteboot, config.remoteunit,
-             config.hdsscsi, config.hdsunit,
+             config.remoteunit, config.hdsscsi, config.hdsunit,
              config.remote[0],
              config.remote[1],
              config.remote[2],
