@@ -165,7 +165,7 @@ struct itemtbl itemtbl0[] = {
 };
 
 struct itemtbl itemtbl1[] = {
-  { 0x80084, 4, 4, -1,  "RMTUNIT",
+  { 0x80094, 4, 4, -1,  "RMTUNIT",
     "リモートドライブのユニット数を設定します (0-8)",
     "リモートドライブのユニット数を選択してください (0=リモートドライブは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
@@ -211,38 +211,33 @@ struct itemtbl itemtbl1[] = {
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[7],       sizeof(config.remote[7]),      input_dirfile },
 
-  { 0x80014, 4, 16, -1,  "HDSSCSI",
-    "リモートHDSの動作モードを設定します ※設定変更後は再起動が必要",
-    "リモートHDSの動作モードを設定します (0=リモートHDSドライバ/1=純正SCSIドライバ)",
-    "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    16, 76, (char *)&config.hdsscsi, sizeof(config.hdsscsi), input_numlist, &opt_bool },
-  { 0x80084, 4, 17, -1,  "HDSUNIT",
+  { 0x80094, 4, 15, -1,  "HDSUNIT",
     "リモートHDSのユニット数を設定します (0-4)",
     "リモートHDSのユニット数を選択してください (0=リモートHDSは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.hdsunit, sizeof(config.hdsunit), input_numlist, &opt_hdsunit },
-  { 0x10004, 4, 18, -1,  "HDS0",
+  { 0x10004, 4, 16, -1,  "HDS0",
     "HDS ファイル 0 を設定します",
     "HDS ファイル 0 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[0],          sizeof(config.hds[0]),         input_dirfile, (void *)1},
-  { 0x11004, 4, 19, -1,  "HDS1",
+  { 0x11004, 4, 17, -1,  "HDS1",
     "HDS ファイル 1 を設定します",
     "HDS ファイル 1 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[1],          sizeof(config.hds[1]),         input_dirfile, (void *)1},
-  { 0x12004, 4, 20, -1,  "HDS2",
+  { 0x12004, 4, 18, -1,  "HDS2",
     "HDS ファイル 2 を設定します",
     "HDS ファイル 2 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[2],          sizeof(config.hds[2]),         input_dirfile, (void *)1},
-  { 0x13004, 4, 21, -1,  "HDS3",
+  { 0x13004, 4, 19, -1,  "HDS3",
     "HDS ファイル 3 を設定します",
     "HDS ファイル 3 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[3],          sizeof(config.hds[3]),         input_dirfile, (void *)1},
 
-  { 0x014, 4, 26, 17,  " 設定終了 ",
+  { 0x014, 4, 26, 15,  " 設定終了 ",
     "設定を登録して終了します",
     "設定を登録して終了します  よろしいですか？",
 #ifndef BOOTSETTING
@@ -251,14 +246,16 @@ struct itemtbl itemtbl1[] = {
     "#h (登録して終了) #i #f  (前に戻る)",
 #endif
     -1, -1, NULL, 0, flash_config },
-  { 0x080, 78, 26, 16,  " サーバ設定へ ",
+  { 0x080, 78, 26, 14,  " サーバ設定へ ",
     "サーバ設定画面に切り替えます",
     NULL, NULL,
     -1, -1, NULL, 0, switch_menu },
 };
 
-struct itemtbl *itemtbl[] = { itemtbl0, itemtbl1 };
-int n_itemtbl[] = { countof(itemtbl0), countof(itemtbl1) };
+struct itemtbl itemtbl2[countof(itemtbl1)];
+
+struct itemtbl * const itemtbl[] = { itemtbl0, itemtbl1, itemtbl2 };
+const int n_itemtbl[] = { countof(itemtbl0), countof(itemtbl1), countof(itemtbl2) };
 
 //****************************************************************************
 // Top view
@@ -329,8 +326,19 @@ int topview(void)
     drawmsg(4, 3, 3, "リモートドライブ設定");
     drawframe3(2, 4, 92, config.remoteunit + 1, 2, 10);
 
-    drawmsg(4, 15, 3, "HDS (SCSI ディスクイメージ) 設定");
-    drawframe3(2, 16, 92, config.hdsunit + 2, 2, 10);
+    drawmsg(4, 14, 3, "HDS (SCSI ディスクイメージ) 設定");
+    drawframe3(2, 15, 92, config.hdsunit + 1, 2, 10);
+
+    drawframe3(2, 26, 14, 1, 2, -1);
+    drawframe3(76, 26, 18, 1, 2, -1);
+    break;
+
+  case 2:
+    drawmsg(4, 3, 3, "HDS (SCSI ディスクイメージ) 設定");
+    drawframe3(2, 4, 92, config.hdsunit + 1, 2, 10);
+
+    drawmsg(4, 10, 3, "リモートドライブ設定");
+    drawframe3(2, 11, 92, config.remoteunit + 1, 2, 10);
 
     drawframe3(2, 26, 14, 1, 2, -1);
     drawframe3(76, 26, 18, 1, 2, -1);
@@ -373,7 +381,7 @@ int escape_menu(void)
 
 int switch_menu(struct itemtbl *it)
 {
-  menumode = 1 - menumode;
+  menumode = (menumode == 0) ? ((config.bootmode != 1) ? 1 : 2) : 0;
   return 2;
 }
 
@@ -486,6 +494,24 @@ int main()
   _dos_super(0);
 #endif
 
+  {
+    // itemtbl1[] のリモートドライブとリモートHDSを交換したitemtbl2[] を作る
+
+    for (int i = 0; i < 5; i++) {
+      itemtbl2[i] = itemtbl1[9 + i];
+      itemtbl2[i].y = 4 + i;
+    }
+
+    for (int i = 0; i < 9; i++) {
+      itemtbl2[i + 5] = itemtbl1[i];
+      itemtbl2[i + 5].y = 11 + i;
+    }
+
+    for (int i = 14; i < 16; i++) {
+      itemtbl2[i] = itemtbl1[i];
+    }
+  }
+
   char title[200];
   strcpy(title, "Ｒｅｍｏｔｅ　Ｄｒｉｖｅ　Ｓｅｒｖｉｃｅ　ｆｏｒ　Ｘ６８０００ Ｚ  Version " GIT_REPO_VERSION);
   title[88] = '\0';
@@ -538,7 +564,7 @@ int main()
 
   /***********************************************************/
 
-  menumode = (sysstatus >= STAT_SMB2_CONNECTED);
+  menumode = (sysstatus >= STAT_SMB2_CONNECTED) ? ((config.bootmode != 1) ? 1 : 2) : 0;
 
   int n = 0;
   int pren = -1;
