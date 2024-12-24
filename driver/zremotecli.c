@@ -85,7 +85,7 @@ const struct {
   { "wifi",     cmd_wifi,     "WiFiアクセスポイントへの接続設定" },
   { "server",   cmd_server,   "Windowsファイル共有サーバへの接続設定" },
   { "bootmode", cmd_bootmode, "起動元ドライブの設定" },
-  { "hdsscsi",  cmd_hdsscsi,  "リモートHDSの接続モード設定" },
+  { "hdsscsi",  cmd_hdsscsi,  "#リモートHDSの接続モード設定" },
   { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
   { "stat",     cmd_stat,     "現在の設定内容一覧表示" },
 };
@@ -272,7 +272,8 @@ int cmd_wifi_stat(void)
   rcmd.command = CMD_GETSTATUS;
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 
-  printf("WiFi接続状態:");
+  printf("[WiFi]\n");
+  printf("接続状態:");
   switch (rres.status) {
   case STAT_WIFI_DISCONNECTED:
     printf("未接続");
@@ -427,7 +428,8 @@ int cmd_server_stat(void)
   rcmd.command = CMD_GETSTATUS;
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
 
-  printf("サーバ接続状態:");
+  printf("[ファイル共有サーバ]\n");
+  printf("接続状態:");
   switch (rres.status) {
   case STAT_WIFI_DISCONNECTED:
   case STAT_WIFI_CONNECTING:
@@ -629,6 +631,8 @@ void cmd_mount_stat(void)
   char unit2drive[N_REMOTE];
 
   for (int ishds = 0; ishds < 2; ishds++) {
+    printf("%s\n", ishds ? "[リモートHDS]" : "[リモートドライブ]");
+
     for (int i = 0; i < N_REMOTE; i++) {
       unit2drive[i] = '?';
     }
@@ -848,7 +852,7 @@ void cmd_bootmode_usage(void)
 
 void cmd_bootmode_stat(void)
 {
-  printf("起動モードは ");
+  printf("[起動モード]\n");
   switch (config_data.bootmode) {
   case 0:
     printf("リモートドライブから起動");
@@ -860,7 +864,7 @@ void cmd_bootmode_stat(void)
     printf("USBメモリから起動");
     break;
   }
-  printf(" です\n");
+  printf("\n");
 }
 
 void cmd_bootmode(int argc, char **argv)
@@ -902,7 +906,8 @@ void cmd_hdsscsi_usage(void)
 
 void cmd_hdsscsi_stat(void)
 {
-  printf("リモートHDSは %sドライバ です\n", config_data.hdsscsi ? "純正SCSI" : "リモートHDS");
+  printf("[リモートHDS]\n");
+  printf("%sドライバ\n", config_data.hdsscsi ? "純正SCSI" : "リモートHDS");
 }
 
 void cmd_hdsscsi(int argc, char **argv)
@@ -976,12 +981,9 @@ void cmd_stat(int argc, char **argv)
   if (argc > 1) {
     cmd_stat_usage();
   }
-
   cmd_bootmode_stat();
-  cmd_hdsscsi_stat();
   cmd_wifi_stat();
   cmd_server_stat();
-  printf("\n");
   cmd_mount_stat();
 }
 
@@ -997,7 +999,9 @@ void usage(void)
     "以下のサブコマンドが利用できます\n"
   );
   for (int i = 0; i < sizeof(cmd_table) / sizeof(cmd_table[0]); i++) {
-    printf("  " PROGNAME " %-12s%s\n", cmd_table[i].name, cmd_table[i].usage);
+    if (cmd_table[i].usage[0] != '#') {
+      printf("  " PROGNAME " %-12s%s\n", cmd_table[i].name, cmd_table[i].usage);
+    }
   }
   terminate(1);
 }

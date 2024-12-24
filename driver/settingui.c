@@ -65,15 +65,18 @@ int needreboot;
 // Definition
 //****************************************************************************
 
+#define istabstop(n)  (itemtbl[menumode][n].stat & 0x10)
+#define issetconf(n)  (itemtbl[menumode][n].stat & 0x40)
+#define isupdconf(n)  (itemtbl[menumode][n].stat & 0x80)
+#define isremote(n)   (itemtbl[menumode][n].stat & 0x20)
+#define ishds(n)      (itemtbl[menumode][n].stat & 0x10000)
+#define unitremote(n) ((itemtbl[menumode][n].stat & 0xf00) >> 8)
+#define unithds(n)    ((itemtbl[menumode][n].stat & 0xf000) >> 12)
+#define isneedreboot(n) (itemtbl[menumode][n].stat & 0x80000)
+
 #define isvisible(n)  (((itemtbl[menumode][n].stat) & 0xf) <= sysstatus && \
-                       !((itemtbl[menumode][n].stat & 0x20) && \
-                         (config.remoteunit <= ((itemtbl[menumode][n].stat & 0xf00) >> 8))) && \
-                       !((itemtbl[menumode][n].stat & 0x10000) && \
-                         (config.hdsunit <= ((itemtbl[menumode][n].stat & 0xf000) >> 12))))
-#define istabstop(n)  ((itemtbl[menumode][n].stat) & 0x10)
-#define issetconf(n)  ((itemtbl[menumode][n].stat) & 0x40)
-#define isupdconf(n)  ((itemtbl[menumode][n].stat) & 0x80)
-#define isneedreboot(n) ((itemtbl[menumode][n].stat) & 0x80000)
+                       !(isremote(n) && (config.remoteunit <= unitremote(n))) && \
+                       !(ishds(n) && (config.hdsunit <= unithds(n))))
 
 int switch_menu(struct itemtbl *it);
 int flash_config(struct itemtbl *it);
@@ -257,6 +260,49 @@ struct itemtbl itemtbl2[countof(itemtbl1)];
 struct itemtbl * const itemtbl[] = { itemtbl0, itemtbl1, itemtbl2 };
 const int n_itemtbl[] = { countof(itemtbl0), countof(itemtbl1), countof(itemtbl2) };
 
+#ifndef BOOTSETTING
+static char unit2drive(int unit, int ishds)
+{
+  struct dos_dpbptr dpb;
+
+  for (int drive = 1; drive <= 26; drive++) {
+    if (_dos_getdpb(drive, &dpb) < 0) {
+      continue;
+    }
+    char *p = (char *)dpb.driver + 14;
+    if (memcmp(p, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT", 8) != 0) {
+      continue;
+    }
+    if (dpb.unit == unit) {
+      return drive + 'A' - 1;
+    }
+  }
+  return '?';
+}
+#endif
+
+const char *getlabel(const struct itemtbl *it, int n)
+{
+  static char label[16];
+  if (isremote(n)) {
+#ifndef BOOTSETTING
+    sprintf(label, "#%u (%c:)", unitremote(n), unit2drive(unitremote(n), false));
+#else 
+    sprintf(label, "REMOTE%u", unitremote(n));
+#endif
+    return label;
+  } else if (ishds(n)) {
+#ifndef BOOTSETTING
+    sprintf(label, "#%u (%c:)", unithds(n), unit2drive(unithds(n), true));
+#else 
+    sprintf(label, "HDS%u", unithds(n));
+#endif
+    return label;
+  } else {
+    return it->msg;
+  }
+}
+
 //****************************************************************************
 // Top view
 //****************************************************************************
@@ -350,7 +396,7 @@ int topview(void)
   for (int i = 0; i < n_itemtbl[menumode]; i++) {
     struct itemtbl *it = &itemtbl[menumode][i];
     if (isvisible(i)) {
-      drawmsg(it->x, it->y, 3, it->msg);
+      drawmsg(it->x, it->y, 3, getlabel(it, i));
       if (it->xd >= 0) {
         drawvalue(3, it, it->value, it->func == input_passwd);
       }
@@ -407,6 +453,18 @@ int flash_config(struct itemtbl *it)
         cmd.command = CMD_FLASHCONFIG;
         com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
       }
+#ifndef BOOTSETTING
+      // ドライブの設定変更を検出させる
+      if (com_rmtdata) {
+        _dos_fflush();
+        com_rmtdata->hds_changed = 0xff;
+        for (int i = 0; i < N_HDS; i++) {
+          if (strlen(config.hds[i])) {
+            com_rmtdata->hds_ready |= (1 << i);
+          }
+        }
+      }
+#endif
 #endif
 #ifndef BOOTSETTING
       return 3;
@@ -579,7 +637,7 @@ int main()
       update = false;
     }
     struct itemtbl *it = &itemtbl[menumode][n];
-    drawmsg(it->x, it->y, 10, it->msg);
+    drawmsg(it->x, it->y, 10, getlabel(it, n));
     if (pren != n) {
       show_help1(it);
       pren = n;
@@ -615,12 +673,13 @@ int main()
         continue;
       }
 
-      drawmsg(it->x, it->y, 7, it->msg);
+      drawmsg(it->x, it->y, 7, getlabel(it, n));
       if (it->help2) _iocs_b_putmes(3, 3, 28, 89, it->help2);
       if (it->help3) drawhelp(3, 3, 29, 89, it->help3);
 
       int res = it->func(it);
       show_help1(it);
+      drawmsg(it->x, it->y, 3, getlabel(it, n));
 
       if (res == 1) {
         update = isupdconf(n);
@@ -634,27 +693,20 @@ int main()
           com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
 #endif
         }
-        n++;
-        if (n >= n_itemtbl[menumode] || !isvisible(n)) {
-          n--;
-        }
 #ifndef BOOTSETTING
-        if (it->func == input_dirfile && it->opt == (void *)1) {
-          if (com_rmtdata) {
-            int unit = (it->stat & 0xf000) >> 12;
-            com_rmtdata->hds_changed |= (1 << unit);
-            if (strlen(it->value) > 0) {
-              com_rmtdata->hds_ready |= (1 << unit);
-            }
-          }
-        }
         if (isneedreboot(n)) {
           needreboot = true;
         }
 #endif
+        n++;
+        if (n >= n_itemtbl[menumode] || !isvisible(n)) {
+          n--;
+        }
+        continue;
       } else if (res == 2) {
         update = true;
         n = 0;
+        continue;
       } else if (res == 3) {
         terminate(false);
       }
@@ -667,7 +719,7 @@ int main()
 #endif
     }
 
-    drawmsg(it->x, it->y, 3, it->msg);
+    drawmsg(it->x, it->y, 3, getlabel(it, n));
     if (c == '\x0e' || k == 0x3e00) {  /* CTRL+N or ↓ */
       do {
         n = (n + 1) % n_itemtbl[menumode];
