@@ -166,12 +166,15 @@ void drawvalue(int c, struct itemtbl *it, const char *s, int mask)
     for (; i < it->wd - 1; i++)
     _iocs_b_putc(' ');
   } else {
-    if (it->func != input_numlist) {
-      _iocs_b_putmes(c, it->xd, it->y, it->wd - 1, s);
-    } else {
+    if (it->func == input_numlist) {
       char str[4];
       sprintf(str, "%u", *(uint8_t *)s);
       _iocs_b_putmes(c, it->xd, it->y, 0, str);
+    } else if (it->func == input_labellist) {
+      struct labellist_opt *opt = (struct labellist_opt *)it->opt;
+      _iocs_b_putmes(c, it->xd, it->y, it->wd - 1, opt->label[*(uint8_t *)s]);
+    } else {
+      _iocs_b_putmes(c, it->xd, it->y, it->wd - 1, s);
     }
   }
 }
@@ -353,14 +356,14 @@ static int input_entry_main(struct itemtbl *it, bool mask, bool wifi)
 
 /* 1項目をキー入力する */
 
-int input_entry(struct itemtbl *it, void *v)
+int input_entry(struct itemtbl *it)
 {
   return input_entry_main(it, false, false);
 }
 
 /* 1項目をキー入力する(パスワード) */
 
-int input_passwd(struct itemtbl *it, void *v)
+int input_passwd(struct itemtbl *it)
 {
   return input_entry_main(it, true, false);
 }
@@ -368,9 +371,9 @@ int input_passwd(struct itemtbl *it, void *v)
 
 /* 数値をリストから選択する */
 
-int input_numlist(struct itemtbl *it, void *v)
+int input_numlist(struct itemtbl *it)
 {
-  struct numlist_opt *opt = (struct numlist_opt *)v;
+  struct numlist_opt *opt = (struct numlist_opt *)it->opt;
   int res = 0;
   uint8_t value = *(uint8_t *)it->value;
 
@@ -404,9 +407,47 @@ int input_numlist(struct itemtbl *it, void *v)
   return res;
 }
 
+/* ラベル番号をリストから選択する */
+
+int input_labellist(struct itemtbl *it)
+{
+  struct labellist_opt *opt = (struct labellist_opt *)it->opt;
+  int res = 0;
+  uint8_t value = *(uint8_t *)it->value;
+
+  value = max(value, 0);
+  value = min(value, opt->nlabels - 1);
+
+  while (1) {
+    drawvalue(10, it, (char *)&value, 0);
+
+    /* キー入力処理 */
+    int k = keyinp(-1);
+    int c = k & 0xff;
+    if (c == '\r') {                          // CR
+      *(uint8_t *)it->value = value;
+      res = 1;
+      break;
+    } else if (c == '\x1b') {                 // ESC
+      break;
+    } else if (c == '\x0e' || k == 0x3e00) {  // CTRL+N or ↓
+      value = min(value + 1, opt->nlabels - 1);
+    } else if (c == '\x10' || k == 0x3c00) {  // CTRL+P or ↑
+      value = max(value - 1, 0);
+    } else if (c == '\x01' || k == 0x3900 || k == 0x3600) { // CTRL+A or ROLLDOWN or HOME
+      value = 0;
+    } else if (c == '\x05' || k == 0x3800) {  // CTRL+E or ROLLUP
+      value = opt->nlabels - 1;
+    }
+  }
+
+  drawvalue(3, it, it->value, 0);
+  return res;
+}
+
 /* WiFiアクセスポイントリストから選択する */
 
-int input_wifiap(struct itemtbl *it, void *v)
+int input_wifiap(struct itemtbl *it)
 {
   int res = 0;
   int top = 0;
@@ -490,11 +531,11 @@ struct res_smb2_list smb2_list;
 const char *filelist[256];
 int nfile;
 
-int input_dirfile(struct itemtbl *it, void *v)
+int input_dirfile(struct itemtbl *it)
 {
   int res = 0;
   char value[256];
-  bool seldir = (v == NULL);
+  bool seldir = (it->opt == NULL);
   int ity = min(it->y, 20);
 
   strcpy(value, it->value);

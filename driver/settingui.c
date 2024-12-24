@@ -49,7 +49,6 @@ int sysstatus = STAT_WIFI_DISCONNECTED;
 struct config_data config
 #ifdef XTEST
 = {
-  .selfboot = 1,
   .tz = "JST-9",
   .tadjust= 2,
 }
@@ -76,9 +75,9 @@ int needreboot;
 #define isupdconf(n)  ((itemtbl[menumode][n].stat) & 0x80)
 #define isneedreboot(n) ((itemtbl[menumode][n].stat) & 0x80000)
 
-int switch_menu(struct itemtbl *it, void *v);
-int flash_config(struct itemtbl *it, void *v);
-int flash_clear(struct itemtbl *it, void *v);
+int switch_menu(struct itemtbl *it);
+int flash_config(struct itemtbl *it);
+int flash_clear(struct itemtbl *it);
 
 #ifdef BOOTSETTING
 int _dos_bus_err(void *src, void *dst, int size)
@@ -97,12 +96,19 @@ static struct numlist_opt opt_rmtunit = { 0, 8 };
 static struct numlist_opt opt_hdsunit = { 0, 4 };
 static struct numlist_opt opt_tadjust = { 0, 4 };
 
+static const char *opt_bootmode_labels[] = {
+  "リモートドライブから起動",
+  "リモートHDSから起動",
+  "USBメモリから起動",
+};
+static struct labellist_opt opt_bootmode = { countof(opt_bootmode_labels), opt_bootmode_labels };
+
 struct itemtbl itemtbl0[] = {
-  { 0x80010, 4, 4, -1,   "SELFBOOT",
-    "リモートドライブ/HDSからの起動を行うかどうかを設定します",
-    "リモートドライブ/HDSからの起動を行うかどうかを選択してください (0=他のUSBメモリから起動)",
+  { 0x80010, 4, 4, -1,   "BOOTMODE",
+    "どのドライブから起動するかを設定します",
+    "どのドライブから起動するかを選択してください",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    16, 8, (char *)&config.selfboot,  sizeof(config.selfboot),       input_numlist, &opt_bool },
+    16, 28, (char *)&config.bootmode,  sizeof(config.bootmode),     input_labellist, &opt_bootmode },
 
   { 0x010, 4, 7, -1,   "SSID",
     "WiFi 接続先の SSID を設定します",
@@ -159,52 +165,47 @@ struct itemtbl itemtbl0[] = {
 };
 
 struct itemtbl itemtbl1[] = {
-  { 0x014, 4, 4, -1,  "RMTBOOT",
-    "リモートドライブ/HDSの優先順位を設定します",
-    "リモートドライブ/HDSのどちらを優先するかを選択してください (0=HDS/1=リモートドライブ)",
-    "#a #b (選択) #e  (確定) #f   (前に戻る)",
-    16, 76, (char *)&config.remoteboot, sizeof(config.remoteboot), input_numlist, &opt_bool },
-  { 0x80084, 4, 5, -1,  "RMTUNIT",
+  { 0x80084, 4, 4, -1,  "RMTUNIT",
     "リモートドライブのユニット数を設定します (0-8)",
     "リモートドライブのユニット数を選択してください (0=リモートドライブは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.remoteunit, sizeof(config.remoteunit), input_numlist, &opt_rmtunit },
-  { 0x024, 4, 6, -1,  "REMOTE0",
+  { 0x024, 4, 5, -1,  "REMOTE0",
     "リモートドライブ 0 のファイル共有のパス名を設定します",
     "リモートドライブ 0 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[0],       sizeof(config.remote[0]),      input_dirfile },
-  { 0x124, 4, 7, -1,  "REMOTE1",
+  { 0x124, 4, 6, -1,  "REMOTE1",
     "リモートドライブ 1 のファイル共有のパス名を設定します",
     "リモートドライブ 1 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[1],       sizeof(config.remote[1]),      input_dirfile },
-  { 0x224, 4, 8, -1,  "REMOTE2",
+  { 0x224, 4, 7, -1,  "REMOTE2",
     "リモートドライブ 2 のファイル共有のパス名を設定します",
     "リモートドライブ 2 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[2],       sizeof(config.remote[2]),      input_dirfile },
-  { 0x324, 4, 9, -1,  "REMOTE3",
+  { 0x324, 4, 8, -1,  "REMOTE3",
     "リモートドライブ 3 のファイル共有のパス名を設定します",
     "リモートドライブ 3 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[3],       sizeof(config.remote[3]),      input_dirfile },
-  { 0x424, 4, 10, -1,  "REMOTE4",
+  { 0x424, 4, 9, -1,  "REMOTE4",
     "リモートドライブ 4 のファイル共有のパス名を設定します",
     "リモートドライブ 4 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[4],       sizeof(config.remote[4]),      input_dirfile },
-  { 0x524, 4, 11, -1,  "REMOTE5",
+  { 0x524, 4, 10, -1,  "REMOTE5",
     "リモートドライブ 5 のファイル共有のパス名を設定します",
     "リモートドライブ 5 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[5],       sizeof(config.remote[5]),      input_dirfile },
-  { 0x624, 4, 12, -1,  "REMOTE6",
+  { 0x624, 4, 11, -1,  "REMOTE6",
     "リモートドライブ 6 のファイル共有のパス名を設定します",
     "リモートドライブ 6 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[6],       sizeof(config.remote[6]),      input_dirfile },
-  { 0x724, 4, 13, -1,  "REMOTE7",
+  { 0x724, 4, 12, -1,  "REMOTE7",
     "リモートドライブ 7 のファイル共有のパス名を設定します",
     "リモートドライブ 7 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
@@ -326,7 +327,7 @@ int topview(void)
 
   case 1:
     drawmsg(4, 3, 3, "リモートドライブ設定");
-    drawframe3(2, 4, 92, config.remoteunit + 2, 2, 10);
+    drawframe3(2, 4, 92, config.remoteunit + 1, 2, 10);
 
     drawmsg(4, 15, 3, "HDS (SCSI ディスクイメージ) 設定");
     drawframe3(2, 16, 92, config.hdsunit + 2, 2, 10);
@@ -370,13 +371,13 @@ int escape_menu(void)
 // Command functions
 //****************************************************************************
 
-int switch_menu(struct itemtbl *it, void *v)
+int switch_menu(struct itemtbl *it)
 {
   menumode = 1 - menumode;
   return 2;
 }
 
-int flash_config(struct itemtbl *it, void *v)
+int flash_config(struct itemtbl *it)
 {
   while (1) {
     /* キー入力処理 */
@@ -420,7 +421,7 @@ int flash_config(struct itemtbl *it, void *v)
   }
 }
 
-int flash_clear(struct itemtbl *it, void *v)
+int flash_clear(struct itemtbl *it)
 {
   while (1) {
     /* キー入力処理 */
@@ -592,7 +593,7 @@ int main()
       if (it->help2) _iocs_b_putmes(3, 3, 28, 89, it->help2);
       if (it->help3) drawhelp(3, 3, 29, 89, it->help3);
 
-      int res = it->func(it, it->opt);
+      int res = it->func(it);
       show_help1(it);
 
       if (res == 1) {

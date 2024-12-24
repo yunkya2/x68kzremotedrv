@@ -57,13 +57,18 @@ struct itemtbl {
   int wd;
   char *value;
   int valuesz;
-  int (*func)(struct itemtbl *, void *v);
+  int (*func)(struct itemtbl *);
   void *opt;
 };
 
 struct numlist_opt {
   int min;
   int max;
+};
+
+struct labellist_opt {
+  int nlabels;
+  const char **label;
 };
 
 //****************************************************************************
@@ -85,11 +90,12 @@ void drawhelp(int c, int x, int y, int w, const char *s);
 
 /* Input */
 int keyinp(int timeout);
-int input_entry(struct itemtbl *it, void *v);
-int input_passwd(struct itemtbl *it, void *v);
-int input_numlist(struct itemtbl *it, void *v);
-int input_wifiap(struct itemtbl *it, void *v);
-int input_dirfile(struct itemtbl *it, void *v);
+int input_entry(struct itemtbl *it);
+int input_passwd(struct itemtbl *it);
+int input_numlist(struct itemtbl *it);
+int input_labellist(struct itemtbl *it);
+int input_wifiap(struct itemtbl *it);
+int input_dirfile(struct itemtbl *it);
 
 int topview(void);
 

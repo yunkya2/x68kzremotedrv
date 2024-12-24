@@ -71,7 +71,7 @@ void cmd_server(int argc, char **argv);
 void cmd_mount(int argc, char **argv);
 void cmd_hds(int argc, char **argv);
 void cmd_umount(int argc, char **argv);
-void cmd_selfboot(int argc, char **argv);
+void cmd_bootmode(int argc, char **argv);
 void cmd_hdsscsi(int argc, char **argv);
 void cmd_erase(int argc, char **argv);
 void cmd_show(int argc, char **argv);
@@ -86,7 +86,7 @@ const struct {
   { "mount",    cmd_mount,    "リモートドライブの接続設定" },
   { "hds",      cmd_hds,      "リモートHDSの接続設定" },
   { "umount",   cmd_umount,   "リモートドライブ/HDSの接続解除" },
-  { "selfboot", cmd_selfboot, "リモートドライブ/HDSからの起動設定" },
+  { "bootmode", cmd_bootmode, "起動元ドライブの設定" },
   { "hdsscsi",  cmd_hdsscsi,  "リモートHDSの接続モード設定" },
   { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
   { "show",     cmd_show,     "現在の設定内容一覧表示" },
@@ -162,8 +162,7 @@ static char *normalize_path(char *path)
 static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
 {
     rcmd->command = CMD_SETRMTCFG;
-    rcmd->selfboot = config_data.selfboot;
-    rcmd->remoteboot = config_data.remoteboot;
+    rcmd->bootmode = config_data.bootmode;
     rcmd->remoteunit = config_data.remoteunit;
     rcmd->hdsscsi = config_data.hdsscsi;
     rcmd->hdsunit = config_data.hdsunit;
@@ -853,49 +852,60 @@ void cmd_umount(int argc, char **argv)
 }
 
 //****************************************************************************
-// zremote selfboot
+// zremote bootmode
 // zremote hdsscsi
 //****************************************************************************
 
-void cmd_selfboot_usage(void)
+void cmd_bootmode_usage(void)
 {
   struct usage_message m[] = {
     { "",     "現在の設定状態を表示します" },
-    { "on",   "起動ドライブをリモートドライブ/HDSにします" },
-    { "off",  "起動ドライブを他のUSBメモリにします" },
+    { "0",    "リモートドライブから起動します" },
+    { "1",    "リモートHDSから起動します" },
+    { "2",    "他のUSBメモリから起動します" },
     { NULL,   "※設定変更の反映には再起動が必要です" },
     { NULL, NULL }
   };
-  show_usage("selfboot", m, 16);
+  show_usage("bootmode", m, 16);
   terminate(1);
 }
 
-void cmd_selfboot_show(void)
+void cmd_bootmode_show(void)
 {
-  printf("リモートドライブ/HDS起動は %s です\n", config_data.selfboot ? "on" : "off");  
+  printf("起動モードは ");
+  switch (config_data.bootmode) {
+  case 0:
+    printf("リモートドライブから起動");
+    break;
+  case 1:
+    printf("リモートHDSから起動");
+    break;
+  case 2:
+    printf("USBメモリから起動");
+    break;
+  }
+  printf(" です\n");
 }
 
-void cmd_selfboot(int argc, char **argv)
+void cmd_bootmode(int argc, char **argv)
 {
-  int onoff = -1;
+  int mode = -1;
 
   if (argc <= 1) {
-    cmd_selfboot_show();
+    cmd_bootmode_show();
     return;
   }
 
-  if (strcmp(argv[1], "on") == 0) {
-    onoff = 1;
-  } else if (strcmp(argv[1], "off") == 0) {
-    onoff = 0;
+  if (strlen(argv[1]) == 1 && argv[1][0] >= '0' && argv[1][0] >= '1') {
+    mode = argv[1][0] - '0';
   } else {
-    cmd_selfboot_usage();
+    cmd_bootmode_usage();
   }
 
   struct cmd_setrmtcfg rcmd;
   struct res_setrmtcfg rres;
   init_rmtcfg(&rcmd);
-  rcmd.selfboot = onoff;
+  rcmd.bootmode = mode;
   save_config();
   com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
   needreboot = true;
@@ -991,7 +1001,7 @@ void cmd_show(int argc, char **argv)
     cmd_show_usage();
   }
 
-  cmd_selfboot_show();
+  cmd_bootmode_show();
   cmd_hdsscsi_show();
   cmd_wifi_show();
   cmd_server_show();
