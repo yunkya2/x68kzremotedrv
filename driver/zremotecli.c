@@ -133,6 +133,32 @@ static int getdbpunit(int drive, uint8_t *drvname)
   return dpb.unit;
 }
 
+static char *normalize_path(char *path)
+{
+  char c;
+  char *dest = path;
+  char *res = path;
+
+  while (*path == '\\' || *path == '/') {
+    path++;
+  }
+
+  while ((c = *path++) != '\0') {
+    if ((c >= 0x80 && c < 0xa0) || (c >= 0xe0)) {
+      *dest++ = c;
+      if ((c = *path++) == '\0') {
+        break;
+      }
+    } else if (c == '\\') {
+      c = '/';
+    }
+    *dest++ = c;
+  }
+  *dest = '\0';
+
+  return res;
+}
+
 static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
 {
     rcmd->command = CMD_SETRMTCFG;
@@ -683,7 +709,7 @@ void cmd_mounthds(int ishds, int argc, char **argv)
         break;
       }
     } else if (opt_path == NULL) {
-      opt_path = argv[i];
+      opt_path = normalize_path(argv[i]);
     } else {
       break;
     }
