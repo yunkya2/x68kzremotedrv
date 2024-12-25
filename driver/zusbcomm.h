@@ -27,11 +27,12 @@
 
 #include <stdint.h>
 
-struct zusb_rmtdata {       // must be 4bytes (head.S)
-    uint8_t zusb_ch;
-    uint8_t hds_changed;
-    uint8_t hds_ready;
+struct zusb_rmtdata {       // must be 8bytes (head.S)
+    uint8_t zusb_ch;        // ZUSB channel No.
+    uint8_t hds_changed;    // remote HDS media change flag
+    uint8_t hds_ready;      // remote HDS media ready flag
     uint8_t rmtflag;        // bit 0:SCSI IOCS patch flag / bit 7:RTC adjust flag
+    uint8_t hds_parts[4];   // # of partitions for each HDSs
 };
 
 extern struct zusb_rmtdata *com_rmtdata;

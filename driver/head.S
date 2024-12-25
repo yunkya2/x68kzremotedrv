@@ -107,7 +107,7 @@ loop1:
 
     .global zusb_rmtdata
 zusb_rmtdata:                       // ZUSBRMTデバイスドライバ間の共有データ
-    .space  4
+    .space  8                       // (zusbcomm.h の定義と一致させる)
 
 interrupt_asm:
     movem.l %d0-%d2/%a0-%a2/%a5,%sp@-
