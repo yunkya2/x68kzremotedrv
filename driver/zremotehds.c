@@ -107,7 +107,21 @@ void DPRINTF(int level, char *fmt, ...)
   va_start(ap, fmt);
   vsiprintf(buf, fmt, ap);
   va_end(ap);
-  _iocs_b_print(buf);   // _dos_print()だとリダイレクト時に動作しなくなる
+#ifndef DEBUG_UART
+  _iocs_b_print(buf);
+#else
+  char *p = buf;
+  while (*p) {
+    if (*p == '\n') {
+      while (_iocs_osns232c() == 0)
+        ;
+      _iocs_out232c('\r');
+    }
+    while (_iocs_osns232c() == 0)
+      ;
+    _iocs_out232c(*p++);
+  }
+#endif
 }
 #else
 void DPRINTF(int level, char *fmt, ...)
