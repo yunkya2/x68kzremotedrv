@@ -509,6 +509,7 @@ int interrupt(void)
 int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, void *a1)
 {
   DPRINTF1("hdsscsi[%02x]", d1);
+  DPRINTF1("d3=%d d4=%d d5=%d a1=%p\n", d3, d4, d5, a1);
 
   int unit = (d4 & 7) - hds_scsiid;
   if (unit < 0 || unit >= N_HDS) {
@@ -520,6 +521,20 @@ int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, voi
   }
 
   switch (d1) {
+  case 0x01: // _S_SELECT
+  case 0x05: // _S_DATAOUT
+  case 0x06: // _S_STSIN
+  case 0x07: // _S_MSGIN
+  case 0x08: // _S_MSGOUT
+    break;
+
+  case 0x03: // _S_CMDOUT
+    for (int i = 0; i < d3; i++) {
+      DPRINTF1(" %02x", ((uint8_t *)a1)[i]);
+    }
+    DPRINTF1("\r\n");
+    break;
+
   case 0x20: // _S_INQUIRY
     struct scsi_inquiry_resp inqr = {
       .peripheral_device_type = (hds_type[unit] & 0x80) ? 0x07 : 0x00,
@@ -598,6 +613,9 @@ int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, voi
   case 0x28: // _S_VERIFYEXT
     break;
 
+  case 0x04: // _S_DATAIN
+    // FORMAT.XはMOのフォーマット時のみlow levelコマンドを使ってMODESENSEを行う
+    // DATAINフェーズでMODESENSEの結果を返す
   case 0x29: // _S_MODESENSE
     struct {
       uint8_t mode_data_length;

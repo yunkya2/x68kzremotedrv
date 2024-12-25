@@ -31,27 +31,51 @@ scsidrv_org:
     .global hdsscsi_mask
 hdsscsi_mask:
     .byte   0                   // リモートHDSドライバのSCSI ID処理マスク
+hds_selected:
+    .byte   0                   // リモートHDSドライバのIDが選択されているか
 
     .even
 
     .global scsidrv_hds
 scsidrv_hds:
-    cmpi.b  #0x20,%d1
-    bcs     999f                // low level commandは変更前の処理を実行
-    cmpi.b  #0x30,%d1
-    bcc     999f
+    tst.b   %d1                 // _S_RESET
+    beq     scsidrv_orgcmd
 
+    cmpi.b  #0x03,%d1           // _S_SELECT, _S_SELECTA
+    bcs     scsidrv_select
+
+    cmpi.b  #0x09,%d1           // 0x03-0x08
+    bcs     scsidrv_low
+
+    cmpi.b  #0x0b,%d1           // _S_PHASE, _S_LEVEL
+    bcs     scsidrv_orgcmd
+
+    cmpi.b  #0x20,%d1
+    bcs     scsidrv_low         // 0x0c-0x1f
+scsidrv_command:
     moveq.l #1,%d0
     lsl.b   %d4,%d0
     and.b   %pc@(hdsscsi_mask),%d0
-    beq     999f                // SCSI IDがHDSドライバのものでなければ変更前の処理を実行
-
+    beq     scsidrv_orgcmd      // SCSI IDがHDSドライバのものでなければ変更前の処理を実行
+scsidrv_hook:
     movem.l %d1-%d5/%a1-%a3,%sp@-
     jsr     hdsscsi
     movem.l %sp@+,%d1-%d5/%a1-%a3
     rts
 
-999:                            // 変更前のIOCS _SCSIDRVを実行する
+scsidrv_select:                 // セレクションフェーズのターゲットがHDSドライバか確認
+    moveq.l #1,%d0
+    lsl.b   %d4,%d0
+    and.b   %pc@(hdsscsi_mask),%d0
+    sne.b   %d0
+    move.b  %d0,hds_selected    // 後続のlow level commandをHDSドライバが処理するか
+    bne     scsidrv_hook        // HDSドライバが選択されている
+    bra     scsidrv_orgcmd      // HDSドライバが選択されていない
+
+scsidrv_low:                    // low level commandの実行
+    tst.b   hds_selected
+    bne     scsidrv_hook        // HDSドライバが選択されている
+scsidrv_orgcmd:                 // 変更前のIOCS _SCSIDRVを実行する
     move.l  %pc@(scsidrv_org),%sp@-
     rts
 
