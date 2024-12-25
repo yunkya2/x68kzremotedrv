@@ -956,10 +956,20 @@ void cmd_erase(int argc, char **argv)
     cmd_erase_usage();
   }
 
+  printf("保存されている設定内容を全消去します。よろしいですか? (y/n):");
+  fflush(stdout);
+
+  int k = _iocs_b_keyinp() & 0xff;
+  if (k != 'y') {
+    printf("\n中止しました\n");
+    terminate(1);
+  }
+
   struct cmd_flashclear cmd;
   struct res_flashclear res;
   cmd.command = CMD_FLASHCLEAR;
   com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  printf("\n設定内容を全消去しました\n");
 }
 
 //****************************************************************************
