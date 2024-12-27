@@ -89,9 +89,9 @@ const struct config_item {
 
     { "REMOTE_UNIT:",               (char *)0,
       (char *)&config.remoteunit,   sizeof(config.remoteunit),      CF_INT },
-    { "HDS_SCSI:",                  (char *)0,
+    { "IMAGE_SCSI:",                (char *)0,
       (char *)&config.hdsscsi,      sizeof(config.hdsscsi),         CF_INT },
-    { "HDS_UNIT:",                  (char *)0,
+    { "IMAGE_UNIT:",                (char *)0,
       (char *)&config.hdsunit,      sizeof(config.hdsunit),         CF_INT },
 
     { "REMOTE0:",                   NULL,
@@ -111,13 +111,13 @@ const struct config_item {
     { "REMOTE7:",                   NULL,
       config.remote[7],             sizeof(config.remote[7]),       CF_URL },
 
-    { "HDS0:",                      NULL,
+    { "IMAGE0:",                      NULL,
       config.hds[0],                sizeof(config.hds[0]),          CF_URL },
-    { "HDS1:",                      NULL,
+    { "IMAGE1:",                      NULL,
       config.hds[1],                sizeof(config.hds[1]),          CF_URL },
-    { "HDS2:",                      NULL,
+    { "IMAGE2:",                      NULL,
       config.hds[2],                sizeof(config.hds[2]),          CF_URL },
-    { "HDS3:",                      NULL,
+    { "IMAGE3:",                      NULL,
       config.hds[3],                sizeof(config.hds[3]),          CF_URL },
 
     { "TZ:",                        "JST-9",

@@ -101,7 +101,7 @@ static struct numlist_opt opt_tadjust = { 0, 4 };
 
 static const char *opt_bootmode_labels[] = {
   "リモートドライブから起動",
-  "リモートHDSから起動",
+  "リモートイメージから起動",
   "USBメモリから起動",
 };
 static struct labellist_opt opt_bootmode = { countof(opt_bootmode_labels), opt_bootmode_labels };
@@ -173,70 +173,70 @@ struct itemtbl itemtbl1[] = {
     "リモートドライブのユニット数を選択してください (0=リモートドライブは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.remoteunit, sizeof(config.remoteunit), input_numlist, &opt_rmtunit },
-  { 0x024, 4, 5, -1,  "REMOTE0",
+  { 0x024, 4, 5, -1,  NULL,
     "リモートドライブ 0 のファイル共有のパス名を設定します",
     "リモートドライブ 0 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[0],       sizeof(config.remote[0]),      input_dirfile },
-  { 0x124, 4, 6, -1,  "REMOTE1",
+  { 0x124, 4, 6, -1,  NULL,
     "リモートドライブ 1 のファイル共有のパス名を設定します",
     "リモートドライブ 1 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[1],       sizeof(config.remote[1]),      input_dirfile },
-  { 0x224, 4, 7, -1,  "REMOTE2",
+  { 0x224, 4, 7, -1,  NULL,
     "リモートドライブ 2 のファイル共有のパス名を設定します",
     "リモートドライブ 2 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[2],       sizeof(config.remote[2]),      input_dirfile },
-  { 0x324, 4, 8, -1,  "REMOTE3",
+  { 0x324, 4, 8, -1,  NULL,
     "リモートドライブ 3 のファイル共有のパス名を設定します",
     "リモートドライブ 3 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[3],       sizeof(config.remote[3]),      input_dirfile },
-  { 0x424, 4, 9, -1,  "REMOTE4",
+  { 0x424, 4, 9, -1,  NULL,
     "リモートドライブ 4 のファイル共有のパス名を設定します",
     "リモートドライブ 4 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[4],       sizeof(config.remote[4]),      input_dirfile },
-  { 0x524, 4, 10, -1,  "REMOTE5",
+  { 0x524, 4, 10, -1,  NULL,
     "リモートドライブ 5 のファイル共有のパス名を設定します",
     "リモートドライブ 5 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[5],       sizeof(config.remote[5]),      input_dirfile },
-  { 0x624, 4, 11, -1,  "REMOTE6",
+  { 0x624, 4, 11, -1,  NULL,
     "リモートドライブ 6 のファイル共有のパス名を設定します",
     "リモートドライブ 6 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[6],       sizeof(config.remote[6]),      input_dirfile },
-  { 0x724, 4, 12, -1,  "REMOTE7",
+  { 0x724, 4, 12, -1,  NULL,
     "リモートドライブ 7 のファイル共有のパス名を設定します",
     "リモートドライブ 7 のファイル共有のパス名を選択してください (ディレクトリ内で \"./\" を選択)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.remote[7],       sizeof(config.remote[7]),      input_dirfile },
 
-  { 0x80094, 4, 15, -1,  "HDSUNIT",
-    "リモートHDSのユニット数を設定します (0-4)",
-    "リモートHDSのユニット数を選択してください (0=リモートHDSは使用しない)",
+  { 0x80094, 4, 15, -1,  "IMGUNIT",
+    "リモートイメージのユニット数を設定します (0-4)",
+    "リモートイメージのユニット数を選択してください (0=リモートイメージは使用しない)",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, (char *)&config.hdsunit, sizeof(config.hdsunit), input_numlist, &opt_hdsunit },
-  { 0x10004, 4, 16, -1,  "HDS0",
-    "HDS ファイル 0 を設定します",
-    "HDS ファイル 0 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
+  { 0x10004, 4, 16, -1,  NULL,
+    "リモートイメージファイル 0 を設定します",
+    "リモートイメージファイル 0 を選択してください",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[0],          sizeof(config.hds[0]),         input_dirfile, (void *)1},
-  { 0x11004, 4, 17, -1,  "HDS1",
-    "HDS ファイル 1 を設定します",
-    "HDS ファイル 1 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
+  { 0x11004, 4, 17, -1,  NULL,
+    "リモートイメージファイル 1 を設定します",
+    "リモートイメージファイル 1 を選択してください",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[1],          sizeof(config.hds[1]),         input_dirfile, (void *)1},
-  { 0x12004, 4, 18, -1,  "HDS2",
-    "HDS ファイル 2 を設定します",
-    "HDS ファイル 2 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
+  { 0x12004, 4, 18, -1,  NULL,
+    "リモートイメージファイル 2 を設定します",
+    "リモートイメージファイル 2 を選択してください",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[2],          sizeof(config.hds[2]),         input_dirfile, (void *)1},
-  { 0x13004, 4, 19, -1,  "HDS3",
-    "HDS ファイル 3 を設定します",
-    "HDS ファイル 3 を選択してください (空文字列にすると HDS ファイルを割り当てません)",
+  { 0x13004, 4, 19, -1,  NULL,
+    "リモートイメージファイル 3 を設定します",
+    "リモートイメージファイル 3 を選択してください",
     "#a #b (選択) #e  (確定) #f   (前に戻る)",
     16, 76, config.hds[3],          sizeof(config.hds[3]),         input_dirfile, (void *)1},
 
@@ -270,7 +270,7 @@ static char unit2drive(int unit, int ishds)
       continue;
     }
     char *p = (char *)dpb.driver + 14;
-    if (memcmp(p, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT", 8) != 0) {
+    if (memcmp(p, ishds ? "\x01ZRMTIMG" : "\x01ZRMTDRV", 8) != 0) {
       continue;
     }
     if (dpb.unit == unit) {
@@ -295,7 +295,7 @@ const char *getlabel(const struct itemtbl *it, int n)
 #ifndef BOOTSETTING
     sprintf(label, "#%u (%c:)", unithds(n), unit2drive(unithds(n), true));
 #else 
-    sprintf(label, "HDS%u", unithds(n));
+    sprintf(label, "IMAGE%u", unithds(n));
 #endif
     return label;
   } else {
@@ -372,7 +372,7 @@ int topview(void)
     drawmsg(4, 3, 3, "リモートドライブ設定");
     drawframe3(2, 4, 92, config.remoteunit + 1, 2, 10);
 
-    drawmsg(4, 14, 3, "HDS (SCSI ディスクイメージ) 設定");
+    drawmsg(4, 14, 3, "リモートイメージ設定");
     drawframe3(2, 15, 92, config.hdsunit + 1, 2, 10);
 
     drawframe3(2, 26, 14, 1, 2, -1);
@@ -380,7 +380,7 @@ int topview(void)
     break;
 
   case 2:
-    drawmsg(4, 3, 3, "HDS (SCSI ディスクイメージ) 設定");
+    drawmsg(4, 3, 3, "リモートイメージ設定");
     drawframe3(2, 4, 92, config.hdsunit + 1, 2, 10);
 
     drawmsg(4, 10, 3, "リモートドライブ設定");
@@ -553,7 +553,7 @@ int main()
 #endif
 
   {
-    // itemtbl1[] のリモートドライブとリモートHDSを交換したitemtbl2[] を作る
+    // itemtbl1[] のリモートドライブとリモートイメージを交換したitemtbl2[] を作る
 
     for (int i = 0; i < 5; i++) {
       itemtbl2[i] = itemtbl1[9 + i];

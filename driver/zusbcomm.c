@@ -73,8 +73,8 @@ static struct zusb_rmtdata *find_zusbrmt(void)
   devh -= 14;
   do {
     const char *p = devh + 14;
-    if (memcmp(p, "\x01ZUSBRMT", 8) == 0 ||
-        memcmp(p, "\x01ZUSBHDS", 8) == 0) {
+    if (memcmp(p, "\x01ZRMTDRV", 8) == 0 ||
+        memcmp(p, "\x01ZRMTIMG", 8) == 0) {
       struct zusb_rmtdata *rd = &(*(struct zusb_rmtdata **)(p - 4))[-1];
       zusb_set_channel(rd->zusb_ch);
       return rd;

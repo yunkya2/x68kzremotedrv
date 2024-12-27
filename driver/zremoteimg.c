@@ -38,7 +38,7 @@
 #include <config.h>
 #include <vd_command.h>
 
-#include "zremotehds.h"
+#include "zremoteimg.h"
 #include "zusbcomm.h"
 
 //****************************************************************************
@@ -235,7 +235,7 @@ static int read_bpb(int unit)
 
 int com_init(struct dos_req_header *req)
 {
-  _dos_print("\r\nX68000 Z Remote HDS Driver (version " GIT_REPO_VERSION ")\r\n");
+  _dos_print("\r\nX68000 Z Remote Image Driver (version " GIT_REPO_VERSION ")\r\n");
 
   int units = 0;
 
@@ -250,7 +250,7 @@ int com_init(struct dos_req_header *req)
 
   if (setjmp(jenv)) {
     com_disconnect();
-    _dos_print("リモートHDS用 Raspberry Pi Pico W が接続されていません\r\n");
+    _dos_print("リモートイメージ用 Raspberry Pi Pico W が接続されていません\r\n");
     return -0x700d;
   }
 
@@ -262,7 +262,7 @@ int com_init(struct dos_req_header *req)
 
     if (res.version != PROTO_VERSION) {
       com_disconnect();
-      _dos_print("リモートHDS用 Raspberry Pi Pico W のバージョンが異なります\r\n");
+      _dos_print("リモートイメージ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
 
@@ -348,7 +348,7 @@ int com_init(struct dos_req_header *req)
     _dos_putchar('A' + *(char *)&req->fcb + units - 1);
     _dos_putchar(':');
   }
-  _dos_print("でリモートHDSが利用可能です\r\n");
+  _dos_print("でリモートイメージが利用可能です\r\n");
 #endif
   DPRINTF1("Debug level: %d\r\n", debuglevel);
 

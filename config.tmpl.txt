@@ -1,6 +1,6 @@
 [X68000 Z Remote Drive Service Configuration]
 
-# 起動元ドライブ (0=リモートドライブ/1=リモートHDS/2=他のUSBメモリ)
+# 起動元ドライブ (0=リモートドライブ/1=リモートイメージ/2=他のUSBメモリ)
 BOOTMODE: %u
 
 # WiFi 接続先の SSID、パスワード
@@ -15,10 +15,10 @@ SMB2_SERVER: %s
 
 # リモートドライブのユニット数 (0-8) 0ならリモートドライブは使用しない
 REMOTE_UNIT: %u
-# リモートHDSをSCSIドライバモードで利用するかどうか (0=リモートドライバ/1=SCSIドライバ)
-HDS_SCSI: %u
-# リモートHDSのユニット数 (0-4) 0ならリモートHDSは使用しない
-HDS_UNIT: %u
+# リモートイメージをSCSIドライバモードで利用するかどうか (0=リモートドライバ/1=SCSIドライバ)
+IMAGE_SCSI: %u
+# リモートイメージのユニット数 (0-4) 0ならリモートイメージは使用しない
+IMAGE_UNIT: %u
 
 # X68000Z に見せるリモートドライブの場所
 REMOTE0: %s
@@ -30,11 +30,11 @@ REMOTE5: %s
 REMOTE6: %s
 REMOTE7: %s
 
-# X68000Z に見せるHDSファイルの場所
-HDS0: %s
-HDS1: %s
-HDS2: %s
-HDS3: %s
+# X68000Z に見せるリモートイメージの場所
+IMAGE0: %s
+IMAGE1: %s
+IMAGE2: %s
+IMAGE3: %s
 
 # タイムゾーン設定
 TZ: %s

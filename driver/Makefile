@@ -54,7 +54,7 @@ endif
 
 all: bootloader.inc hdsboot.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
-all: zremotehds.sys zremotehds.hds zremotehds_boot.inc human.inc
+all: zremoteimg.sys zremoteimg.hds zremoteimg_boot.inc human.inc
 all: zremote.x settingui.inc
 
 uitest:
@@ -78,14 +78,14 @@ zremotedrv_boot.sys: head_rmt_boot.o remotedrv.o zremotedrv_boot.o zusbcomm.o
 zremotedrv.hds: zremotedrv_boot.bin bootloader.bin HUMAN.SYS
 	./createhds.py $@ bootloader.bin HUMAN.SYS zremotedrv_boot.bin
 
-zremotehds.sys: head_hds.o zremotehds.o zusbcomm.o hdsscsi.o
+zremoteimg.sys: head_hds.o zremoteimg.o zusbcomm.o hdsscsi.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
-zremotehds_boot.sys: head_hds_boot.o zremotehds_boot.o zusbcomm.o hdsscsi.o
+zremoteimg_boot.sys: head_hds_boot.o zremoteimg_boot.o zusbcomm.o hdsscsi.o
 	$(LD) -o $@ $^ -nostartfiles -s
 
-zremotehds.hds: zremotehds_boot.bin bootloader.bin HUMAN.SYS
-	./createhds.py $@ bootloader.bin HUMAN.SYS zremotehds_boot.bin
+zremoteimg.hds: zremoteimg_boot.bin bootloader.bin HUMAN.SYS
+	./createhds.py $@ bootloader.bin HUMAN.SYS zremoteimg_boot.bin
 
 human.inc: HUMAN.SYS
 	./bindump.py $< humansys > $@
@@ -96,20 +96,20 @@ zrmtrescue.xdf: rescueboot.bin settingui.bin
 zremotedrv_boot.o: zremotedrv.c
 	$(CC) $(CFLAGS) -c -o $@ $< -DCONFIG_BOOTDRIVER
 
-zremotehds_boot.o: zremotehds.c
+zremoteimg_boot.o: zremoteimg.c
 	$(CC) $(CFLAGS) -c -o $@ $< -DCONFIG_BOOTDRIVER
 
 head_rmt.o: head.S
-	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -c -o $@ $<
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZRMTDRV\" -DCONFIG_DEVTYPE=0x2000 -c -o $@ $<
 
 head_rmt_boot.o: head.S
-	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBRMT\" -DCONFIG_DEVTYPE=0x2000 -DCONFIG_BOOTDRIVER -c -o $@ $<
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZRMTDRV\" -DCONFIG_DEVTYPE=0x2000 -DCONFIG_BOOTDRIVER -c -o $@ $<
 
 head_hds.o: head.S
-	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBHDS\" -DCONFIG_DEVTYPE=0x4000 -c -o $@ $<
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZRMTIMG\" -DCONFIG_DEVTYPE=0x4000 -c -o $@ $<
 
 head_hds_boot.o: head.S
-	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZUSBHDS\" -DCONFIG_DEVTYPE=0x4000 -DCONFIG_BOOTDRIVER -c -o $@ $<
+	$(AS) $(ASFLAGS) -DCONFIG_DEVNAME=\"\\x01ZRMTIMG\" -DCONFIG_DEVTYPE=0x4000 -DCONFIG_BOOTDRIVER -c -o $@ $<
 
 remotedrv.o:  ../include/config.h remotedrv.h x68kremote.h
 zremotedrv.o:  ../include/config.h remotedrv.h x68kremote.h ../include/vd_command.h

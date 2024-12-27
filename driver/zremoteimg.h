@@ -22,8 +22,8 @@
  * THE SOFTWARE.
  */
 
-#ifndef _ZREMOTEHDS_H_
-#define _ZREMOTEHDS_H_
+#ifndef _ZREMOTEIMG_H_
+#define _ZREMOTEIMG_H_
 
 #include <stdint.h>
 
@@ -61,4 +61,4 @@ struct dos_bpb {
 // Private structure definitions
 //****************************************************************************
 
-#endif /* _ZREMOTEHDS_H_ */
+#endif /* _ZREMOTEIMG_H_ */

@@ -71,7 +71,7 @@ void cmd_server(int argc, char **argv);
 void cmd_mount(int argc, char **argv);
 void cmd_umount(int argc, char **argv);
 void cmd_bootmode(int argc, char **argv);
-void cmd_hdsscsi(int argc, char **argv);
+void cmd_imgscsi(int argc, char **argv);
 void cmd_erase(int argc, char **argv);
 void cmd_stat(int argc, char **argv);
 
@@ -80,12 +80,12 @@ const struct {
   void (*func)(int argc, char **argv);
   const char *usage;
 } cmd_table[] = {
-  { "mount",    cmd_mount,    "リモートドライブ/HDSの接続設定" },
-  { "umount",   cmd_umount,   "リモートドライブ/HDSの接続解除" },
+  { "mount",    cmd_mount,    "リモートドライブ/イメージの接続設定" },
+  { "umount",   cmd_umount,   "リモートドライブ/イメージの接続解除" },
   { "wifi",     cmd_wifi,     "WiFiアクセスポイントへの接続設定" },
   { "server",   cmd_server,   "Windowsファイル共有サーバへの接続設定" },
   { "bootmode", cmd_bootmode, "起動元ドライブの設定" },
-  { "hdsscsi",  cmd_hdsscsi,  "#リモートHDSの接続モード設定" },
+  { "imgscsi",  cmd_imgscsi,  "#リモートイメージの接続モード設定" },
   { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
   { "stat",     cmd_stat,     "現在の設定内容一覧表示" },
 };
@@ -125,7 +125,7 @@ static int getdbpunit(int drive, int ishds)
     return -1;
   }
   char *p = (char *)dpb.driver + 14;
-  if (memcmp(p, ishds ? "\x01ZUSBHDS" : "\x01ZUSBRMT", 8) != 0) {
+  if (memcmp(p, ishds ? "\x01ZRMTIMG" : "\x01ZRMTDRV", 8) != 0) {
     return -1;
   }
   return dpb.unit;
@@ -612,13 +612,13 @@ void cmd_server(int argc, char **argv)
 void cmd_mount_usage(void)
 {
   struct usage_message m[] = {
-    { "",                     "リモートドライブ/HDSの接続状態を表示します" },
+    { "",                     "リモートドライブ/イメージの接続状態を表示します" },
     { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
-    { "ドライブ名: リモートパス名", "指定したドライブ名にリモートドライブ/HDSを接続します" },
+    { "ドライブ名: リモートパス名", "指定したドライブ名にリモートドライブ/イメージを接続します" },
     { "-D ドライブ名:",   "指定したドライブ名の接続を解除します" },
     { "#umount ドライブ名:", "\t\t〃" },
-    { "-n ドライブ数",        "リモートドライブのドライブ数を設定します (0-8)" },
-    { "-m ドライブ数",        "リモートHDSのドライブ数を設定します (0-4)" },
+    { "-n ユニット数",        "リモートドライブのユニット数を設定します (0-8)" },
+    { "-m ユニット数",        "リモートイメージのユニット数を設定します (0-4)" },
     { NULL,                   "※設定変更の反映には再起動が必要です" },
     { NULL, NULL }
   };
@@ -631,7 +631,7 @@ void cmd_mount_stat(void)
   char unit2drive[N_REMOTE];
 
   for (int ishds = 0; ishds < 2; ishds++) {
-    printf("%s\n", ishds ? "[リモートHDS]" : "[リモートドライブ]");
+    printf("%s\n", ishds ? "[リモートイメージ]" : "[リモートドライブ]");
 
     for (int i = 0; i < N_REMOTE; i++) {
       unit2drive[i] = '?';
@@ -691,7 +691,7 @@ void cmd_mount(int argc, char **argv)
         } else if ((unit = getdbpunit(drive - 'A' + 1, true)) >= 0) {
           ishds = true;
         } else {
-          printf(PROGNAME ": ドライブ%c:はリモートドライブ/HDSではありません\n", drive);
+          printf(PROGNAME ": ドライブ%c:はリモートドライブ/イメージではありません\n", drive);
           terminate(1);
         }
       } else {
@@ -809,7 +809,7 @@ void cmd_umount(int argc, char **argv)
   } else if ((unit = getdbpunit(drive - 'A' + 1, true)) >= 0) {
     ishds = true;
   } else {
-    printf(PROGNAME ": ドライブ%c:はリモートドライブ/HDSではありません\n", drive);
+    printf(PROGNAME ": ドライブ%c:はリモートドライブ/イメージではありません\n", drive);
     terminate(1);
   }
 
@@ -841,7 +841,7 @@ void cmd_bootmode_usage(void)
   struct usage_message m[] = {
     { "",     "現在の設定状態を表示します" },
     { "0",    "リモートドライブから起動します" },
-    { "1",    "リモートHDSから起動します" },
+    { "1",    "リモートイメージから起動します" },
     { "2",    "他のUSBメモリから起動します" },
     { NULL,   "※設定変更の反映には再起動が必要です" },
     { NULL, NULL }
@@ -858,7 +858,7 @@ void cmd_bootmode_stat(void)
     printf("リモートドライブから起動");
     break;
   case 1:
-    printf("リモートHDSから起動");
+    printf("リモートイメージから起動");
     break;
   case 2:
     printf("USBメモリから起動");
@@ -891,31 +891,31 @@ void cmd_bootmode(int argc, char **argv)
   needreboot = true;
 }
 
-void cmd_hdsscsi_usage(void)
+void cmd_imgscsi_usage(void)
 {
   struct usage_message m[] = {
     { "",     "現在の設定状態を表示します" },
-    { "on",   "リモートHDSを純正SCSIドライバで使用します" },
-    { "off",  "リモートHDSをリモートHDSドライバで使用します" },
+    { "on",   "リモートイメージを純正SCSIドライバで使用します" },
+    { "off",  "リモートイメージをリモートイメージドライバで使用します" },
     { NULL,   "※設定変更の反映には再起動が必要です" },
     { NULL, NULL }
   };
-  show_usage("hdsscsi", m, 16);
+  show_usage("imgscsi", m, 16);
   terminate(1);
 }
 
-void cmd_hdsscsi_stat(void)
+void cmd_imgscsi_stat(void)
 {
-  printf("[リモートHDS]\n");
-  printf("%sドライバ\n", config_data.hdsscsi ? "純正SCSI" : "リモートHDS");
+  printf("[リモートイメージ]\n");
+  printf("%sドライバ\n", config_data.hdsscsi ? "純正SCSI" : "リモートイメージ");
 }
 
-void cmd_hdsscsi(int argc, char **argv)
+void cmd_imgscsi(int argc, char **argv)
 {
   int onoff = -1;
 
   if (argc <= 1) {
-    cmd_hdsscsi_stat();
+    cmd_imgscsi_stat();
     return;
   }
 
@@ -924,7 +924,7 @@ void cmd_hdsscsi(int argc, char **argv)
   } else if (strcmp(argv[1], "off") == 0) {
     onoff = 0;
   } else {
-    cmd_hdsscsi_usage();
+    cmd_imgscsi_usage();
   }
 
   struct cmd_setrmtcfg rcmd;

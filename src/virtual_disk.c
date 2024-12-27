@@ -43,7 +43,7 @@
 #include "bootloader.inc"
 #include "hdsboot.inc"
 #include "zremotedrv_boot.inc"
-#include "zremotehds_boot.inc"
+#include "zremoteimg_boot.inc"
 #include "human.inc"
 #include "settingui.inc"
 
@@ -225,7 +225,7 @@ int vd_init(void)
             char str[32];
             sprintf(str, "ID%d=image/%s%d.hds\r\n",
                 i,
-                diskinfo[i].type == DTYPE_REMOTEDRV ? "rmtdrv" : "rmthds",
+                diskinfo[i].type == DTYPE_REMOTEDRV ? "rmtdrv" : "rmtimg",
                 i);
             strcat(pscsiini, str);
         }
@@ -367,7 +367,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 if (di->type != DTYPE_NOTUSED) {
                     char fn[16];
                     sprintf(fn, "%s%d HDS",
-                        diskinfo[i].type == DTYPE_REMOTEDRV ? "RMTDRV" : "RMTHDS", i);
+                        diskinfo[i].type == DTYPE_REMOTEDRV ? "RMTDRV" : "RMTIMG", i);
                     init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
                 }
             }
@@ -414,7 +414,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
-                memcpy(&buf[16], ishds ? "ZUSBRMTHDS boot " : "ZUSBRMTDRV boot ", 16);
+                memcpy(&buf[16], ishds ? "ZREMOTEIMG boot " : "ZREMOTEDRV boot ", 16);
                 return 0;
             } else if (lba == 2) {
                 // boot loader
@@ -429,8 +429,8 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 return 0;
             } else if (lba >= (0x0c00 / 512) && lba < (0x8000 / 512)) {
                 // zremotedrv/zremotehds device driver
-                size_t size = ishds ? sizeof(zremotehds_boot) : sizeof(zremotedrv_boot);
-                const uint8_t *driver = ishds ? zremotehds_boot : zremotedrv_boot;
+                size_t size = ishds ? sizeof(zremoteimg_boot) : sizeof(zremotedrv_boot);
+                const uint8_t *driver = ishds ? zremoteimg_boot : zremotedrv_boot;
 
                 lba -= 0xc00 / 512;
                 if (lba <= size / 512) {
