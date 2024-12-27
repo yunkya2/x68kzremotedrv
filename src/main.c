@@ -82,7 +82,7 @@ static void main_task(void *params)
 {
     remote_sem = xSemaphoreCreateBinary();
     xSemaphoreGive(remote_sem);
-    xTaskCreate(connect_task, "ConnectThread", configMINIMAL_STACK_SIZE, NULL, 1, &connect_th);
+    xTaskCreate(connect_task, "ConnectThread", 2048, NULL, 1, &connect_th);
     xTaskCreate(keepalive_task, "KeepAliveThread", 1024, NULL, 1, &keepalive_th);
 
     vd_init();
@@ -133,7 +133,7 @@ int main(void)
 
     printf("\nX68000Z Remote Drive Service (version %s)\n", GIT_REPO_VERSION);
 
-    xTaskCreate(main_task, "MainThread", configMINIMAL_STACK_SIZE, NULL, 1, &main_th);
+    xTaskCreate(main_task, "MainThread", 2048, NULL, 1, &main_th);
     vTaskStartScheduler();
 
     return 0;
