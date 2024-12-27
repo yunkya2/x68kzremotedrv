@@ -30,16 +30,25 @@
 #include "libsmb2.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
 
 #define LOGSIZE         1024
 extern char log_txt[LOGSIZE];
 
 extern TaskHandle_t main_th;
 extern TaskHandle_t connect_th;
+extern TaskHandle_t keepalive_th;
+extern SemaphoreHandle_t remote_sem;
 
 extern uint64_t boottime;
 extern volatile int sysstatus;
 void connect_task(void *params);
+<<<<<<< HEAD
+=======
+void keepalive_task(void *params);
+int remote_mount(int unit, const char *path);
+int hds_mount(int unit, const char *path);
+>>>>>>> 0389fd4... Add keepalive task to avoid user session deletion
 
 struct smb2_context *connect_smb2(const char *share);
 void disconnect_smb2(struct smb2_context *smb2);
@@ -47,6 +56,7 @@ struct smb2_context *path2smb2(const char *path, const char **shpath);
 struct smb2_context *connect_smb2_path(const char *path, const char **shpath);
 void disconnect_smb2_path(const char *path);
 void disconnect_smb2_all(void);
+void keepalive_smb2_all(void);
 
 void hds_cache_init(void);
 int hds_cache_read(struct smb2_context *smb2, struct smb2fh *sfh, uint32_t lba, uint8_t *buf);
