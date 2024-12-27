@@ -250,7 +250,7 @@ int com_init(struct dos_req_header *req)
 
   if (setjmp(jenv)) {
     com_disconnect();
-    _dos_print("リモートイメージ用 Raspberry Pi Pico W が接続されていません\r\n");
+    _dos_print("リモートドライブ用 Raspberry Pi Pico W が接続されていません\r\n");
     return -0x700d;
   }
 
@@ -262,7 +262,7 @@ int com_init(struct dos_req_header *req)
 
     if (res.version != PROTO_VERSION) {
       com_disconnect();
-      _dos_print("リモートイメージ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
+      _dos_print("リモートドライブ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
 

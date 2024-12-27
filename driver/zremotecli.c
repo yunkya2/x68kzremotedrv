@@ -80,11 +80,11 @@ const struct {
   void (*func)(int argc, char **argv);
   const char *usage;
 } cmd_table[] = {
-  { "mount",    cmd_mount,    "リモートドライブ/イメージの接続設定" },
-  { "umount",   cmd_umount,   "リモートドライブ/イメージの接続解除" },
+  { "mount",    cmd_mount,    "リモートディレクトリ/イメージの接続設定" },
+  { "umount",   cmd_umount,   "リモートディレクトリ/イメージの接続解除" },
   { "wifi",     cmd_wifi,     "WiFiアクセスポイントへの接続設定" },
   { "server",   cmd_server,   "Windowsファイル共有サーバへの接続設定" },
-  { "bootmode", cmd_bootmode, "起動元ドライブの設定" },
+  { "bootmode", cmd_bootmode, "起動モードの設定" },
   { "imgscsi",  cmd_imgscsi,  "#リモートイメージの接続モード設定" },
   { "erase",    cmd_erase,    "保存されている設定内容の全消去" },
   { "stat",     cmd_stat,     "現在の設定内容一覧表示" },
@@ -612,12 +612,12 @@ void cmd_server(int argc, char **argv)
 void cmd_mount_usage(void)
 {
   struct usage_message m[] = {
-    { "",                     "リモートドライブ/イメージの接続状態を表示します" },
+    { "",                     "リモートディレクトリ/イメージの接続状態を表示します" },
     { "ドライブ名:",          "指定したドライブ名の接続状態を表示します\n" },
-    { "ドライブ名: リモートパス名", "指定したドライブ名にリモートドライブ/イメージを接続します" },
+    { "ドライブ名: リモートパス名", "指定したドライブ名にリモートディレクトリ/イメージを接続します" },
     { "-D ドライブ名:",   "指定したドライブ名の接続を解除します" },
     { "#umount ドライブ名:", "\t\t〃" },
-    { "-n ユニット数",        "リモートドライブのユニット数を設定します (0-8)" },
+    { "-n ユニット数",        "リモートディレクトリのユニット数を設定します (0-8)" },
     { "-m ユニット数",        "リモートイメージのユニット数を設定します (0-4)" },
     { NULL,                   "※設定変更の反映には再起動が必要です" },
     { NULL, NULL }
@@ -631,7 +631,7 @@ void cmd_mount_stat(void)
   char unit2drive[N_REMOTE];
 
   for (int ishds = 0; ishds < 2; ishds++) {
-    printf("%s\n", ishds ? "[リモートイメージ]" : "[リモートドライブ]");
+    printf("%s\n", ishds ? "[リモートイメージ]" : "[リモートディレクトリ]");
 
     for (int i = 0; i < N_REMOTE; i++) {
       unit2drive[i] = '?';
@@ -691,7 +691,7 @@ void cmd_mount(int argc, char **argv)
         } else if ((unit = getdbpunit(drive - 'A' + 1, true)) >= 0) {
           ishds = true;
         } else {
-          printf(PROGNAME ": ドライブ%c:はリモートドライブ/イメージではありません\n", drive);
+          printf(PROGNAME ": ドライブ%c:はリモートディレクトリ/イメージではありません\n", drive);
           terminate(1);
         }
       } else {
@@ -809,7 +809,7 @@ void cmd_umount(int argc, char **argv)
   } else if ((unit = getdbpunit(drive - 'A' + 1, true)) >= 0) {
     ishds = true;
   } else {
-    printf(PROGNAME ": ドライブ%c:はリモートドライブ/イメージではありません\n", drive);
+    printf(PROGNAME ": ドライブ%c:はリモートディレクトリ/イメージではありません\n", drive);
     terminate(1);
   }
 
@@ -840,7 +840,7 @@ void cmd_bootmode_usage(void)
 {
   struct usage_message m[] = {
     { "",     "現在の設定状態を表示します" },
-    { "0",    "リモートドライブから起動します" },
+    { "0",    "リモートディレクトリから起動します" },
     { "1",    "リモートイメージから起動します" },
     { "2",    "他のUSBメモリから起動します" },
     { NULL,   "※設定変更の反映には再起動が必要です" },
@@ -855,7 +855,7 @@ void cmd_bootmode_stat(void)
   printf("[起動モード]\n");
   switch (config_data.bootmode) {
   case 0:
-    printf("リモートドライブから起動");
+    printf("リモートディレクトリから起動");
     break;
   case 1:
     printf("リモートイメージから起動");

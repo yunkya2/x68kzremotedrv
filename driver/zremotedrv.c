@@ -186,7 +186,7 @@ int com_init(struct dos_req_header *req)
     _dos_putchar('A' + *(char *)&req->fcb + units - 1);
     _dos_putchar(':');
   }
-  _dos_print("でリモートドライブが利用可能です\r\n");
+  _dos_print("でリモートディレクトリが利用可能です\r\n");
 #endif
   DPRINTF1("Debug level: %d\r\n", debuglevel);
 
