@@ -26,6 +26,8 @@
 #include <stdint.h>
 #include <time.h>
 #include <fcntl.h>
+#include <malloc.h>
+#include <unistd.h>
 
 #include "pico/cyw43_arch.h"
 #include "pico/stdio.h"
@@ -38,6 +40,7 @@
 #include "bsp/board_api.h"
 #include "tusb.h"
 
+#include "config.h"
 #include "main.h"
 #include "virtual_disk.h"
 #include "config_file.h"
@@ -340,5 +343,24 @@ void keepalive_task(void *params)
         }
         xSemaphoreGive(remote_sem);
         vTaskDelay(delay);
+#ifdef DEBUG
+        extern char __HeapLimit;
+        struct mallinfo mi = mallinfo();
+        printf("arena=%d used=%d free=%d", mi.arena, mi.uordblks, mi.fordblks);
+        printf(" heapfree=%d\n", &__HeapLimit - (char *)sbrk(0));
+
+        static TaskStatus_t pxTaskStatusArray[8];
+        unsigned long ulTotalRunTime;
+        int uxArraySize = uxTaskGetSystemState(pxTaskStatusArray, count_of(pxTaskStatusArray), &ulTotalRunTime);
+        printf("ID Task Name        S Pr Stack\n");
+        for (int x = 0; x < uxArraySize; x++) {
+            printf("%2u %-16s %c %2u %5u\n",
+                   pxTaskStatusArray[x].xTaskNumber,
+                   pxTaskStatusArray[x].pcTaskName,
+                   "RRBSD"[pxTaskStatusArray[x].eCurrentState],
+                   pxTaskStatusArray[x].uxCurrentPriority,
+                   pxTaskStatusArray[x].usStackHighWaterMark);
+        }
+#endif
     }
 }
