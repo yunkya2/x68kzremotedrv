@@ -32,6 +32,7 @@
 #include "pico/stdlib.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "semphr.h"
 #include "smb2.h"
 #include "libsmb2.h"
 #include "bsp/board_api.h"
@@ -298,10 +299,12 @@ void connect_task(void *params)
 
     cyw43_arch_enable_sta_mode();
 
+    xSemaphoreTake(remote_sem, portMAX_DELAY);
     connection(CONNECT_WIFI);
     if (sysstatus >= STAT_SMB2_CONNECTED) {
         mountall();
     }
+    xSemaphoreGive(remote_sem);
     xTaskNotify(main_th, 1, eSetBits);
 
     while (1) {
@@ -310,10 +313,32 @@ void connect_task(void *params)
         xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
         if (!(nvalue & CONNECT_WAIT))
             continue;
+        xSemaphoreTake(remote_sem, portMAX_DELAY);
         disconnectall();
         connection(nvalue & CONNECT_MASK);
         if (sysstatus >= STAT_SMB2_CONNECTED) {
             mountall();
         }
+        xSemaphoreGive(remote_sem);
+    }
+}
+
+//****************************************************************************
+// Remote connection keepalive task
+//****************************************************************************
+
+void keepalive_task(void *params)
+{
+    while (1) {
+        TickType_t delay;
+        xSemaphoreTake(remote_sem, portMAX_DELAY);
+        if (sysstatus >= STAT_SMB2_CONNECTED) {
+            keepalive_smb2_all();
+            delay = pdMS_TO_TICKS(5 * 60 * 1000);
+        } else {
+            delay = pdMS_TO_TICKS(30 * 1000);
+        }
+        xSemaphoreGive(remote_sem);
+        vTaskDelay(delay);
     }
 }

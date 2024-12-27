@@ -30,7 +30,7 @@
 #include "pico/stdio/driver.h"
 #include "FreeRTOS.h"
 #include "task.h"
-#include "timers.h"
+#include "semphr.h"
 #include "bsp/board_api.h"
 #include "tusb.h"
 
@@ -50,6 +50,8 @@ char log_txt[LOGSIZE];
 
 TaskHandle_t main_th;
 TaskHandle_t connect_th;
+TaskHandle_t keepalive_th;
+SemaphoreHandle_t remote_sem;
 
 //****************************************************************************
 // for debug log
@@ -108,9 +110,11 @@ void vendor_task(void)
         if (buf_wsize >= 4 && total <= buf_wsize - 4) {
             buf_wptr = NULL;
             int rsize;
+            xSemaphoreTake(remote_sem, portMAX_DELAY);
             if ((rsize = vd_command(&buf_write[4], buf_read)) < 0) {
                 rsize = remote_serv(&buf_write[4], buf_read);
             }
+            xSemaphoreGive(remote_sem);
             tud_vendor_write(buf_read, rsize);
             tud_vendor_flush();
         }
@@ -123,7 +127,10 @@ void vendor_task(void)
 
 static void main_task(void *params)
 {
+    remote_sem = xSemaphoreCreateBinary();
+    xSemaphoreGive(remote_sem);
     xTaskCreate(connect_task, "ConnectThread", configMINIMAL_STACK_SIZE, NULL, 1, &connect_th);
+    xTaskCreate(keepalive_task, "KeepAliveThread", 1024, NULL, 1, &keepalive_th);
 
     vd_init();
 

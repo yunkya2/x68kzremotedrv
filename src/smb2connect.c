@@ -190,3 +190,16 @@ void disconnect_smb2_all(void)
         disconnect_smb2_internal(s);
     }
 }
+
+void keepalive_smb2_all(void)
+{
+    struct smb2share **s = &smb2share;
+    struct smb2_stat_64 st;
+    printf("Keepalive:");
+    while (*s != NULL) {
+        int r = smb2_stat((*s)->smb2, "", &st);
+        printf(" %s->%d", (*s)->share, r);
+        s = &(*s)->next;
+    }
+    printf("\n");
+}
