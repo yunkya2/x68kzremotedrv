@@ -128,7 +128,22 @@ static int getdbpunit(int drive, int ishds)
   if (memcmp(p, ishds ? "\x01ZRMTIMG" : "\x01ZRMTDRV", 8) != 0) {
     return -1;
   }
-  return dpb.unit;
+
+  if (ishds) {
+    // リモートHDSの場合はデバイスドライバのユニット番号をHDSユニット番号に変換する
+    int unit;
+    int firstdrive = 0;
+    for (unit = 0; unit < N_HDS; unit++) {
+      if (firstdrive <= dpb.unit &&
+          dpb.unit < firstdrive + com_rmtdata->hds_parts[unit]) {
+        break;
+      }
+      firstdrive += com_rmtdata->hds_parts[unit];
+    }
+    return unit;
+  } else {
+    return dpb.unit;
+  }
 }
 
 static char *normalize_path(char *path)

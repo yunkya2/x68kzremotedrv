@@ -264,6 +264,13 @@ const int n_itemtbl[] = { countof(itemtbl0), countof(itemtbl1), countof(itemtbl2
 static char unit2drive(int unit, int ishds)
 {
   struct dos_dpbptr dpb;
+  int firstdrive = 0;
+
+  if (ishds) {
+    for (int i = 0; i < unit; i++) {
+      firstdrive += com_rmtdata->hds_parts[i];
+    }
+  }
 
   for (int drive = 1; drive <= 26; drive++) {
     if (_dos_getdpb(drive, &dpb) < 0) {
@@ -273,8 +280,14 @@ static char unit2drive(int unit, int ishds)
     if (memcmp(p, ishds ? "\x01ZRMTIMG" : "\x01ZRMTDRV", 8) != 0) {
       continue;
     }
-    if (dpb.unit == unit) {
-      return drive + 'A' - 1;
+    if (ishds) {
+      if (firstdrive <= dpb.unit && dpb.unit < firstdrive + com_rmtdata->hds_parts[unit]) {
+        return drive + 'A' - 1;
+      }
+    } else {
+      if (dpb.unit == unit) {
+        return drive + 'A' - 1;
+      }
     }
   }
   return '?';
