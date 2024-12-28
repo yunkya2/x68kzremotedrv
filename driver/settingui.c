@@ -453,18 +453,14 @@ int flash_config(struct itemtbl *it)
     if (c == 'y' || c == 'Y') {         // Y
 #ifndef XTEST
       {
-        struct cmd_setconfig cmd;
-        struct res_setconfig res;
-        cmd.command = CMD_SETCONFIG;
-        cmd.mode = CONNECT_REMOUNT;
-        cmd.data = config;
-        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+        com_cmdres_init(setconfig, CMD_SETCONFIG);
+        cmd->mode = CONNECT_REMOUNT;
+        cmd->data = config;
+        com_cmdres_exec();
       }
       {
-        struct cmd_flashconfig cmd;
-        struct res_flashconfig res;
-        cmd.command = CMD_FLASHCONFIG;
-        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+        com_cmdres_init(flashconfig, CMD_FLASHCONFIG);
+        com_cmdres_exec();
       }
 #ifndef BOOTSETTING
       // ドライブの設定変更を検出させる
@@ -509,17 +505,13 @@ int flash_clear(struct itemtbl *it)
     if (c == 'y' || c == 'Y') {                         // Y
 #ifndef XTEST
       {
-        struct cmd_flashclear cmd;
-        struct res_flashclear res;
-        cmd.command = CMD_FLASHCLEAR;
-        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+        com_cmdres_init(flashclear, CMD_FLASHCLEAR);
+        com_cmdres_exec();
       }
       {
-        struct cmd_getconfig cmd;
-        struct res_getconfig res;
-        cmd.command = CMD_GETCONFIG;
-        com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-        config = res.data;
+        com_cmdres_init(getconfig, CMD_GETCONFIG);
+        com_cmdres_exec();
+        config = res->data;
       }
 #endif
       return 2;
@@ -605,11 +597,9 @@ int main()
   }
 
   {
-    struct cmd_getinfo cmd;
-    struct res_getinfo res;
-    cmd.command = CMD_GETINFO;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    if (res.version != PROTO_VERSION) {
+    com_cmdres_init(getinfo, CMD_GETINFO);
+    com_cmdres_exec();
+    if (res->version != PROTO_VERSION) {
       _iocs_b_putmes(3, 3, 27, 89, "X68000 Z Remote Drive Service のファームウェアバージョンが合致しません");
       _iocs_b_putmes(3, 3, 28, 89, "同一バージョンのファームウェアを使用してください");
       terminate(true);
@@ -617,19 +607,15 @@ int main()
   }
 
   {
-    struct cmd_getconfig cmd;
-    struct res_getconfig res;
-    cmd.command = CMD_GETCONFIG;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    config = res.data;
+    com_cmdres_init(getconfig, CMD_GETCONFIG);
+    com_cmdres_exec();
+    config = res->data;
   }
 
   {
-    struct cmd_getstatus cmd;
-    struct res_getstatus res;
-    cmd.command = CMD_GETSTATUS;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    sysstatus = res.status;
+    com_cmdres_init(getstatus, CMD_GETSTATUS);
+    com_cmdres_exec();
+    sysstatus = res->status;
   }
 #endif
 
@@ -660,12 +646,10 @@ int main()
     int k;
     do {
 #ifndef XTEST
-      struct cmd_getstatus cmd;
-      struct res_getstatus res;
-      cmd.command = CMD_GETSTATUS;
-      com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-      if (sysstatus != res.status) {
-        sysstatus = res.status;           // 状態が変化したので画面を更新する
+      com_cmdres_init(getstatus, CMD_GETSTATUS);
+      com_cmdres_exec();
+      if (sysstatus != res->status) {
+        sysstatus = res->status;          // 状態が変化したので画面を更新する
         update = true;
         break;
       }
@@ -698,12 +682,10 @@ int main()
         update = isupdconf(n);
         if (issetconf(n)) {
 #ifndef XTEST
-          struct cmd_setconfig cmd;
-          struct res_setconfig res;
-          cmd.command = CMD_SETCONFIG;
-          cmd.mode = (int)it->opt;
-          cmd.data = config;
-          com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+          com_cmdres_init(setconfig, CMD_SETCONFIG);
+          cmd->mode = (int)it->opt;
+          cmd->data = config;
+          com_cmdres_exec();
 #endif
         }
 #ifndef BOOTSETTING

@@ -33,6 +33,8 @@
 #include "settinguisub.h"
 #include "settinguipat.h"
 
+#include "zusbcomm.h"
+
 //****************************************************************************
 // Global variables
 //****************************************************************************
@@ -233,7 +235,6 @@ static int isfbyte(unsigned char *s, int p)
   return res;
 }
 
-static struct cmd_wifi_scan cmd_wifi_scan;
 static struct res_wifi_scan wifi_scan
 #ifdef XTEST
 = { .n_items = 3, .ssid = { "wifi_ap1", "wifi_ap2", "wifi_ap3" }}
@@ -274,9 +275,12 @@ static int input_entry_main(struct itemtbl *it, bool mask, bool wifi)
       if (wifi) {
         while ((k = keyinp(200)) < 0) {
 #ifndef XTEST
-          cmd_wifi_scan.command = CMD_WIFI_SCAN;
-          cmd_wifi_scan.clear = 0;
-          com_cmdres(&cmd_wifi_scan, sizeof(cmd_wifi_scan), &wifi_scan, sizeof(wifi_scan));
+          {
+            com_cmdres_init(wifi_scan, CMD_WIFI_SCAN);
+            cmd->clear = 0;
+            com_cmdres_exec();
+            wifi_scan = *res;
+          }
 #endif
           for (int i = 0; i < 4; i++)
             _iocs_b_putmes(3, it->xd, it->y + 2 + i, it->wd - 1,
@@ -454,9 +458,12 @@ int input_wifiap(struct itemtbl *it)
   int cur = -1;
 
 #ifndef XTEST
-  cmd_wifi_scan.command = CMD_WIFI_SCAN;
-  cmd_wifi_scan.clear = 1;
-  com_cmdres(&cmd_wifi_scan, sizeof(cmd_wifi_scan), &wifi_scan, sizeof(wifi_scan));
+  {
+    com_cmdres_init(wifi_scan, CMD_WIFI_SCAN);
+    cmd->clear = 1;
+    com_cmdres_exec();
+    wifi_scan = *res;
+  }
 #endif
 
   drawframe(it->xd - 2, it->y - 1, 32, 8, 2, -1);
@@ -493,9 +500,12 @@ int input_wifiap(struct itemtbl *it)
     int k = keyinp(200);
     if (k < 0) {
 #ifndef XTEST
-      cmd_wifi_scan.command = CMD_WIFI_SCAN;
-      cmd_wifi_scan.clear = 0;
-      com_cmdres(&cmd_wifi_scan, sizeof(cmd_wifi_scan), &wifi_scan, sizeof(wifi_scan));
+      {
+        com_cmdres_init(wifi_scan, CMD_WIFI_SCAN);
+        cmd->clear = 0;
+        com_cmdres_exec();
+        wifi_scan = *res;
+      }
 #endif
       continue;
     }
@@ -524,8 +534,6 @@ int input_wifiap(struct itemtbl *it)
 
 /* リストからディレクトリまたはファイルを選択する */
 
-struct cmd_smb2_enum cmd_smb2_enum;
-struct cmd_smb2_list cmd_smb2_list;
 struct res_smb2_enum smb2_enum;
 struct res_smb2_list smb2_list;
 const char *filelist[256];
@@ -535,15 +543,14 @@ int input_dirfile(struct itemtbl *it)
 {
   int res = 0;
   char value[256];
+  char smb2_list_share[64];
+  char smb2_list_path[256];
   bool seldir = (it->opt == NULL);
   int ity = min(it->y, 20);
 
   strcpy(value, it->value);
-
-  cmd_smb2_enum.command = CMD_SMB2_ENUM;
-  cmd_smb2_list.command = CMD_SMB2_LIST;
-  memset(cmd_smb2_list.share, 0, sizeof(cmd_smb2_list.share));
-  memset(cmd_smb2_list.path, 0, sizeof(cmd_smb2_list.path));
+  memset(smb2_list_share, 0, sizeof(smb2_list_share));
+  memset(smb2_list_path, 0, sizeof(smb2_list_path));
 
   bool sharelist = true;
 
@@ -551,8 +558,8 @@ int input_dirfile(struct itemtbl *it)
 
   char *p = strchr(value, '/');
   if (p != NULL) {
-    strncpy(cmd_smb2_list.share, value, p - value);
-    strcpy(cmd_smb2_list.path, p + 1);
+    strncpy(smb2_list_share, value, p - value);
+    strcpy(smb2_list_path, p + 1);
     sharelist = false;
   }
 
@@ -572,30 +579,39 @@ int input_dirfile(struct itemtbl *it)
         /* 与えられたパス名でファイル一覧を取得してみる */
         /* パス名がディレクトリ名なら成功するが、ファイル名なら失敗するのでそのファイルが存在する
          * ディレクトリでファイル一覧を取得し直す */
-        com_cmdres(&cmd_smb2_list, sizeof(cmd_smb2_list), &smb2_list, sizeof(smb2_list));
+        com_cmdres_init(smb2_list, CMD_SMB2_LIST);
+        memcpy(cmd->share, smb2_list_share, sizeof(cmd->share));
+        memcpy(cmd->path, smb2_list_path, sizeof(cmd->path));
+        com_cmdres_exec();
+        smb2_list = *res;
       }
       if (smb2_list.status != 0 || updir) {
         /* ディレクトリ取得に失敗 or 親ディレクトリに移動 */
         /* パス名から親ディレクトリを得てファイル一覧を取得する */
-        int len = strlen(cmd_smb2_list.path);
+        int len = strlen(smb2_list_path);
         if (len > 1) {
-          char *p = &cmd_smb2_list.path[len - 1];
+          char *p = &smb2_list_path[len - 1];
           if (*p == '/')                              // "<path>/<dir>/" のケースでは末尾の'/'はスキップ
             p--;
 
-          while (p != (char *)cmd_smb2_list.path) {   // "<path>/<name>" から <path>/ と <name> を分離する
+          while (p != (char *)smb2_list_path) {   // "<path>/<name>" から <path>/ と <name> を分離する
             if (*p == '/')
               break;
             p--;
           }
-          if (p != (char *)cmd_smb2_list.path) {      // <name> の部分をコピー
+          if (p != (char *)smb2_list_path) {      // <name> の部分をコピー
             strcpy(value, p + 1);
             p[1] = '\0';
           } else {                                    // <name> の部分がない場合
             strcpy(value, p);
-            cmd_smb2_list.path[0] = '\0';
+            smb2_list_path[0] = '\0';
           }
-          com_cmdres(&cmd_smb2_list, sizeof(cmd_smb2_list), &smb2_list, sizeof(smb2_list));
+
+          com_cmdres_init(smb2_list, CMD_SMB2_LIST);
+          memcpy(cmd->share, smb2_list_share, sizeof(cmd->share));
+          memcpy(cmd->path, smb2_list_path, sizeof(cmd->path));
+          com_cmdres_exec();
+          smb2_list = *res;
         } else {
           sharelist = true;                           // パス名部分が存在しない場合は共有名一覧へ
         }
@@ -633,15 +649,17 @@ int input_dirfile(struct itemtbl *it)
     }
 
     if (sharelist) {     // 選択する共有名リストを用意
-      cmd_smb2_list.path[0] = '\0';
-      com_cmdres(&cmd_smb2_enum, sizeof(cmd_smb2_enum), &smb2_enum, sizeof(smb2_enum));
+      smb2_list_path[0] = '\0';
+      com_cmdres_init(smb2_enum, CMD_SMB2_ENUM);
+      com_cmdres_exec();
+      smb2_enum = *res;
       nfile = smb2_enum.n_items + 1;
       cur = -1;
 
       filelist[0] = "";
       for (int i = 1; i < nfile; i++) {
         filelist[i] = smb2_enum.share[i - 1];
-        if (strcmp(smb2_enum.share[i - 1], cmd_smb2_list.share) == 0) {
+        if (strcmp(smb2_enum.share[i - 1], smb2_list_share) == 0) {
           cur = i;
         }
       }
@@ -668,9 +686,9 @@ int input_dirfile(struct itemtbl *it)
       if (sharelist) {
         strcpy(value, filelist[cur]);
       } else {
-        strcpy(value, cmd_smb2_list.share);
+        strcpy(value, smb2_list_share);
         strcat(value, "/");
-        strcat(value, cmd_smb2_list.path);
+        strcat(value, smb2_list_path);
         strcat(value, filelist[cur]);
       }
       _iocs_b_putmes(3, it->xd, ity, it->wd - 1, value);
@@ -680,7 +698,7 @@ int input_dirfile(struct itemtbl *it)
       int c = k & 0xff;
       if (c == '\r') {                          // CR 
         if (sharelist) {
-          strcpy(cmd_smb2_list.share, filelist[cur]);
+          strcpy(smb2_list_share, filelist[cur]);
           if (cur == 0) {
             res = 1;
             done = 1;           // 最初のエントリだったら空文字列で終了
@@ -692,7 +710,7 @@ int input_dirfile(struct itemtbl *it)
           int len = strlen(filelist[cur]);
           if (filelist[cur][len - 1] != '/') {            // ファイルが選択された
             /* file */
-            strcat(cmd_smb2_list.path, filelist[cur]);
+            strcat(smb2_list_path, filelist[cur]);
             res = 1;
             done = 1;
             break;
@@ -706,7 +724,7 @@ int input_dirfile(struct itemtbl *it)
             updir = true;
             break;
           } else {                                        // 子ディレクトリへ移動
-            strcat(cmd_smb2_list.path, filelist[cur]);
+            strcat(smb2_list_path, filelist[cur]);
           }
         }
         break;
@@ -735,10 +753,10 @@ int input_dirfile(struct itemtbl *it)
 
   /* 選択された結果を値に設定する */
   if (done == 1) {
-    strcpy(it->value, cmd_smb2_list.share);
-    if (strlen(cmd_smb2_list.share)) {
+    strcpy(it->value, smb2_list_share);
+    if (strlen(smb2_list_share)) {
       strcat(it->value, "/");
-      strcat(it->value, cmd_smb2_list.path);
+      strcat(it->value, smb2_list_path);
     }
   }
 

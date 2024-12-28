@@ -143,33 +143,28 @@ int com_init(struct dos_req_header *req)
     return -0x700d;
   }
   {
-    struct cmd_getinfo cmd;
-    struct res_getinfo res;
-    cmd.command = CMD_GETINFO;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-
-    if (res.version != PROTO_VERSION) {
+    com_cmdres_init(getinfo, CMD_GETINFO);
+    com_cmdres_exec();
+    if (res->version != PROTO_VERSION) {
       com_disconnect();
       _dos_print("リモートドライブ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
 
     // ファイル共有サーバから取得した現在時刻を設定する
-    if (res.year > 0 && !(com_rmtdata->rmtflag & 0x80)) {
+    if (res->year > 0 && !(com_rmtdata->rmtflag & 0x80)) {
       *(volatile uint8_t *)0xe8e000 = 'T';
       *(volatile uint8_t *)0xe8e000 = 'W';
       *(volatile uint8_t *)0xe8e000 = 0;    // disable RTC auto adjust
-      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
-      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+      _iocs_timeset(_iocs_timebcd((res->hour << 16) | (res->min << 8) | res->sec));
+      _iocs_bindateset(_iocs_bindatebcd((res->year << 16) | (res->mon << 8) | res->day));
       com_rmtdata->rmtflag |= 0x80;   // RTC adjusted
     }
-    units = res.remoteunit;
+    units = res->remoteunit;
   }
   {
-    struct cmd_init cmd;
-    struct res_init res;
-    cmd.command = 0x00; /* init */
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    com_cmdres_init(init, 0x00); /* init */
+    com_cmdres_exec();
   }
 
   if (units == 0) {

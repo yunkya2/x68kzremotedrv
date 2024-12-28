@@ -33,6 +33,7 @@
 
 #include <zusb.h>
 
+#include "config.h"
 #include "remotedrv.h"
 #include "zusbcomm.h"
 
@@ -51,6 +52,7 @@
 //****************************************************************************
 
 struct zusb_rmtdata *com_rmtdata = NULL;
+union remote_combuf *comp = NULL;
 
 //****************************************************************************
 // Local variables
@@ -77,6 +79,7 @@ static struct zusb_rmtdata *find_zusbrmt(void)
         memcmp(p, "\x01ZRMTIMG", 8) == 0) {
       struct zusb_rmtdata *rd = &(*(struct zusb_rmtdata **)(p - 4))[-1];
       zusb_set_channel(rd->zusb_ch);
+      comp = (union remote_combuf *)&zusbbuf[4];
       return rd;
     }
     devh = *(const char **)devh;
@@ -130,6 +133,7 @@ int com_connect(int protected)
   if (ch < 0) {
     return -1;
   }
+  comp = (union remote_combuf *)&zusbbuf[4];
   selfopen = true;
   connect_device();
   return ch;
@@ -149,9 +153,8 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
 {
   while (1) {
     *(uint32_t *)zusbbuf = wsize;
-    memcpy(zusbbuf + 4, wbuf, wsize);
 
-    zusb_set_ep_region(0, zusbbuf, rsize);
+    zusb_set_ep_region(0, zusbbuf + 4, rsize);
     zusb_set_ep_region(1, zusbbuf, wsize + 4);
 
     zusb->stat = 0xffff;
@@ -182,8 +185,6 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
       }
     }
 
-    rsize = zusb->pcount[0];
-    memcpy(rbuf, zusbbuf, rsize);
     return;
   }
 }

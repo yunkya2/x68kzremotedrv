@@ -33,6 +33,7 @@
 
 #define CONFIG_NDCACHE      4
 #define CONFIG_NFCACHE      4
+#define CONFIG_ALTCOMBUF        /* Use alternative communication buffer */
 
 /* Remote service config */
 

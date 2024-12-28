@@ -61,17 +61,6 @@ extern uint8_t scsiidd2;                  // デバイスドライバ登録時�
 int debuglevel = 0;
 #endif
 
-static union {
-  struct cmd_hdsread  cmd_hdsread;
-  struct res_hdsread  res_hdsread;
-
-  struct cmd_hdswrite cmd_hdswrite;
-  struct res_hdswrite res_hdswrite;
-
-  struct res_hdsread_full  res_hdsread_full;
-  struct cmd_hdswrite_full cmd_hdswrite_full;
-} b;
-
 #define N_PART    15                      // 最大のパーティション数
 
 const struct dos_bpb defaultbpb =
@@ -152,10 +141,7 @@ void DPRINTF(int level, char *fmt, ...)
 
 static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
-  struct cmd_hdsread *cmd = &b.cmd_hdsread;
-  struct res_hdsread *res = &b.res_hdsread;
-
-  cmd->command = CMD_HDSREAD;
+  com_cmdres_init(hdsread, CMD_HDSREAD);
   cmd->unit = unit;
   cmd->nsect = nsect;
   cmd->pos = pos;
@@ -174,10 +160,7 @@ static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
 
 static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
-  struct cmd_hdswrite *cmd = &b.cmd_hdswrite;
-  struct res_hdswrite *res = &b.res_hdswrite;
-
-  cmd->command = CMD_HDSWRITE;
+  com_cmdres_init(hdswrite, CMD_HDSWRITE);
   cmd->unit = unit;
   cmd->nsect = nsect;
   cmd->pos = pos;
@@ -271,27 +254,25 @@ int com_init(struct dos_req_header *req)
   }
 
   {
-    struct cmd_getinfo cmd;
-    struct res_getinfo res;
-    cmd.command = CMD_GETINFO;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    com_cmdres_init(getinfo, CMD_GETINFO);
+    com_cmdres_exec();
 
-    if (res.version != PROTO_VERSION) {
+    if (res->version != PROTO_VERSION) {
       com_disconnect();
       _dos_print("リモートドライブ用 Raspberry Pi Pico W のバージョンが異なります\r\n");
       return -0x700d;
     }
 
     // ファイル共有サーバから取得した現在時刻を設定する
-    if (res.year > 0 && !(com_rmtdata->rmtflag & 0x80)) {
+    if (res->year > 0 && !(com_rmtdata->rmtflag & 0x80)) {
       *(volatile uint8_t *)0xe8e000 = 'T';
       *(volatile uint8_t *)0xe8e000 = 'W';
       *(volatile uint8_t *)0xe8e000 = 0;    // disable RTC auto adjust
-      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
-      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+      _iocs_timeset(_iocs_timebcd((res->hour << 16) | (res->min << 8) | res->sec));
+      _iocs_bindateset(_iocs_bindatebcd((res->year << 16) | (res->mon << 8) | res->day));
       com_rmtdata->rmtflag |= 0x80;   // RTC adjusted
     }
-    units = res.hdsunit;
+    units = res->hdsunit;
   }
 
   if (units == 0) {
@@ -305,13 +286,11 @@ int com_init(struct dos_req_header *req)
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   drives = 0;
   for (int i = 0; i < units; i++) {
-    struct cmd_hdssize cmd;
-    struct res_hdssize res;
-    cmd.command = CMD_HDSSIZE;
-    cmd.unit = i;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    unitinfo[i].size = res.size;
-    unitinfo[i].type = res.type;
+    com_cmdres_init(hdssize, CMD_HDSSIZE);
+    cmd->unit = i;
+    com_cmdres_exec();
+    unitinfo[i].size = res->size;
+    unitinfo[i].type = res->type;
     unitinfo[i].firstdrive = drives;
 
     int parts = read_bpb(i, N_PART);
@@ -468,13 +447,11 @@ int interrupt(void)
 
   case 0x02: /* rebuild BPB */
   {
-    struct cmd_hdssize cmd;
-    struct res_hdssize res;
-    cmd.command = CMD_HDSSIZE;
-    cmd.unit = unit;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-    ui->size = res.size;
-    ui->type = res.type;
+    com_cmdres_init(hdssize, CMD_HDSSIZE);
+    cmd->unit = unit;
+    com_cmdres_exec();
+    ui->size = res->size;
+    ui->type = res->type;
     ui->curparts = read_bpb(unit, com_rmtdata->hds_parts[unit]);
     if (ui->curparts > part) {
       req->status = (uint32_t)&bpbtable[req->unit];

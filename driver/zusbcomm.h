@@ -36,9 +36,17 @@ struct zusb_rmtdata {       // must be 8bytes (head.S)
 };
 
 extern struct zusb_rmtdata *com_rmtdata;
+extern union remote_combuf *comp;
 
 int com_connect(int protected);
 void com_disconnect(void);
 void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize);
+
+#define com_cmdres_init(type, opcode) \
+    struct cmd_ ## type *cmd = (struct cmd_ ## type *)comp; \
+    struct res_ ## type *res = (struct res_ ## type *)comp; \
+    cmd->command = opcode;
+#define com_cmdres_exec() \
+    com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res))
 
 #endif /* _ZUSBCOMM_H_ */

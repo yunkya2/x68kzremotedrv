@@ -75,10 +75,6 @@ struct labellist_opt {
 // Function prototype
 //****************************************************************************
 
-/* Communication */
-void com_init(void);
-void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize);
-
 /* Drawing */
 void drawframe(int x, int y, int w, int h, int c, int h2);
 void drawframe2(int x, int y, int w, int h, int c, int h2);

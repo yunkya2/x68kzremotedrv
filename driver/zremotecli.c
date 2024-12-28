@@ -174,7 +174,6 @@ static char *normalize_path(char *path)
 
 static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
 {
-    rcmd->command = CMD_SETRMTCFG;
     rcmd->bootmode = config_data.bootmode;
     rcmd->remoteunit = config_data.remoteunit;
     rcmd->hdsscsi = config_data.hdsscsi;
@@ -183,10 +182,8 @@ static void init_rmtcfg(struct cmd_setrmtcfg *rcmd)
 
 static void save_config(void)
 {
-  struct cmd_flashconfig cmd;
-  struct res_flashconfig res;
-  cmd.command = CMD_FLASHCONFIG;
-  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  com_cmdres_init(flashconfig, CMD_FLASHCONFIG);
+  com_cmdres_exec();
 }
 
 static int getpasswd(const char *prompt, char *passwd, int len)
@@ -282,14 +279,12 @@ void cmd_wifi_usage(void)
 
 int cmd_wifi_stat(void)
 {
-  struct cmd_getstatus rcmd;
-  struct res_getstatus rres;
-  rcmd.command = CMD_GETSTATUS;
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_init(getstatus, CMD_GETSTATUS);
+  com_cmdres_exec();
 
   printf("[WiFi]\n");
   printf("接続状態:");
-  switch (rres.status) {
+  switch (res->status) {
   case STAT_WIFI_DISCONNECTED:
     printf("未接続");
     break;
@@ -331,11 +326,11 @@ void cmd_wifi(int argc, char **argv)
   }
  
   if (opt_list) {
-    struct cmd_wifi_scan rcmd;
-    struct res_wifi_scan rres;
-    rcmd.command = CMD_WIFI_SCAN;
-    rcmd.clear = 1;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    {
+      com_cmdres_init(wifi_scan, CMD_WIFI_SCAN); 
+      cmd->clear = 1;
+      com_cmdres_exec();
+    }
 
     printf("WiFiアクセスポイントを検索中です。しばらくお待ちください...");
     fflush(stdout);
@@ -353,13 +348,15 @@ void cmd_wifi(int argc, char **argv)
       }
     }
 
-    rcmd.command = CMD_WIFI_SCAN;
-    rcmd.clear = 0;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    {
+      com_cmdres_init(wifi_scan, CMD_WIFI_SCAN);
+      cmd->clear = 0;
+      com_cmdres_exec();
 
-    printf("\033[2K\r");
-    for (int i = 0; i < rres.n_items; i++) {
-      printf("%s\n", rres.ssid[i]);
+      printf("\033[2K\r");
+      for (int i = 0; i < res->n_items; i++) {
+        printf("%s\n", res->ssid[i]);
+      }
     }
     return;
   }
@@ -369,38 +366,33 @@ void cmd_wifi(int argc, char **argv)
     return;
   }
 
-  struct cmd_wifi_config rcmd;
-  struct res_wifi_config rres;
-
-  rcmd.command = CMD_WIFI_CONFIG;
-  strncpy(rcmd.wifi_ssid, opt_ssid, sizeof(rcmd.wifi_ssid));
-  rcmd.wifi_ssid[sizeof(rcmd.wifi_ssid) - 1] = '\0';
+  com_cmdres_init(wifi_config, CMD_WIFI_CONFIG);
+  strncpy(cmd->wifi_ssid, opt_ssid, sizeof(cmd->wifi_ssid));
+  cmd->wifi_ssid[sizeof(cmd->wifi_ssid) - 1] = '\0';
 
   if (opt_passwd) {
-    strncpy(rcmd.wifi_passwd, opt_passwd, sizeof(rcmd.wifi_passwd));
-    rcmd.wifi_passwd[sizeof(rcmd.wifi_passwd) - 1] = '\0';
+    strncpy(cmd->wifi_passwd, opt_passwd, sizeof(cmd->wifi_passwd));
+    cmd->wifi_passwd[sizeof(cmd->wifi_passwd) - 1] = '\0';
   } else {
-    if (getpasswd("Password: ", rcmd.wifi_passwd, sizeof(rcmd.wifi_passwd)) < 0) {
+    if (getpasswd("Password: ", cmd->wifi_passwd, sizeof(cmd->wifi_passwd)) < 0) {
       return;
     }
   }
 
   save_config();
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_exec();
 
   printf("WiFiアクセスポイントへ接続中です...");
   fflush(stdout);
 
   while (1) {
-    struct cmd_getstatus rcmd;
-    struct res_getstatus rres;
-    rcmd.command = CMD_GETSTATUS;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status == STAT_WIFI_DISCONNECTED) {
+    com_cmdres_init(getstatus, CMD_GETSTATUS);
+    com_cmdres_exec();
+    if (res->status == STAT_WIFI_DISCONNECTED) {
       printf("接続に失敗しました\n");
       return;
     }
-    if (rres.status >= STAT_WIFI_CONNECTED) {
+    if (res->status >= STAT_WIFI_CONNECTED) {
       printf("接続しました\n");
       return;
     }
@@ -438,14 +430,12 @@ void cmd_server_usage(void)
 
 int cmd_server_stat(void)
 {
-  struct cmd_getstatus rcmd;
-  struct res_getstatus rres;
-  rcmd.command = CMD_GETSTATUS;
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_init(getstatus, CMD_GETSTATUS);
+  com_cmdres_exec();
 
   printf("[ファイル共有サーバ]\n");
   printf("接続状態:");
-  switch (rres.status) {
+  switch (res->status) {
   case STAT_WIFI_DISCONNECTED:
   case STAT_WIFI_CONNECTING:
   case STAT_WIFI_CONNECTED:
@@ -516,13 +506,11 @@ void cmd_server(int argc, char **argv)
   }
 
   if (opt_list) {
-    struct cmd_smb2_enum rcmd;
-    struct res_smb2_enum rres;
-    rcmd.command = CMD_SMB2_ENUM;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status == VDERR_OK) {
-      for (int i = 0; i < rres.n_items; i++) {
-        printf("%-64s\n", rres.share[i]);
+    com_cmdres_init(smb2_enum, CMD_SMB2_ENUM);
+    com_cmdres_exec();
+    if (res->status == VDERR_OK) {
+      for (int i = 0; i < res->n_items; i++) {
+        printf("%-64s\n", res->share[i]);
       }
       return;
     } else {
@@ -533,17 +521,15 @@ void cmd_server(int argc, char **argv)
   }
 
   if (opt_sync) {
-    struct cmd_getinfo cmd;
-    struct res_getinfo res;
-    cmd.command = CMD_GETINFO;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    com_cmdres_init(getinfo, CMD_GETINFO);
+    com_cmdres_exec();
 
-    if (res.year > 0) {
+    if (res->year > 0) {
       printf("現在時刻: %04d/%02d/%02d %02d:%02d:%02d\n",
-             res.year, res.mon, res.day, res.hour, res.min, res.sec);
+             res->year, res->mon, res->day, res->hour, res->min, res->sec);
 
-      _iocs_timeset(_iocs_timebcd((res.hour << 16) | (res.min << 8) | res.sec));
-      _iocs_bindateset(_iocs_bindatebcd((res.year << 16) | (res.mon << 8) | res.day));
+      _iocs_timeset(_iocs_timebcd((res->hour << 16) | (res->min << 8) | res->sec));
+      _iocs_bindateset(_iocs_bindatebcd((res->year << 16) | (res->mon << 8) | res->day));
     }
     return;
   }
@@ -555,12 +541,10 @@ void cmd_server(int argc, char **argv)
       config_data.tz[sizeof(config_data.tz) - 1] = '\0';
     }
     save_config();
-    struct cmd_setconfig cmd;
-    struct res_setconfig res;
-    cmd.command = CMD_SETCONFIG;
-    cmd.data = config_data;
-    cmd.mode = CONNECT_NONE;
-    com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+    com_cmdres_init(setconfig, CMD_SETCONFIG);
+    cmd->data = config_data;
+    cmd->mode = CONNECT_NONE;
+    com_cmdres_exec();
     return;
   }
 
@@ -569,42 +553,37 @@ void cmd_server(int argc, char **argv)
     return;
   }
 
-  struct cmd_smb2_config rcmd;
-  struct res_smb2_config rres;
-
-  rcmd.command = CMD_SMB2_CONFIG;
-  strncpy(rcmd.smb2_server, opt_server, sizeof(rcmd.smb2_server));
-  rcmd.smb2_server[sizeof(rcmd.smb2_server) - 1] = '\0';
-  strncpy(rcmd.smb2_user, opt_user, sizeof(rcmd.smb2_user));
-  rcmd.smb2_user[sizeof(rcmd.smb2_user) - 1] = '\0';
-  strncpy(rcmd.smb2_workgroup, opt_workgroup, sizeof(rcmd.smb2_workgroup));
-  rcmd.smb2_workgroup[sizeof(rcmd.smb2_workgroup) - 1] = '\0';
+  com_cmdres_init(smb2_config, CMD_SMB2_CONFIG);
+  strncpy(cmd->smb2_server, opt_server, sizeof(cmd->smb2_server));
+  cmd->smb2_server[sizeof(cmd->smb2_server) - 1] = '\0';
+  strncpy(cmd->smb2_user, opt_user, sizeof(cmd->smb2_user));
+  cmd->smb2_user[sizeof(cmd->smb2_user) - 1] = '\0';
+  strncpy(cmd->smb2_workgroup, opt_workgroup, sizeof(cmd->smb2_workgroup));
+  cmd->smb2_workgroup[sizeof(cmd->smb2_workgroup) - 1] = '\0';
 
   if (opt_passwd) {
-    strncpy(rcmd.smb2_passwd, opt_passwd, sizeof(rcmd.smb2_passwd));
-    rcmd.smb2_passwd[sizeof(rcmd.smb2_passwd) - 1] = '\0';
+    strncpy(cmd->smb2_passwd, opt_passwd, sizeof(cmd->smb2_passwd));
+    cmd->smb2_passwd[sizeof(cmd->smb2_passwd) - 1] = '\0';
   } else {
-    if (getpasswd("Password: ", rcmd.smb2_passwd, sizeof(rcmd.smb2_passwd)) < 0) {
+    if (getpasswd("Password: ", cmd->smb2_passwd, sizeof(cmd->smb2_passwd)) < 0) {
       return;
     }
   }
 
   save_config();
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_exec();
 
   printf("ファイル共有サーバへ接続中です...");
   fflush(stdout);
 
   while (1) {
-    struct cmd_getstatus rcmd;
-    struct res_getstatus rres;
-    rcmd.command = CMD_GETSTATUS;
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-    if (rres.status < STAT_SMB2_CONNECTING) {
+    com_cmdres_init(getstatus, CMD_GETSTATUS);
+    com_cmdres_exec();
+    if (res->status < STAT_SMB2_CONNECTING) {
       printf("接続に失敗しました\n");
       return;
     }
-    if (rres.status >= STAT_SMB2_CONNECTED) {
+    if (res->status >= STAT_SMB2_CONNECTED) {
       printf("接続しました\n");
       return;
     }
@@ -726,17 +705,16 @@ void cmd_mount(int argc, char **argv)
     if (unit >= 0 || opt_umount || opt_path) {
       cmd_mount_usage();
     }
-    struct cmd_setrmtcfg rcmd;
-    struct res_setrmtcfg rres;
-    init_rmtcfg(&rcmd);
+    com_cmdres_init(setrmtcfg, CMD_SETRMTCFG);
+    init_rmtcfg(cmd);
     if (opt_drives_remote >= 0) {
-      rcmd.remoteunit = opt_drives_remote;
+      cmd->remoteunit = opt_drives_remote;
     }
     if (opt_drives_hds >= 0) {
-      rcmd.hdsunit = opt_drives_hds;
+      cmd->hdsunit = opt_drives_hds;
     }
     save_config();
-    com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+    com_cmdres_exec();
     needreboot = true;
     return;
   }
@@ -761,18 +739,16 @@ void cmd_mount(int argc, char **argv)
 
   _dos_fflush();
 
-  struct cmd_setrmtdrv rcmd;
-  struct res_setrmtdrv rres;
-  rcmd.unit = unit;
-  rcmd.command = ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV;
+  com_cmdres_init(setrmtdrv, ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV);
+  cmd->unit = unit;
   if (opt_umount) {
-    rcmd.path[0] = '\0';
+    cmd->path[0] = '\0';
   } else {
-    strncpy(rcmd.path, opt_path, sizeof(rcmd.path) - 1);
-    rcmd.path[sizeof(rcmd.path) - 1] = '\0';
+    strncpy(cmd->path, opt_path, sizeof(cmd->path) - 1);
+    cmd->path[sizeof(cmd->path) - 1] = '\0';
   }
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-  if (rres.status != 0) {
+  com_cmdres_exec();
+  if (res->status != 0) {
     printf(PROGNAME ": ドライブ%c:のマウントに失敗しました\n", drive);
     terminate(1);
   }
@@ -828,13 +804,11 @@ void cmd_umount(int argc, char **argv)
     terminate(1);
   }
 
-  struct cmd_setrmtdrv rcmd;
-  struct res_setrmtdrv rres;
-  rcmd.unit = unit;
-  rcmd.command = ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV;
-  rcmd.path[0] = '\0';
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
-  if (rres.status != 0) {
+  com_cmdres_init(setrmtdrv, ishds ? CMD_SETRMTHDS : CMD_SETRMTDRV);
+  cmd->unit = unit;
+  cmd->path[0] = '\0';
+  com_cmdres_exec();
+  if (res->status != 0) {
     printf(PROGNAME ": ドライブ%c:のマウント解除に失敗しました\n", drive);
     terminate(1);
   }
@@ -897,12 +871,11 @@ void cmd_bootmode(int argc, char **argv)
     cmd_bootmode_usage();
   }
 
-  struct cmd_setrmtcfg rcmd;
-  struct res_setrmtcfg rres;
-  init_rmtcfg(&rcmd);
-  rcmd.bootmode = mode;
+  com_cmdres_init(setrmtcfg, CMD_SETRMTCFG);
+  init_rmtcfg(cmd);
+  cmd->bootmode = mode;
   save_config();
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_exec();
   needreboot = true;
 }
 
@@ -942,12 +915,11 @@ void cmd_imgscsi(int argc, char **argv)
     cmd_imgscsi_usage();
   }
 
-  struct cmd_setrmtcfg rcmd;
-  struct res_setrmtcfg rres;
-  init_rmtcfg(&rcmd);
-  rcmd.hdsscsi = onoff;
+  com_cmdres_init(setrmtcfg, CMD_SETRMTCFG);
+  init_rmtcfg(cmd);
+  cmd->hdsscsi = onoff;
   save_config();
-  com_cmdres(&rcmd, sizeof(rcmd), &rres, sizeof(rres));
+  com_cmdres_exec();
   needreboot = true;
 }
 
@@ -980,10 +952,8 @@ void cmd_erase(int argc, char **argv)
     terminate(1);
   }
 
-  struct cmd_flashclear cmd;
-  struct res_flashclear res;
-  cmd.command = CMD_FLASHCLEAR;
-  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
+  com_cmdres_init(flashclear, CMD_FLASHCLEAR);
+  com_cmdres_exec();
   printf("\n設定内容を全消去しました\n");
 }
 
@@ -1047,11 +1017,9 @@ int main(int argc, char **argv)
     terminate(1);
   }
 
-  struct cmd_getconfig cmd;
-  struct res_getconfig res;
-  cmd.command = CMD_GETCONFIG;
-  com_cmdres(&cmd, sizeof(cmd), &res, sizeof(res));
-  config_data = res.data;
+  com_cmdres_init(getconfig, CMD_GETCONFIG);
+  com_cmdres_exec();
+  config_data = res->data;
 
   if (argc < 2) {
     cmd_stat(0, NULL);
