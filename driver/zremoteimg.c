@@ -61,17 +61,26 @@ extern uint8_t scsiidd2;                  // デバイスドライバ登録時�
 int debuglevel = 0;
 #endif
 
+#ifdef CONFIG_BOOTDRIVER
+#define _dos_putchar(...)   _iocs_b_putc(__VA_ARGS__)
+#define _dos_print(...)     _iocs_b_print(__VA_ARGS__)
+#endif
+
+//****************************************************************************
+// Static variables
+//****************************************************************************
+
 #define N_PART    15                      // 最大のパーティション数
 
-const struct dos_bpb defaultbpb =
+static const struct dos_bpb defaultbpb =
 { 512, 1, 2, 1, 224, 2880, 0xf7, 9, 0, 0 };
 
-struct dos_bpb bpb[N_HDS][N_PART];
-struct dos_bpb *bpbtable[26];
-uint8_t drive_changed[26];
+static struct dos_bpb bpb[N_HDS][N_PART];
+static struct dos_bpb *bpbtable[26];
+static uint8_t drive_changed[26];
 
 // ユニットごとの情報
-struct unitinfo {
+static struct unitinfo {
   uint32_t size;      // ユニット全体のサイズ
   uint8_t type;       // ユニットの種類
   uint8_t curparts;   // 現在のパーティション数
@@ -79,10 +88,18 @@ struct unitinfo {
   uint8_t lastdrive;  // ユニットの最終ドライブ番号+1
 } unitinfo[N_HDS];
 
-#ifdef CONFIG_BOOTDRIVER
-#define _dos_putchar(...)   _iocs_b_putc(__VA_ARGS__)
-#define _dos_print(...)     _iocs_b_print(__VA_ARGS__)
-#endif
+// disk cache
+#define DISK_CACHE_SECTS    8
+#define DISK_CACHE_SIZE     (DISK_CACHE_SECTS * SECTOR_SIZE)
+#define DISK_CACHE_SETS     32
+
+static struct cache {
+  uint8_t data[DISK_CACHE_SIZE];
+  int unit;
+  uint32_t pos;
+  size_t sects;
+} cache[DISK_CACHE_SETS];
+static int cache_next = 0;
 
 //****************************************************************************
 // for debugging
@@ -139,41 +156,122 @@ void DPRINTF(int level, char *fmt, ...)
 // Private functions
 //****************************************************************************
 
+static void sector_cache_init(int unit)
+{
+  for (int i = 0; i < DISK_CACHE_SETS; i++) {
+    if (unit < 0 || cache[i].unit == unit) {
+      cache[i].unit = -1;
+      cache[i].pos = 0xffffffff;
+      cache[i].sects = 0;
+    }
+  }
+}
+
 static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
-  com_cmdres_init(hdsread, CMD_HDSREAD);
-  cmd->unit = unit;
-  cmd->nsect = nsect;
-  cmd->pos = pos;
-  com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + nsect * 512);
-
-  if (res->status == VDERR_EINVAL) {
-    return 0x1002;      // Drive not ready
-  }
-  if (res->status != VDERR_OK) {
-    return 0x7007;      // Medium error
+  if (com_rmtdata->hds_changed & (1 << unit)) {
+    sector_cache_init(unit);
   }
 
-  memcpy(buf, res->data, nsect * 512);
+  while (nsect > 0) {
+    int i;
+    for (i = 0; i < DISK_CACHE_SETS; i++) {
+      struct cache *c = &cache[i];
+      if (c->unit == unit && pos >= c->pos && pos < c->pos + c->sects) {
+        memcpy(buf, &c->data[(pos - c->pos) * SECTOR_SIZE], SECTOR_SIZE);
+        buf += SECTOR_SIZE;
+        pos++;
+        nsect--;
+        break;
+      }
+    }
+    if (i < DISK_CACHE_SETS) {
+      continue;
+    }
+
+    struct cache *c = &cache[cache_next];
+    uint8_t *p = c->data;
+    uint32_t fpos = pos;
+    int fsect = DISK_CACHE_SECTS;
+    while (fsect > 0) {
+      int n = fsect > HDS_MAX_SECT ? HDS_MAX_SECT : fsect;
+      com_cmdres_init(hdsread, CMD_HDSREAD);
+      cmd->unit = unit;
+      cmd->nsect = n;
+      cmd->pos = fpos;
+      com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + n * 512);
+
+      if (res->status == VDERR_EINVAL) {
+        c->unit = -1;
+        return 0x1002;      // Drive not ready
+      }
+      if (res->status != VDERR_OK) {
+        c->unit = -1;
+        return 0x7007;      // Medium error
+      }
+
+      memcpy(p, res->data, n * 512);
+      p += 512 * n;
+      fpos += n;
+      fsect -= n;
+    }
+    c->unit = unit;
+    c->pos = pos;
+    c->sects = DISK_CACHE_SECTS;
+    cache_next = (cache_next + 1) % DISK_CACHE_SETS;
+
+    memcpy(buf, c->data, SECTOR_SIZE);
+    buf += SECTOR_SIZE;
+    pos++;
+    nsect--;
+  }
   return 0;
 }
 
+
 static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
-  com_cmdres_init(hdswrite, CMD_HDSWRITE);
-  cmd->unit = unit;
-  cmd->nsect = nsect;
-  cmd->pos = pos;
-  memcpy(cmd->data, buf, 512 * nsect);
-  com_cmdres(cmd, sizeof(*cmd) + 512 * nsect, res, sizeof(*res));
-
-  if (res->status == VDERR_EINVAL) {
-    return 0x1002;      // Drive not ready
-  }
-  if (res->status != VDERR_OK) {
-    return 0x7007;      // Medium error
+  if (com_rmtdata->hds_changed & (1 << unit)) {
+    sector_cache_init(unit);
   }
 
+  uint8_t *p = buf;
+  uint32_t fpos = pos;
+  int fsect = nsect;
+  while (fsect > 0) {
+    int i;
+    for (i = 0; i < DISK_CACHE_SETS; i++) {
+      struct cache *c = &cache[i];
+      if (c->unit == unit && fpos >= c->pos && fpos < c->pos + c->sects) {
+        memcpy(&c->data[(fpos - c->pos) * SECTOR_SIZE], p, SECTOR_SIZE);
+        break;
+      }
+    }
+    p += SECTOR_SIZE;
+    fpos++;
+    fsect--;
+  }
+
+  while (nsect > 0) {
+    int n = nsect > HDS_MAX_SECT ? HDS_MAX_SECT : nsect;
+    com_cmdres_init(hdswrite, CMD_HDSWRITE);
+    cmd->unit = unit;
+    cmd->nsect = n;
+    cmd->pos = pos;
+    memcpy(cmd->data, buf, 512 * n);
+    com_cmdres(cmd, sizeof(*cmd) + 512 * n, res, sizeof(*res));
+
+    if (res->status == VDERR_EINVAL) {
+      return 0x1002;      // Drive not ready
+    }
+    if (res->status != VDERR_OK) {
+      return 0x7007;      // Medium error
+    }
+
+    buf += 512 * n;
+    pos += n;
+    nsect -= n;
+  }
   return 0;
 }
 
@@ -282,6 +380,7 @@ int com_init(struct dos_req_header *req)
 
   com_rmtdata->hds_changed = 0xff;
   com_rmtdata->hds_ready = 0;
+  sector_cache_init(-1);
 
   // 全ドライブの最初の利用可能なパーティションのBPBを読み込む
   drives = 0;
@@ -432,6 +531,7 @@ int interrupt(void)
       for (int i = ui->firstdrive; i < ui->lastdrive; i++) {
         drive_changed[i] = true;
       }
+      sector_cache_init(unit);
       com_rmtdata->hds_changed &= ~(1 << unit);
     }
 
@@ -484,17 +584,7 @@ int interrupt(void)
     int sectors = req->status * 2;
     uint32_t pos = (uint32_t)req->fcb * 2 + bpbtable[req->unit]->firstsect * 2;
     uint8_t *p = req->addr;
-
-    while (sectors > 0) {
-      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
-
-      if ((err = sector_read(unit, p, pos, nsect)) != 0) {
-        break;
-      }
-      p += 512 * nsect;
-      pos += nsect;
-      sectors -= nsect;
-    }
+    err = sector_read(unit, p, pos, sectors);
     break;
   }
 
@@ -512,16 +602,7 @@ int interrupt(void)
     uint32_t pos = (uint32_t)req->fcb * 2 + bpbtable[req->unit]->firstsect * 2;
     uint8_t *p = req->addr;
 
-    while (sectors > 0) {
-      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
-
-      if ((err = sector_write(unit, p, pos, nsect)) != 0) {
-        break;
-      }
-      p += 512 * nsect;
-      pos += nsect;
-      sectors -= nsect;
-    }
+    err = sector_write(unit, p, pos, sectors);
     break;
   }
 
@@ -603,16 +684,7 @@ int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, voi
     int sectors = d3 << (d5 - 1);
     uint32_t pos = d2 << (d5 - 1);
     uint8_t *p = a1;
-    while (sectors > 0) {
-      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
-
-      if ((err = sector_read(unit, p, pos, nsect)) != 0) {
-        break;
-      }
-      p += (512 << (d5 - 1)) * nsect;
-      pos += nsect;
-      sectors -= nsect;
-    }
+    err = sector_read(unit, p, pos, sectors);
     break;
   }
 
@@ -625,16 +697,7 @@ int hdsscsi(uint32_t d1, uint32_t d2, uint32_t d3, uint32_t d4, uint32_t d5, voi
     int sectors = d3 << (d5 - 1);
     uint32_t pos = d2 << (d5 - 1);
     uint8_t *p = a1;
-    while (sectors > 0) {
-      int nsect = sectors > HDS_MAX_SECT ? HDS_MAX_SECT : sectors;
-
-      if ((err = sector_write(unit, p, pos, nsect)) != 0) {
-        break;
-      }
-      p += (512 << (d5 - 1)) * nsect;
-      pos += nsect;
-      sectors -= nsect;
-    }
+    err = sector_write(unit, p, pos, sectors);
     break;
   }
 
