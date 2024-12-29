@@ -156,6 +156,7 @@ void DPRINTF(int level, char *fmt, ...)
 // Private functions
 //****************************************************************************
 
+// セクタキャッシュを初期化
 static void sector_cache_init(int unit)
 {
   for (int i = 0; i < DISK_CACHE_SETS; i++) {
@@ -167,17 +168,21 @@ static void sector_cache_init(int unit)
   }
 }
 
+// セクタ読み出し (キャッシュにデータが存在したらそれを使う)
 static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
+  // ディスクイメージが変更されていた場合はキャッシュをクリアする
   if (com_rmtdata->hds_changed & (1 << unit)) {
     sector_cache_init(unit);
   }
 
   while (nsect > 0) {
+    // 読み出しデータがキャッシュに存在するかどうかチェックする
     int i;
     for (i = 0; i < DISK_CACHE_SETS; i++) {
       struct cache *c = &cache[i];
       if (c->unit == unit && pos >= c->pos && pos < c->pos + c->sects) {
+        // キャッシュにデータが存在するのでそれを使う
         memcpy(buf, &c->data[(pos - c->pos) * SECTOR_SIZE], SECTOR_SIZE);
         buf += SECTOR_SIZE;
         pos++;
@@ -186,13 +191,43 @@ static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
       }
     }
     if (i < DISK_CACHE_SETS) {
-      continue;
+      continue;   // キャッシュにヒットしたので次のセクタに進む
     }
 
+    // キャッシュに存在しない、かつ読み出しデータ長がキャッシュサイズを超える場合は
+    // データ全体をキャッシュを使わずに読み出して終了
+    if (nsect > DISK_CACHE_SECTS) {
+      while (nsect > 0) {
+        int n = nsect > HDS_MAX_SECT ? HDS_MAX_SECT : nsect;
+        com_cmdres_init(hdsread, CMD_HDSREAD);
+        cmd->unit = unit;
+        cmd->nsect = n;
+        cmd->pos = pos;
+        com_cmdres(cmd, sizeof(*cmd), res, sizeof(*res) + n * 512);
+
+        if (res->status == VDERR_EINVAL) {
+          return 0x1002;      // Drive not ready
+        }
+        if (res->status != VDERR_OK) {
+          return 0x7007;      // Medium error
+        }
+
+        memcpy(buf, res->data, n * 512);
+        buf += 512 * n;
+        pos += n;
+        nsect -= n;
+      }
+      return 0;
+    }
+
+    // キャッシュに存在しない、かつ読み出しデータ長がキャッシュサイズ以下の場合は
+    // キャッシュサイズ分を読み出してそのうち1セクタ分のみを返す
+    // 残りのデータはキャッシュから読み出す
     struct cache *c = &cache[cache_next];
     uint8_t *p = c->data;
     uint32_t fpos = pos;
     int fsect = DISK_CACHE_SECTS;
+    // キャッシュサイズ分のデータを読み出す
     while (fsect > 0) {
       int n = fsect > HDS_MAX_SECT ? HDS_MAX_SECT : fsect;
       com_cmdres_init(hdsread, CMD_HDSREAD);
@@ -228,13 +263,15 @@ static int sector_read(int unit, uint8_t *buf, uint32_t pos, int nsect)
   return 0;
 }
 
-
+// セクタ書き込み (キャッシュにデータが存在したら書き込みデータで置き換える)
 static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
 {
+  // ディスクイメージが変更されていた場合はキャッシュをクリアする
   if (com_rmtdata->hds_changed & (1 << unit)) {
     sector_cache_init(unit);
   }
 
+  // 書き込みデータがキャッシュに存在するかチェックする
   uint8_t *p = buf;
   uint32_t fpos = pos;
   int fsect = nsect;
@@ -243,6 +280,7 @@ static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
     for (i = 0; i < DISK_CACHE_SETS; i++) {
       struct cache *c = &cache[i];
       if (c->unit == unit && fpos >= c->pos && fpos < c->pos + c->sects) {
+        // キャッシュにデータが存在するので書き込みデータで置き換える
         memcpy(&c->data[(fpos - c->pos) * SECTOR_SIZE], p, SECTOR_SIZE);
         break;
       }
@@ -252,6 +290,7 @@ static int sector_write(int unit, uint8_t *buf, uint32_t pos, int nsect)
     fsect--;
   }
 
+  // データをリモートイメージに書き込む
   while (nsect > 0) {
     int n = nsect > HDS_MAX_SECT ? HDS_MAX_SECT : nsect;
     com_cmdres_init(hdswrite, CMD_HDSWRITE);
