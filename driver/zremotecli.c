@@ -1017,9 +1017,20 @@ int main(int argc, char **argv)
     terminate(1);
   }
 
-  com_cmdres_init(getconfig, CMD_GETCONFIG);
-  com_cmdres_exec();
-  config_data = res->data;
+  {
+    com_cmdres_init(getinfo, CMD_GETINFO);
+    com_cmdres_exec();
+    if (res->version != PROTO_VERSION) {
+      printf(PROGNAME ": X68000 Z Remote Drive Service のファームウェアバージョンが合致しません\n");
+      terminate(1);
+    }
+  }
+
+  {
+    com_cmdres_init(getconfig, CMD_GETCONFIG);
+    com_cmdres_exec();
+    config_data = res->data;
+  }
 
   if (argc < 2) {
     cmd_stat(0, NULL);
