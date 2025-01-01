@@ -282,7 +282,23 @@ static inline int FUNC_FSTAT(int unit, int *err, TYPE_FD fd, TYPE_STAT *st)
 
 static inline int FUNC_FILEDATE(int unit, int *err, TYPE_FD fd, uint16_t time, uint16_t date)
 {
-  return 0;   /* TBD */
+  struct tm tm;
+  tm.tm_sec = (time << 1) & 0x3f;
+  tm.tm_min = (time >> 5) & 0x3f;
+  tm.tm_hour = (time >> 11) & 0x1f;
+  tm.tm_mday = date & 0x1f;
+  tm.tm_mon = ((date >> 5) & 0xf) - 1;
+  tm.tm_year = ((date >> 9) & 0x7f) + 80;
+  tm.tm_isdst = 0;
+  time_t tt = mktime(&tm);
+
+  struct smb2_timeval tv[2];
+  tv[0].tv_sec = tv[1].tv_sec = tt;
+  tv[0].tv_usec = tv[1].tv_usec = 0;
+  int r = smb2_futimes(fd2smb2(fd), fd2sfh(fd), tv);
+  if (err)
+    *err = -r;
+  return r;
 }
 
 //****************************************************************************
