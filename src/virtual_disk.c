@@ -41,10 +41,8 @@
 #include "fileop.h"
 
 #include "bootloader.inc"
-#include "hdsboot.inc"
 #include "zremotedrv_boot.inc"
 #include "zremoteimg_boot.inc"
-#include "human.inc"
 #include "settingui.inc"
 
 //****************************************************************************
@@ -393,16 +391,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
 
         // HDS SCSI remote drive
         if (di->hds != NULL && di->hds->sfh) {
-#if 0
-            if (lba == 2) {
-                // boot loader
-                memcpy(buf, hdsboot, sizeof(hdsboot));
-                return 0;
-            }
-            if (lba == 0x20 || lba == 0x21) {
-                lba -= 0x20 - 2;
-            }
-#endif
             if (hds_cache_read(di->hds->smb2, di->hds->sfh, lba, buf) < 0)
                 return -1;
             return 0;
@@ -444,39 +432,116 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 lba -= 0x8000 / 512;
 
                 if (ishds) {
-                    // use embedded HUMAN.SYS image
-                    size_t size = sizeof(humansys);
-                    if (lba <= size / 512) {
-                        size_t remain = size - lba * 512;
-                        memcpy(buf, &humansys[lba * 512], remain >= 512 ? 512 : remain);
-                    }
-                    return 0;
-                }
+                    // リモートイメージの自動起動パーティションのルートディレクトリからHUMAN.SYSを探す
+                    static int32_t humanlba = 0;
+                    static size_t humanlen = 0;
+                    if (humanlba == 0 && hdsinfo[0].sfh != NULL) {
+                        // SCSI disk signatureを確認
+                        if (hds_cache_read(hdsinfo[0].smb2, hdsinfo[0].sfh, 0, buf) < 0)
+                            return -1;
+                        if (memcmp(buf, "X68SCSI1", 8) != 0) {
+                            humanlba = -1;
+                        }
 
-                uint64_t cur;
-                static uint32_t humanlbamax = (uint32_t)-1;
-                static struct smb2_context *smb2 = NULL;
-                static struct smb2fh *sfh = NULL;
-                if (lba <= humanlbamax && sfh == NULL) {
-                    char human[256];
-                    strcpy(human, rootpath[0]);
-                    strcat(human, "/HUMAN.SYS");
-                    if ((sfh = smb2_open(rootsmb2[0], human, O_RDONLY)) == NULL) {
-                        DPRINTF1("HUMAN.SYS open failure.\n");
-                    } else {
-                        smb2 = rootsmb2[0];
-                        DPRINTF1("HUMAN.SYS opened.\n");
+                        // Partition tableからHuman68k自動起動パーティションの先頭セクタ番号を取得
+                        uint32_t partsect;
+                        if (humanlba == 0) {
+                            if (hds_cache_read(hdsinfo[0].smb2, hdsinfo[0].sfh, 2 * 2, buf) < 0)
+                                return -1;
+                            if (memcmp(buf, "X68K", 4) != 0) {
+                                humanlba = -1;
+                            } else {
+                                uint8_t *p = buf + 16;
+                                int i;
+                                for (i = 0; i < 15; i++, p += 16) {
+                                    if (memcmp(p, "Human68k", 8) == 0 && p[8] == 0) { // 自動起動
+                                        partsect = be32toh(*(uint32_t *)&p[8]) & 0xffffff;
+                                        DPRINTF1("boot partition sect=%u\n", partsect);
+                                        break;
+                                    }
+                                }
+                                if (i == 15)
+                                    humanlba = -1;  // 自動起動パーティションが見つからなかった
+                            }
+                        }
+
+                        // Partitionの先頭セクタからルートディレクトリのセクタ番号を取得
+                        uint32_t rootsect;
+                        int clusect;
+                        int rootent;
+                        if (humanlba == 0) {
+                            if (hds_cache_read(hdsinfo[0].smb2, hdsinfo[0].sfh, partsect * 2, buf) < 0)
+                                return -1;
+                            if (buf[0] != 0x60) {
+                                humanlba = -1;
+                            } else {
+                                rootsect = buf[0x1d] * buf[0x15];               // FAT領域のセクタ数 * 個数
+                                rootsect += be16toh(*(uint16_t *)&buf[0x16]);   // 予約セクタ数
+                                rootsect += partsect;                           // パーティションの先頭セクタ番号
+                                clusect = buf[0x14];                            // 1クラスタあたりのセクタ数
+                                rootent = be16toh(*(uint16_t *)&buf[0x18]);     // ルートディレクトリのエントリ数
+                                DPRINTF1("root directory sect=%u\n", rootsect);
+                            }
+                        }
+
+                        // ルートディレクトリからHUMAN.SYSを探してファイル先頭のLBAを得る
+                        if (humanlba == 0) {
+                            for (int i = 0; i < rootent / 16; i++) {
+                                if (hds_cache_read(hdsinfo[0].smb2, hdsinfo[0].sfh, rootsect * 2 + i, buf) < 0)
+                                    return -1;
+                                for (int j = 0; j < 512; j += 32) {
+                                    for (int k = 0; k < 11; k++)
+                                        buf[j + k] |= 0x20;
+                                    if (memcmp(&buf[j], "human   sys", 11) == 0) {
+                                        humanlen = *(uint32_t *)&buf[j + 0x1c];
+                                        humanlba = *(uint16_t *)&buf[j + 0x1a] - 2;
+                                        humanlba = humanlba * clusect + rootsect + rootent / 32;
+                                        humanlba *= 2;
+                                        DPRINTF1("HUMAN.SYS len=%u lba=%u\n", humanlen, humanlba);
+                                        break;
+                                    }
+                                }
+                                if (humanlba)
+                                    break;
+                            }
+                            if (humanlba == 0) {
+                                humanlba = -1;
+                            }
+                        }
+                    }
+                    if (humanlba > 0 && lba <= humanlen / 512) {
+                        if (hds_cache_read(hdsinfo[0].smb2, hdsinfo[0].sfh, humanlba + lba, buf) < 0)
+                            return -1;
+                        return 0;
+                    }
+                } else {
+                    // リモートディレクトリのルートディレクトリからHUMAN.SYSを探す
+                    uint64_t cur;
+                    static uint32_t humanlbamax = (uint32_t)-1;
+                    static struct smb2_context *smb2 = NULL;
+                    static struct smb2fh *sfh = NULL;
+                    if (lba <= humanlbamax && sfh == NULL) {
+                        strcpy(buf, rootpath[0]);
+                        strcat(buf, "/HUMAN.SYS");
+                        if ((sfh = smb2_open(rootsmb2[0], buf, O_RDONLY)) == NULL) {
+                            DPRINTF1("HUMAN.SYS open failure.\n");
+                        } else {
+                            smb2 = rootsmb2[0];
+                            DPRINTF1("HUMAN.SYS opened.\n");
+                        }
+                    }
+                    if (sfh != NULL &&
+                        smb2_lseek(smb2, sfh, lba * 512, SEEK_SET, &cur) >= 0) {
+                        if (smb2_read(smb2, sfh, buf, 512) != 512) {
+                            smb2_close(smb2, sfh);
+                            sfh = NULL;
+                            humanlbamax = lba;
+                            DPRINTF1("HUMAN.SYS closed.\n");
+                        }
+                        return 0;
                     }
                 }
-                if (sfh != NULL &&
-                    smb2_lseek(smb2, sfh, lba * 512, SEEK_SET, &cur) >= 0) {
-                    if (smb2_read(smb2, sfh, buf, 512) != 512) {
-                        smb2_close(smb2, sfh);
-                        sfh = NULL;
-                        humanlbamax = lba;
-                        DPRINTF1("HUMAN.SYS closed.\n");
-                    }
-                }
+                memset(buf, 0, 512);
                 return 0;
             } else if (lba >= (0x20000 / 512)) {
                 // settingui

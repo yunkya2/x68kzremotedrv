@@ -52,9 +52,9 @@ ifneq ($(DEBUG),)
 CFLAGS += -DDEBUG
 endif
 
-all: bootloader.inc hdsboot.inc clrconfig.uf2
+all: bootloader.inc clrconfig.uf2
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
-all: zremoteimg.sys zremoteimg.hds zremoteimg_boot.inc human.inc
+all: zremoteimg.sys zremoteimg.hds zremoteimg_boot.inc
 all: zremote.x settingui.inc
 
 uitest:
