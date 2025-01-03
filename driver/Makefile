@@ -53,6 +53,7 @@ CFLAGS += -DDEBUG
 endif
 
 all: bootloader.inc clrconfig.uf2
+all: zremotetools_shrink.inc
 all: zremotedrv.sys zremotedrv.hds zremotedrv_boot.inc
 all: zremoteimg.sys zremoteimg.hds zremoteimg_boot.inc
 all: zremote.x settingui.inc
@@ -128,6 +129,12 @@ zusbcomm_boot.o: zusbcomm.c
 settingui.x: settingui.o settinguisub.o zusbcomm.o
 	$(LD) -o $@ $^
 
+zremotetools.xdf: zremote.x zremotedrv.sys zremoteimg.sys
+	xdftool.py c $@ $^
+
+zremotetools_shrink.xdf: zremotetools.xdf
+	./xdfshrink.py $< $@
+
 clrconfig.uf2: clrconfig.py
 	./clrconfig.py $@
 
@@ -144,6 +151,9 @@ clrconfig.uf2: clrconfig.py
 	$(OBJCOPY) -O binary $< $@
 
 %.inc: %.bin
+	./bindump.py $< $(basename $@) > $@
+
+%.inc: %.xdf
 	./bindump.py $< $(basename $@) > $@
 
 clean:
