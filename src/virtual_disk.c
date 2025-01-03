@@ -86,6 +86,7 @@ static const char erase_all_txt[] =
 #define DTYPE_NOTUSED       0
 #define DTYPE_REMOTEHDS     1
 #define DTYPE_REMOTEDRV     2
+#define DTYPE_SCSIIMG       3
 
 struct diskinfo {
     int type;
@@ -238,7 +239,7 @@ int vd_init(void)
         id = (config.bootmode == 1) ? 0 : 1;
         if (config.hdsscsi) {
             for (int i = 0; i < config.hdsunit; i++, id++) {
-                diskinfo[id].type = DTYPE_REMOTEHDS;
+                diskinfo[id].type = DTYPE_SCSIIMG;
                 diskinfo[id].hds = &hdsinfo[i];
                 diskinfo[id].size = 0xfffffe00; /* tentative size */
             }
@@ -252,11 +253,20 @@ int vd_init(void)
     for (int i = 0; i < 7; i++) {
         if (diskinfo[i].type != DTYPE_NOTUSED) {
             char str[32];
-            sprintf(str, "ID%d=image/%s%d.hds\r\n",
-                i,
-                diskinfo[i].type == DTYPE_REMOTEDRV ? "rmtdrv" : "rmtimg",
-                i);
+            sprintf(str, "ID%d=image/", i);
             strcat(pscsiini, str);
+            switch (diskinfo[i].type) {
+            case DTYPE_REMOTEDRV:
+                strcat(pscsiini, "rmtdrv.hds\r\n");
+                break;
+            case DTYPE_REMOTEHDS:
+                strcat(pscsiini, "rmtimg.hds\r\n");
+                break;
+            case DTYPE_SCSIIMG:
+                sprintf(str, "scsiimg%d.hds\r\n", i);
+                strcat(pscsiini, str);
+                break;
+            }
         }
     }
 
@@ -399,8 +409,17 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 struct diskinfo *di = &diskinfo[i];
                 if (di->type != DTYPE_NOTUSED) {
                     char fn[16];
-                    sprintf(fn, "%s%d HDS",
-                        diskinfo[i].type == DTYPE_REMOTEDRV ? "RMTDRV" : "RMTIMG", i);
+                    switch (diskinfo[i].type) {
+                    case DTYPE_REMOTEDRV:
+                        strcpy(fn, "RMTDRV  HDS");
+                        break;
+                    case DTYPE_REMOTEHDS:
+                        strcpy(fn, "RMTIMG  HDS");
+                        break;
+                    case DTYPE_SCSIIMG:
+                        sprintf(fn, "SCSIIMG%uHDS", i);
+                        break;
+                    }
                     init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
                 }
             }
@@ -448,7 +467,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         }
 
         if ((diskinfo[id].type == DTYPE_REMOTEDRV) ||
-            (diskinfo[id].type == DTYPE_REMOTEHDS && !config.hdsscsi)) {
+            (diskinfo[id].type == DTYPE_REMOTEHDS)) {
             int ishds = diskinfo[id].type != DTYPE_REMOTEDRV;
             if (lba == 0) {
                 // SCSI disk signature
