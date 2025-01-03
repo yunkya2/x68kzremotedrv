@@ -50,6 +50,10 @@
 #include "zremotedrv_boot.inc"
 #include "zremoteimg_boot.inc"
 #include "settingui.inc"
+#include "zremotetools_shrink.inc"
+
+#define XDFSIZE     (1024 * 2 * 8 * 77)
+#define XDFCLUST    ((XDFSIZE + 32767) / 32768)
 
 __asm__ (
     ".section .rodata\n"
@@ -258,7 +262,8 @@ int init_dir_entry(struct dir_entry *entry, const char *fn, const uint8_t *lfn,
 //****************************************************************************
 
 static uint32_t fat[SECTOR_SIZE];
-static uint8_t rootdir[32 * 8];
+static uint32_t fatxdf[SECTOR_SIZE];
+static uint8_t rootdir[32 * 16];
 static uint8_t x68zdir[32 * 8];
 static uint8_t erasedir[32 * 8];
 static uint8_t imagedir[32 * 16];
@@ -333,11 +338,17 @@ int vd_init(void)
 
     /* Initialize FAT */
 
-    memset(fat, 0, sizeof(fat));
+    memset(fat, 0, sizeof(fat));        // FAT for directories and small files
     fat[0] = 0x0fffff00u | MEDIA_TYPE;
     for (int i = 1; i <= 0xa; i++) {
-        fat[i] = 0x0fffffff;    /* cluster ～0xa */
+        fat[i] = 0x0fffffff;            /* cluster ～0xa */
     }
+
+    memset(fatxdf, 0, sizeof(fatxdf));  // FAT for zremotetools.xdf
+    for (int i = 0; i < XDFCLUST - 1; i++) {
+        fatxdf[i] = 0x80 + i + 1;       /* cluster 0x80～ */
+    }
+    fatxdf[XDFCLUST - 1] = 0x0fffffff;  /* last cluster */
 
     /* Initialize root directory */
 
@@ -347,6 +358,7 @@ int vd_init(void)
     dirent += init_dir_entry(dirent, "CONFIG  TXT", NULL, 0, 0x18, 6, strlen(configtxt));
     dirent += init_dir_entry(dirent, "X68000Z    ", NULL, ATTR_DIR, 0, 3, 0);
     dirent += init_dir_entry(dirent, "ERASE      ", NULL, ATTR_DIR, 0x18, 8, 0);
+    dirent += init_dir_entry(dirent, "ZRMTTOOLXDF", "zremotetools.xdf", 0, 0x18, 0x80, XDFSIZE);
 
     /* Initialize "X68000Z" directory */
 
@@ -393,8 +405,11 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             lba -= 0x2000;
         }
         if (lba == 0) {
-            // FAT for directory and small files
+            // FAT for directories and small files
             memcpy(buf, fat, SECTOR_SIZE);
+        } else if (lba == 1) {
+            // FAT for zremotetools.xdf
+            memcpy(buf, fatxdf, SECTOR_SIZE);
         } else if (lba >= 0x400) {
             // "disk0～6.hds"ファイル用のFATデータを作る
             uint32_t *lbuf = (uint32_t *)buf;
@@ -449,7 +464,6 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
         memcpy(buf, &log_txt[(lba - 0x40e0) * SECTOR_SIZE], SECTOR_SIZE);
         return 0;
     }
-
     if (lba >= 0x4120 && lba < 0x4124) {
         // "config.txt" file
         memcpy(buf, &configtxt[(lba - 0x4120) * SECTOR_SIZE], SECTOR_SIZE);
@@ -507,6 +521,16 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     if (lba == 0x4220) {
         // "erase/erase_all.txt" file
         strcpy(buf, erase_all_txt);
+        return 0;
+    }
+
+    if (lba >= 0x5fa0 && lba < 0x5fa0 + XDFSIZE / 512) {
+        // "zremotetools.xdf" file
+        lba -= 0x5fa0;
+        if (lba < (sizeof(zremotetools_shrink) + 511) / 512) {
+            size_t remain = sizeof(zremotetools_shrink) - lba * 512;
+            memcpy(buf, &zremotetools_shrink[lba * 512], remain >= 512 ? 512 : remain);
+        }
         return 0;
     }
 

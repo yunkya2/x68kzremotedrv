@@ -39,6 +39,7 @@ off         sect        clus
 
                                     (Reserved)
 0x000004000 0x0000020               FAT1    (for cluster# 2～)
+0x000004200 0x0000021                       (for cluster# 0x80～)
 0x000084000 0x0000420                       (for cluster# 0x020000～)
 0x000104000 0x0000820                       (for cluster# 0x040000～)
 0x000184000 0x0000c20                       (for cluster# 0x060000～)
@@ -58,6 +59,8 @@ off         sect        clus
 0x000834000 0x00041a0   0x000008    "erase" subdir
 0x00083c000 0x00041e0   0x000009    erase/erase_config.txt
 0x000844000 0x0004220   0x00000a    erase/erase_all.txt
+
+0x000bf4000 0x0005fa0   0x000080    zremotetools.xdf (1232kB = 38.5clusters)
 
 0x1007f4000 0x0803fa0   0x020000    image-0
 0x2007f4000 0x1003fa0   0x040000    image-1
