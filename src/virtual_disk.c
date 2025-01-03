@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2023,2024 Yuichi Nakamura (@yunkya2)
+ * Copyright (c) 2023,2024,2025 Yuichi Nakamura (@yunkya2)
  *
  * The MIT License (MIT)
  *
@@ -160,6 +160,7 @@ static const uint8_t fsinfo2[] = {
 #define ATTR_VOLUME_LABEL   0x08
 #define ATTR_DIR            0x10
 #define ATTR_ARCHIVE        0x20
+#define ATTR_LONGNAME       0x0f
 
 struct dir_entry {
     uint8_t name[11];
@@ -176,9 +177,68 @@ struct dir_entry {
     uint32_t fileSize;
 };
 
-void init_dir_entry(struct dir_entry *entry, const char *fn,
-                    int attr, int ntres, int cluster, int len)
+struct dir_entry_lfn {
+    uint8_t ldirOrd;
+    uint8_t ldirName1[5 * 2];
+    uint8_t ldirAttr;
+    uint8_t ldirType;
+    uint8_t ldirChksum;
+    uint8_t ldirName2[6 * 2];
+    uint16_t ldirFstClusLO;
+    uint8_t ldirName3[2 * 2];
+};
+
+int init_dir_entry(struct dir_entry *entry, const char *fn, const uint8_t *lfn,
+                   int attr, int ntres, int cluster, int len)
 {
+    int ents = 1;
+
+    if (lfn) {
+        // Calculate SFN entry checksum
+        uint8_t sum = 0;
+        for (int i = 0; i < 11; i++)
+            sum = (sum >> 1) + (sum << 7) + fn[i];
+
+        // Create LFN entries
+        int lfnlen = strlen(lfn) + 1;
+        int lfnents = (lfnlen + 12) / 13;
+        for (int i = 0; i < lfnents; i++) {
+            struct dir_entry_lfn *lfnentry = (struct dir_entry_lfn *)entry;
+            memset(lfnentry, 0, sizeof(struct dir_entry_lfn));
+            memset(lfnentry->ldirName1, 0xffff, sizeof(lfnentry->ldirName1));
+            memset(lfnentry->ldirName2, 0xffff, sizeof(lfnentry->ldirName2));
+            memset(lfnentry->ldirName3, 0xffff, sizeof(lfnentry->ldirName3));
+
+            lfnentry->ldirOrd = lfnents - i + (i == 0 ? 0x40 : 0);
+            for (int j = 0; j < 5; j++) {
+                int pos = (lfnents - i - 1) * 13 + j;
+                if (pos < lfnlen) {
+                    lfnentry->ldirName1[j * 2] = lfn[pos];
+                    lfnentry->ldirName1[j * 2 + 1] = 0;
+                }
+            }
+            for (int j = 0; j < 6; j++) {
+                int pos = (lfnents - i - 1) * 13 + 5 + j;
+                if (pos < lfnlen) {
+                    lfnentry->ldirName2[j * 2] = lfn[pos];
+                    lfnentry->ldirName2[j * 2 + 1] = 0;
+                }
+            }
+            for (int j = 0; j < 2; j++) {
+                int pos = (lfnents - i - 1) * 13 + 5 + 6 + j;
+                if (pos < lfnlen) {
+                    lfnentry->ldirName3[j * 2] = lfn[pos];
+                    lfnentry->ldirName3[j * 2 + 1] = 0;
+                }
+            }
+            lfnentry->ldirAttr = ATTR_LONGNAME;
+            lfnentry->ldirChksum = sum;
+            entry++;
+            ents++;
+        }
+    }
+
+    // Create SFN entry
     memcpy(entry->name, fn, 11);
     entry->attr = (attr == 0) ? ATTR_ARCHIVE : attr;
     entry->ntRes = ntres;
@@ -190,6 +250,7 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
     entry->fstClusHI = cluster >> 16;
     entry->fstClusLO = cluster & 0xffff;
     entry->fileSize = len;
+    return ents;
 }
 
 //****************************************************************************
@@ -257,10 +318,10 @@ int vd_init(void)
             strcat(pscsiini, str);
             switch (diskinfo[i].type) {
             case DTYPE_REMOTEDRV:
-                strcat(pscsiini, "rmtdrv.hds\r\n");
+                strcat(pscsiini, "zremotedrv.hds\r\n");
                 break;
             case DTYPE_REMOTEHDS:
-                strcat(pscsiini, "rmtimg.hds\r\n");
+                strcat(pscsiini, "zremoteimg.hds\r\n");
                 break;
             case DTYPE_SCSIIMG:
                 sprintf(str, "scsiimg%d.hds\r\n", i);
@@ -282,28 +343,28 @@ int vd_init(void)
 
     memset(rootdir, 0, sizeof(rootdir));
     dirent = (struct dir_entry *)rootdir;
-    init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
-    init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
-    init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
-    init_dir_entry(dirent++, "ERASE      ", ATTR_DIR, 0x18, 8, 0);
+    dirent += init_dir_entry(dirent, "LOG     TXT", NULL, 0, 0x18, 5, LOGSIZE);
+    dirent += init_dir_entry(dirent, "CONFIG  TXT", NULL, 0, 0x18, 6, strlen(configtxt));
+    dirent += init_dir_entry(dirent, "X68000Z    ", NULL, ATTR_DIR, 0, 3, 0);
+    dirent += init_dir_entry(dirent, "ERASE      ", NULL, ATTR_DIR, 0x18, 8, 0);
 
     /* Initialize "X68000Z" directory */
 
     memset(x68zdir, 0,  sizeof(x68zdir));
     dirent = (struct dir_entry *)x68zdir;
-    init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
-    init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+    dirent += init_dir_entry(dirent, ".          ", NULL, ATTR_DIR, 0, 3, 0);
+    dirent += init_dir_entry(dirent, "..         ", NULL, ATTR_DIR, 0, 0, 0);
     if (config.bootmode < 2)
-        init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
-    init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
+        dirent += init_dir_entry(dirent, "PSCSI   INI", NULL, 0, 0x18, 4, strlen(pscsiini));
+    dirent += init_dir_entry(dirent, "IMAGE      ", NULL, ATTR_DIR, 0x18, 7, 0);
 
     /* Initialize "erase" directory */
     memset(erasedir, 0,  sizeof(erasedir));
     dirent = (struct dir_entry *)erasedir;
-    init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 8, 0);
-    init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
-    init_dir_entry(dirent++, "ERASECFGTXT", 0, 0x18, 9, strlen(erase_config_txt));
-    init_dir_entry(dirent++, "ERASEALLTXT", 0, 0x18, 10, strlen(erase_all_txt));
+    dirent += init_dir_entry(dirent, ".          ", NULL, ATTR_DIR, 0, 8, 0);
+    dirent += init_dir_entry(dirent, "..         ", NULL, ATTR_DIR, 0, 0, 0);
+    dirent += init_dir_entry(dirent, "ERASECFGTXT", "erase_config.txt", 0, 0x18, 9, strlen(erase_config_txt));
+    dirent += init_dir_entry(dirent, "ERASEALLTXT", "erase_all.txt", 0, 0x18, 10, strlen(erase_all_txt));
     return 0;
 }
 
@@ -403,24 +464,28 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             vd_sync();
             memset(imagedir, 0,  sizeof(imagedir));
             dirent = (struct dir_entry *)imagedir;
-            init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 7, 0);
-            init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+            dirent += init_dir_entry(dirent, ".          ", NULL, ATTR_DIR, 0, 7, 0);
+            dirent += init_dir_entry(dirent, "..         ", NULL, ATTR_DIR, 0, 0, 0);
             for (int i = 0; i < 7; i++) {
                 struct diskinfo *di = &diskinfo[i];
                 if (di->type != DTYPE_NOTUSED) {
                     char fn[16];
+                    char *lfn;
                     switch (diskinfo[i].type) {
                     case DTYPE_REMOTEDRV:
                         strcpy(fn, "RMTDRV  HDS");
+                        lfn = "zremotedrv.hds";
                         break;
                     case DTYPE_REMOTEHDS:
                         strcpy(fn, "RMTIMG  HDS");
+                        lfn = "zremoteimg.hds";
                         break;
                     case DTYPE_SCSIIMG:
                         sprintf(fn, "SCSIIMG%uHDS", i);
+                        lfn = NULL;
                         break;
                     }
-                    init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
+                    dirent += init_dir_entry(dirent, fn, lfn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
                 }
             }
             imagedir_init = true;
