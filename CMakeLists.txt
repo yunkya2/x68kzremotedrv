@@ -21,6 +21,9 @@ add_definitions(-DHAVE_CONFIG_H)
 # Build libsmb2 as a library
 add_subdirectory(${LIBSMB2_PATH} libsmb2)
 
+# Build pico-nuke
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/pico-nuke pico-nuke)
+
 # Application, including in the FreeRTOS-Kernel
 add_executable(
         ${PROJECT_NAME}
@@ -55,6 +58,7 @@ include_directories(
         ${LIBSMB2_PATH}/include
         ${LIBSMB2_PATH}/include/smb2
         ${LIBSMB2_PATH}/include/picow
+        ${CMAKE_CURRENT_BINARY_DIR}/pico-nuke
 )
 
 pico_enable_stdio_usb(${PROJECT_NAME} 0)

@@ -10,3 +10,6 @@
 [submodule "x68kserremote"]
 	path = x68kserremote
 	url = https://github.com/yunkya2/x68kserremote.git
+[submodule "pico-nuke"]
+	path = pico-nuke
+	url = https://github.com/polhenarejos/pico-nuke.git
