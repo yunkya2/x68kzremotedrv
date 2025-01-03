@@ -29,7 +29,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include "hardware/sync.h"
 #include "hardware/watchdog.h"
+#include "tusb.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -40,10 +42,38 @@
 #include "remoteserv.h"
 #include "fileop.h"
 
+//****************************************************************************
+// Binary data
+//****************************************************************************
+
 #include "bootloader.inc"
 #include "zremotedrv_boot.inc"
 #include "zremoteimg_boot.inc"
 #include "settingui.inc"
+
+__asm__ (
+    ".section .rodata\n"
+    ".balign 4\n"
+    ".global flash_nuke\n"
+    "flash_nuke:\n"
+    ".incbin \"flash_nuke.bin\"\n"
+    ".global flash_nuke_end\n"
+    "flash_nuke_end:\n"
+    ".balign 4\n"
+);
+
+extern const char flash_nuke[];
+extern const char flash_nuke_end[];
+
+static const char erase_config_txt[] =
+"[erase_config.txt]\r\n"
+"X68000 Z リモートドライブの設定内容を全消去するためのファイルです。\r\n"
+"このファイルを上書き保存すると、設定内容が全て消去されます。\r\n";
+
+static const char erase_all_txt[] =
+"[erase_all.txt]\r\n"
+"X68000 Z リモートドライブ ファームウェアを完全消去するためのファイルです。\r\n"
+"このファイルを上書き保存すると、Raspberry Pi Pico Wのフラッシュメモリが全て消去されます。\r\n";
 
 //****************************************************************************
 // Global variables
@@ -168,6 +198,7 @@ void init_dir_entry(struct dir_entry *entry, const char *fn,
 static uint32_t fat[SECTOR_SIZE];
 static uint8_t rootdir[32 * 8];
 static uint8_t x68zdir[32 * 8];
+static uint8_t erasedir[32 * 8];
 static uint8_t imagedir[32 * 16];
 static uint8_t pscsiini[256];
 static int imagedir_init = false;
@@ -233,13 +264,9 @@ int vd_init(void)
 
     memset(fat, 0, sizeof(fat));
     fat[0] = 0x0fffff00u | MEDIA_TYPE;
-    fat[1] = 0x0fffffff;
-    fat[2] = 0x0ffffff8;    /* cluster 2: root directory */
-    fat[3] = 0x0fffffff;    /* cluster 3: X68000Z directory */
-    fat[4] = 0x0fffffff;    /* cluster 4: pscsi.ini */
-    fat[5] = 0x0fffffff;    /* cluster 5: log.txt */
-    fat[6] = 0x0fffffff;    /* cluster 6: config.txt */
-    fat[7] = 0x0fffffff;    /* cluster 7: X68000Z/image directory */
+    for (int i = 1; i <= 0xa; i++) {
+        fat[i] = 0x0fffffff;    /* cluster ～0xa */
+    }
 
     /* Initialize root directory */
 
@@ -248,6 +275,7 @@ int vd_init(void)
     init_dir_entry(dirent++, "LOG     TXT", 0, 0x18, 5, LOGSIZE);
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
+    init_dir_entry(dirent++, "ERASE      ", ATTR_DIR, 0x18, 8, 0);
 
     /* Initialize "X68000Z" directory */
 
@@ -259,6 +287,13 @@ int vd_init(void)
         init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
     init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
 
+    /* Initialize "erase" directory */
+    memset(erasedir, 0,  sizeof(erasedir));
+    dirent = (struct dir_entry *)erasedir;
+    init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 8, 0);
+    init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
+    init_dir_entry(dirent++, "ERASECFGTXT", 0, 0x18, 9, strlen(erase_config_txt));
+    init_dir_entry(dirent++, "ERASEALLTXT", 0, 0x18, 10, strlen(erase_all_txt));
     return 0;
 }
 
@@ -358,7 +393,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             vd_sync();
             memset(imagedir, 0,  sizeof(imagedir));
             dirent = (struct dir_entry *)imagedir;
-            init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 4, 0);
+            init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 7, 0);
             init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
             for (int i = 0; i < 7; i++) {
                 struct diskinfo *di = &diskinfo[i];
@@ -372,6 +407,22 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             imagedir_init = true;
         }
         memcpy(buf, imagedir, sizeof(imagedir));
+        return 0;
+    }
+
+    if (lba == 0x41a0) {
+        // "erase" directory
+        memcpy(buf, erasedir, sizeof(erasedir));
+        return 0;
+    }
+    if (lba == 0x41e0) {
+        // "erase/erase_config.txt" file
+        strcpy(buf, erase_config_txt);
+        return 0;
+    }
+    if (lba == 0x4220) {
+        // "erase/erase_all.txt" file
+        strcpy(buf, erase_all_txt);
         return 0;
     }
 
@@ -579,12 +630,33 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 configtxt[sizeof(configtxt) - 1] = '\0';
             config_parse(configtxt);
             config_write();
-
+            tud_disconnect();
             // reboot by watchdog
             watchdog_enable(500, 1);
             while (1)
                 ;
         }
+    }
+
+    if (lba == 0x41e0) {
+        // "erase/erase_config.txt" file update
+        tud_disconnect();
+        config_erase();
+        // reboot by watchdog
+        watchdog_enable(500, 1);
+        while (1)
+            ;
+    }
+
+    if (lba == 0x4220) {
+        // "erase/erase_all.txt" file update
+        printf("Erasing flash memory...\n");
+        tud_disconnect();
+        uint32_t stat = save_and_disable_interrupts();
+        memcpy((void *)0x20000000, flash_nuke, flash_nuke_end - flash_nuke);
+        __asm__ volatile ("mov r0,sp; msr msp,r0");
+        __asm__ volatile ("movs r0,#0; msr control,r0");
+        ((void (*)())0x20000001)();
     }
 
     if (lba >= 0x00803fa0) {
