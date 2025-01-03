@@ -379,8 +379,8 @@ void cmd_wifi(int argc, char **argv)
     }
   }
 
-  save_config();
   com_cmdres_exec();
+  save_config();
 
   printf("WiFiアクセスポイントへ接続中です...");
   fflush(stdout);
@@ -570,8 +570,8 @@ void cmd_server(int argc, char **argv)
     }
   }
 
-  save_config();
   com_cmdres_exec();
+  save_config();
 
   printf("ファイル共有サーバへ接続中です...");
   fflush(stdout);
@@ -713,8 +713,8 @@ void cmd_mount(int argc, char **argv)
     if (opt_drives_hds >= 0) {
       cmd->hdsunit = opt_drives_hds;
     }
-    save_config();
     com_cmdres_exec();
+    save_config();
     needreboot = true;
     return;
   }
@@ -874,8 +874,8 @@ void cmd_bootmode(int argc, char **argv)
   com_cmdres_init(setrmtcfg, CMD_SETRMTCFG);
   init_rmtcfg(cmd);
   cmd->bootmode = mode;
-  save_config();
   com_cmdres_exec();
+  save_config();
   needreboot = true;
 }
 
@@ -918,8 +918,8 @@ void cmd_imgscsi(int argc, char **argv)
   com_cmdres_init(setrmtcfg, CMD_SETRMTCFG);
   init_rmtcfg(cmd);
   cmd->hdsscsi = onoff;
-  save_config();
   com_cmdres_exec();
+  save_config();
   needreboot = true;
 }
 
