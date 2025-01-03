@@ -59,6 +59,7 @@ off         sect        clus
 0x000834000 0x00041a0   0x000008    "erase" subdir
 0x00083c000 0x00041e0   0x000009    erase/erase_config.txt
 0x000844000 0x0004220   0x00000a    erase/erase_all.txt
+0x00084c000 0x0004260   0x00000b    README.txt
 
 0x000bf4000 0x0005fa0   0x000080    zremotetools.xdf (1232kB = 38.5clusters)
 

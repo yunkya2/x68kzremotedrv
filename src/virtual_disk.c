@@ -79,6 +79,11 @@ static const char erase_all_txt[] =
 "X68000 Z リモートドライブ ファームウェアを完全消去するためのファイルです。\r\n"
 "このファイルを上書き保存すると、Raspberry Pi Pico Wのフラッシュメモリが全て消去されます。\r\n";
 
+static const char readme_txt[] =
+"[X68000 Z Remote Drive Service]\r\n"
+"version: " GIT_REPO_VERSION "\r\n"
+"URL: https://github.com/yunkya2/x68kzremotedrv\r\n";
+
 //****************************************************************************
 // Global variables
 //****************************************************************************
@@ -340,8 +345,8 @@ int vd_init(void)
 
     memset(fat, 0, sizeof(fat));        // FAT for directories and small files
     fat[0] = 0x0fffff00u | MEDIA_TYPE;
-    for (int i = 1; i <= 0xa; i++) {
-        fat[i] = 0x0fffffff;            /* cluster ～0xa */
+    for (int i = 1; i <= 11; i++) {
+        fat[i] = 0x0fffffff;            /* cluster ～0xb */
     }
 
     memset(fatxdf, 0, sizeof(fatxdf));  // FAT for zremotetools.xdf
@@ -359,6 +364,7 @@ int vd_init(void)
     dirent += init_dir_entry(dirent, "X68000Z    ", NULL, ATTR_DIR, 0, 3, 0);
     dirent += init_dir_entry(dirent, "ERASE      ", NULL, ATTR_DIR, 0x18, 8, 0);
     dirent += init_dir_entry(dirent, "ZRMTTOOLXDF", "zremotetools.xdf", 0, 0x18, 0x80, XDFSIZE);
+    dirent += init_dir_entry(dirent, "README  TXT", "README.txt", 0, 0x18, 11, strlen(readme_txt));
 
     /* Initialize "X68000Z" directory */
 
@@ -521,6 +527,11 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     if (lba == 0x4220) {
         // "erase/erase_all.txt" file
         strcpy(buf, erase_all_txt);
+        return 0;
+    }
+    if (lba == 0x4260) {
+        // "README.txt" file
+        strcpy(buf, readme_txt);
         return 0;
     }
 
