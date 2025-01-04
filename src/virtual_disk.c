@@ -84,6 +84,13 @@ static const char readme_txt[] =
 "version: " GIT_REPO_VERSION "\r\n"
 "URL: https://github.com/yunkya2/x68kzremotedrv\r\n";
 
+static const char index_html[] =
+"<html><head>"
+"<meta http-equiv=\"refresh\" content=\"0;URL='https://github.com/yunkya2/x68kzremotedrv'\"/>"
+"</head>"
+"<body>Redirecting to <a href='https://github.com/yunkya2/x68kzremotedrv'>X68000 Z Remote Drive Service</a></body>"
+"</html>";
+
 //****************************************************************************
 // Global variables
 //****************************************************************************
@@ -359,12 +366,14 @@ int vd_init(void)
 
     memset(rootdir, 0, sizeof(rootdir));
     dirent = (struct dir_entry *)rootdir;
+    dirent += init_dir_entry(dirent, "X68Z REMOTE", NULL, ATTR_VOLUME_LABEL, 0, 0, 0);
     dirent += init_dir_entry(dirent, "LOG     TXT", NULL, 0, 0x18, 5, LOGSIZE);
     dirent += init_dir_entry(dirent, "CONFIG  TXT", NULL, 0, 0x18, 6, strlen(configtxt));
     dirent += init_dir_entry(dirent, "X68000Z    ", NULL, ATTR_DIR, 0, 3, 0);
     dirent += init_dir_entry(dirent, "ERASE      ", NULL, ATTR_DIR, 0x18, 8, 0);
     dirent += init_dir_entry(dirent, "ZRMTTOOLXDF", "zremotetools.xdf", 0, 0x18, 0x80, XDFSIZE);
     dirent += init_dir_entry(dirent, "README  TXT", "README.txt", 0, 0x18, 11, strlen(readme_txt));
+    dirent += init_dir_entry(dirent, "INDEX   HTM", "index.html", 0, 0x18, 12, strlen(index_html));
 
     /* Initialize "X68000Z" directory */
 
@@ -532,6 +541,11 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
     if (lba == 0x4260) {
         // "README.txt" file
         strcpy(buf, readme_txt);
+        return 0;
+    }
+    if (lba == 0x42a0) {
+        // "index.html" file
+        strcpy(buf, index_html);
         return 0;
     }
 
@@ -734,8 +748,11 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
 {
     if (lba == 0x4020) {
         // Root directory
-        if (memcmp(&buf[32], "CONFIG  TXT", 11) == 0) {
-            configtxtlen = *(uint32_t *)&buf[60];
+        for (uint8_t *p = buf; p < &buf[512]; p += 32) {
+            if (memcmp(p, "CONFIG  TXT", 11) == 0) {
+                configtxtlen = *(uint32_t *)&p[28];
+                break;
+            }
         }
         return 0;
     }
