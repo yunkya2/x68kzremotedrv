@@ -174,8 +174,11 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
       int err = zusb->err & 0xff;
       if (err == ZUSB_ENOTCONN || err == ZUSB_ENODEV) {
         // USBデバイスが繋ぎ変えられていたら一度切断して再接続を試みる
+        uint8_t savebuf[256];   // 再接続処理にZUSBBUFを使うので保存・復帰する
+        memcpy(savebuf, zusbbuf, sizeof(savebuf));
         zusb_disconnect_device();
         if (connect_device() > 0) {
+          memcpy(zusbbuf, savebuf, sizeof(savebuf));
           continue;
         } else {
           zusb_send_cmd(ZUSB_CMD_CANCELXFER(0));
