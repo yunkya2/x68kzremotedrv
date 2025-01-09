@@ -28,6 +28,7 @@
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/stdio/driver.h"
+#include "pico/cyw43_arch.h"
 #include "FreeRTOS.h"
 #include "task.h"
 #include "semphr.h"
@@ -111,9 +112,11 @@ void vendor_task(void)
             buf_wptr = NULL;
             int rsize;
             xSemaphoreTake(remote_sem, portMAX_DELAY);
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
             if ((rsize = vd_command(&buf_write[4], buf_read)) < 0) {
                 rsize = remote_serv(&buf_write[4], buf_read);
             }
+            cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
             xSemaphoreGive(remote_sem);
             tud_vendor_write(buf_read, rsize);
             tud_vendor_flush();
@@ -127,6 +130,14 @@ void vendor_task(void)
 
 static void main_task(void *params)
 {
+    if (cyw43_arch_init()) {
+        printf("Failed to initialize Pico W\n");
+        while (1)
+            taskYIELD();
+    }
+
+    cyw43_arch_enable_sta_mode();
+
     remote_sem = xSemaphoreCreateBinary();
     xSemaphoreGive(remote_sem);
     xTaskCreate(connect_task, "ConnectThread", 2048, NULL, 1, &connect_th);
