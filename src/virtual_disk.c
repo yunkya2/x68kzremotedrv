@@ -30,6 +30,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "hardware/watchdog.h"
+#include "pico/cyw43_arch.h"
 
 #include "smb2.h"
 #include "libsmb2.h"
@@ -576,9 +577,11 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 // last page copy
                 int rsize;
                 xSemaphoreTake(remote_sem, portMAX_DELAY);
+                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
                 if ((rsize = vd_command(vdbuf_write, vdbuf_read)) < 0) {
                     rsize = remote_serv(vdbuf_write, vdbuf_read);
                 }
+                cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 0);
                 xSemaphoreGive(remote_sem);
                 vdbuf_rpages = (rsize < 0) ? 0 : ((rsize - 1) / (512 - 16));
                 vdbuf_rcnt = 0;

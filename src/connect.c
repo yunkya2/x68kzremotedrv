@@ -182,14 +182,6 @@ void connect_task(void *params)
 {
     /* Set up WiFi connection */
 
-    if (cyw43_arch_init()) {
-        printf("Failed to initialize Pico W\n");
-        while (1)
-            taskYIELD();
-    }
-
-    cyw43_arch_enable_sta_mode();
-
     xSemaphoreTake(remote_sem, portMAX_DELAY);
     connection(CONNECT_WIFI);
     if (sysstatus >= STAT_SMB2_CONNECTED) {
