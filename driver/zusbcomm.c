@@ -129,7 +129,7 @@ int com_connect(int protected)
 #endif
 
   // オープンされていなければ新規にオープンする
-  ch = (protected ? zusb_open_protected() : zusb_open());
+  ch = (protected ? zusb_open_protected() : zusb_open(0));
   if (ch < 0) {
     return -1;
   }
