@@ -29,4 +29,4 @@
 #include "zusbtypes.h"
 #include "zusbmacro.h"
 
-#endif // _ZUSB_H_
+#endif /* _ZUSB_H_ */

@@ -33,12 +33,12 @@
 extern "C" {
 #endif
 
-//----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 volatile struct zusb_regs *zusb __attribute__((common));
 uint8_t *zusbbuf __attribute__((common));
 
-//----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 static inline void zusb_set_region(void *buf, int count)
 {
@@ -91,6 +91,11 @@ static inline int zusb_get_descriptor(uint8_t *buf)
     return len;
 }
 
+static inline void zusb_rewind_descriptor(void)
+{
+    zusb->devid = zusb->devid;
+}
+
 static inline int zusb_send_control(int bmRequestType, int bRequest, int wValue, int wIndex, int wLength, void *data)
 {
     zusb->param = (bmRequestType<< 8) | bRequest;
@@ -101,7 +106,7 @@ static inline int zusb_send_control(int bmRequestType, int bRequest, int wValue,
     return (res == 0) ? zusb->ccount : res;
 }
 
-//----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 static inline void zusb_set_channel(int ch)
 {
@@ -109,14 +114,13 @@ static inline void zusb_set_channel(int ch)
     zusbbuf = (uint8_t *)(ZUSB_BASEADDR + ch * ZUSB_SZ_CH + ZUSB_SZ_REGS);
 }
 
-static inline int zusb_open(void)
+static inline int zusb_open(int ch)
 {
-    int ch;
-    for (ch = 0; ch < ZUSB_N_CH; ch++) {
+    for (; ch < ZUSB_N_CH; ch++) {
         uint16_t magic;
         zusb_set_channel(ch);
         if (_dos_bus_err((void *)zusb, &magic, 2) != 0 || magic != ZUSB_MAGIC) {
-            return -1;      // ZUSB not exists
+            return -1;      /* ZUSB not exists */
         }
         if (zusb->stat & ZUSB_STAT_PROTECTED) {
             continue;
@@ -124,7 +128,7 @@ static inline int zusb_open(void)
         zusb_send_cmd(ZUSB_CMD_OPENCH);
         return ch;
     }
-    return -2;      // device busy
+    return -2;      /* device busy */
 }
 
 static inline int zusb_open_protected(void)
@@ -134,14 +138,14 @@ static inline int zusb_open_protected(void)
         uint16_t magic;
         zusb_set_channel(ch);
         if (_dos_bus_err((void *)zusb, &magic, 2) != 0 || magic != ZUSB_MAGIC) {
-            return -1;      // ZUSB not exists
+            return -1;      /* ZUSB not exists */
         }
         if (!(zusb->stat & ZUSB_STAT_INUSE)) {
             zusb_send_cmd(ZUSB_CMD_OPENCHP);
             return ch;
         }
     }
-    return -2;      // device busy
+    return -2;      /* device busy */
 }
 
 static inline void zusb_close(void)
@@ -155,7 +159,7 @@ static inline int zusb_version(void)
     return zusb->err;
 }
 
-//----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 struct zusb_match_with_vid_pid_arg {
     uint16_t vid;
@@ -198,7 +202,6 @@ typedef int zusb_match_func(int devid, int type, uint8_t *desc, void *arg);
 
 static inline int zusb_find_device(zusb_match_func *fn, void *arg, int pdev)
 {
-    int result = 0;
     if (zusb_send_cmd(ZUSB_CMD_GETDEV) < 0) {
         return -1;
     }
@@ -218,9 +221,15 @@ static inline int zusb_find_device(zusb_match_func *fn, void *arg, int pdev)
 
     while (zusb->devid != 0) {
         while (zusb_get_descriptor(zusbbuf) > 0) {
-            if (result == 0 && fn(zusb->devid, zusbbuf[1], zusbbuf, arg)) {
-                result = zusb->devid;
-                break;
+            if (fn(zusb->devid, zusbbuf[1], zusbbuf, arg)) {
+                int res = zusb->devid;
+                do {
+                    if (zusb_send_cmd(ZUSB_CMD_NEXTDEV) < 0) {
+                        break;
+                    }
+                } while (zusb->devid != 0);
+                zusb->devid = res;
+                return res;
             }
         }
 
@@ -228,7 +237,7 @@ static inline int zusb_find_device(zusb_match_func *fn, void *arg, int pdev)
             return -1;
         }
     }
-    return result;
+    return 0;
 }
 
 static inline int zusb_find_device_with_vid_pid(int vid, int pid, int pdev)
@@ -249,7 +258,7 @@ static inline int zusb_get_string_descriptor(char *str, int len, int index)
 
     zusb->param = (ZUSB_DIR_IN << 8) | ZUSB_REQ_GET_DESCRIPTOR;
     zusb->value = (ZUSB_DESC_STRING << 8) | index;
-    zusb->index = 0x0409;   // language ID (English)
+    zusb->index = 0x0409;   /* language ID (English) */
     zusb_set_region(buf, 256);
     if (zusb_send_cmd(ZUSB_CMD_CONTROL) < 0) {
         return -1;
@@ -269,7 +278,7 @@ static inline int zusb_get_string_descriptor(char *str, int len, int index)
     return zusb->ccount;
 }
 
-//----------------------------------------------------------------------------
+/*--------------------------------------------------------------------------*/
 
 typedef struct zusb_endpoint_config {
     uint8_t address;
@@ -279,7 +288,7 @@ typedef struct zusb_endpoint_config {
 
 static inline int zusb_connect_device(int devid,
                                       int config, int devclass, int subclass, int protocol,
-                                      zusb_endpoint_config_t epcfg[ZUSB_N_EP])
+                                      zusb_endpoint_config_t epcfg[])
 {
     int result = 0;
     int use_config = 0;
@@ -325,8 +334,8 @@ static inline int zusb_connect_device(int devid,
                 if (ncfg == cfg) {
                     break;
                 } else if (ncfg == 0xffff) {
-                    if (((dendp->bEndpointAddress & ZUSB_DIR_MASK) == epcfg[i].address) &&
-                        ((dendp->bmAttributes & ZUSB_XFER_MASK) == epcfg[i].attribute)) {
+                    if (((dendp->bEndpointAddress & ZUSB_DIR_MASK) == (epcfg[i].address & ZUSB_DIR_MASK)) &&
+                        ((dendp->bmAttributes & ZUSB_XFER_MASK) == (epcfg[i].attribute & ZUSB_XFER_MASK))) {
                         zusb->pcfg[i] = cfg;
                         zusb->pcount[i] = zusb_le16toh(dendp->wMaxPacketSize);
                         epcfg[i].address = dendp->bEndpointAddress;
