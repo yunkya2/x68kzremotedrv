@@ -967,7 +967,7 @@ void cmd_stat_usage(void)
     { "", "現在の設定内容一覧を表示します" },
     { NULL, NULL }
   };
-  show_usage("show", m, 20);
+  show_usage("stat", m, 20);
   terminate(1);
 }
 
