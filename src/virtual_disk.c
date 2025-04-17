@@ -301,9 +301,14 @@ int vd_init(void)
 
     if (strlen(config.wifi_ssid) == 0 || strlen(config.smb2_server) == 0) {
         /* not configured */
+        diskinfo[0].type = DTYPE_REMOTEDRV;
+        diskinfo[0].size = 0x40000;
+
+        strcpy(pscsiini, "[pscsi]\r\n");
         for (int i = 0; i < 7; i++) {
-            diskinfo[i].type = DTYPE_REMOTEDRV;
-            diskinfo[i].size = 0x40000;
+            char str[32];
+            sprintf(str, "ID%d=image/zremotedrv.hds\r\n", i);
+            strcat(pscsiini, str);
         }
     } else {
         int id;
@@ -325,25 +330,25 @@ int vd_init(void)
             diskinfo[id].type = DTYPE_REMOTEHDS;
             diskinfo[id].size = 0x40000;
         }
-    }
 
-    strcpy(pscsiini, "[pscsi]\r\n");
-    for (int i = 0; i < 7; i++) {
-        if (diskinfo[i].type != DTYPE_NOTUSED) {
-            char str[32];
-            sprintf(str, "ID%d=image/", i);
-            strcat(pscsiini, str);
-            switch (diskinfo[i].type) {
-            case DTYPE_REMOTEDRV:
-                strcat(pscsiini, "zremotedrv.hds\r\n");
-                break;
-            case DTYPE_REMOTEHDS:
-                strcat(pscsiini, "zremoteimg.hds\r\n");
-                break;
-            case DTYPE_SCSIIMG:
-                sprintf(str, "scsiimg%d.hds\r\n", i);
+        strcpy(pscsiini, "[pscsi]\r\n");
+        for (int i = 0; i < 7; i++) {
+            if (diskinfo[i].type != DTYPE_NOTUSED) {
+                char str[32];
+                sprintf(str, "ID%d=image/", i);
                 strcat(pscsiini, str);
-                break;
+                switch (diskinfo[i].type) {
+                case DTYPE_REMOTEDRV:
+                    strcat(pscsiini, "zremotedrv.hds\r\n");
+                    break;
+                case DTYPE_REMOTEHDS:
+                    strcat(pscsiini, "zremoteimg.hds\r\n");
+                    break;
+                case DTYPE_SCSIIMG:
+                    sprintf(str, "scsiimg%d.hds\r\n", i);
+                    strcat(pscsiini, str);
+                    break;
+                }
             }
         }
     }
@@ -611,7 +616,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 }
                 return 0;
             }
-            if (lba >= (0x8000 / 512) && lba < (0x20000 / 512)) {
+            if (lba >= (0x8000 / 512) && lba < (0x20000 / 512) && (sysstatus == STAT_CONFIGURED)) {
                 // HUMAN.SYS
                 lba -= 0x8000 / 512;
 
