@@ -865,7 +865,7 @@ void cmd_bootmode(int argc, char **argv)
     return;
   }
 
-  if (strlen(argv[1]) == 1 && argv[1][0] >= '0' && argv[1][0] >= '1') {
+  if (strlen(argv[1]) == 1 && argv[1][0] >= '0' && argv[1][0] <= '2') {
     mode = argv[1][0] - '0';
   } else {
     cmd_bootmode_usage();
