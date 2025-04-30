@@ -43,12 +43,7 @@ extern SemaphoreHandle_t remote_sem;
 extern uint64_t boottime;
 extern volatile int sysstatus;
 void connect_task(void *params);
-<<<<<<< HEAD
-=======
 void keepalive_task(void *params);
-int remote_mount(int unit, const char *path);
-int hds_mount(int unit, const char *path);
->>>>>>> 0389fd4... Add keepalive task to avoid user session deletion
 
 struct smb2_context *connect_smb2(const char *share);
 void disconnect_smb2(struct smb2_context *smb2);

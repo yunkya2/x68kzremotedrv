@@ -204,15 +204,8 @@ void connect_task(void *params)
         xTaskNotifyWait(1, 0, &nvalue, portMAX_DELAY);
         if (!(nvalue & CONNECT_WAIT))
             continue;
-<<<<<<< HEAD
-        connection(nvalue & CONNECT_MASK);
-=======
         xSemaphoreTake(remote_sem, portMAX_DELAY);
-        disconnectall();
         connection(nvalue & CONNECT_MASK);
-        if (sysstatus >= STAT_SMB2_CONNECTED) {
-            mountall();
-        }
         xSemaphoreGive(remote_sem);
     }
 }
@@ -234,6 +227,5 @@ void keepalive_task(void *params)
         }
         xSemaphoreGive(remote_sem);
         vTaskDelay(delay);
->>>>>>> 0389fd4... Add keepalive task to avoid user session deletion
     }
 }
