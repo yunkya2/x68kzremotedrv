@@ -23,7 +23,8 @@ FreeRTOS-Kernel/.git libsmb2/.git pico-sdk/.git update:
 RELFILE := x68kzremotedrv-$(shell date +%Y%m%d)
 
 release: all
-	cp README.md build/README.txt
+	./md2txtconv.py README.md
+	mv README.txt build
 	cp QUICKSTART.pdf build
 	cp driver/*.uf2 build
 	cp driver/*.xdf build
