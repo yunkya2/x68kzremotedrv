@@ -237,10 +237,10 @@ int vd_init(void)
     for (int i = 0; i < 7; i++) {
         if (diskinfo[i].type != DTYPE_NOTUSED) {
             char str[32];
-            sprintf(str, "ID%d=image/%s%d.hds\r\n",
-                i,
-                diskinfo[i].type == DTYPE_REMOTEBOOT ? "rmtdrv" : "rmthds",
-                i);
+            sprintf(str, "ID%d=image/%d%s.hds\r\n",
+                i, i,
+                diskinfo[i].type == DTYPE_REMOTEBOOT ? "remote" : 
+                (diskinfo[i].type == DTYPE_HDS ? "rmthds" : "rmtcom"));
             strcat(pscsiini, str);
         }
     }
@@ -265,8 +265,10 @@ int vd_init(void)
     init_dir_entry(dirent++, "CONFIG  TXT", 0, 0x18, 6, strlen(configtxt));
     init_dir_entry(dirent++, "X68000Z    ", ATTR_DIR, 0, 3, 0);
 
+#if 0
     if (!fastconnect)
         vd_sync();
+#endif
 
     /* Initialize "X68000Z" directory */
 
@@ -275,17 +277,7 @@ int vd_init(void)
     init_dir_entry(dirent++, ".          ", ATTR_DIR, 0, 3, 0);
     init_dir_entry(dirent++, "..         ", ATTR_DIR, 0, 0, 0);
     init_dir_entry(dirent++, "PSCSI   INI", 0, 0x18, 4, strlen(pscsiini));
-<<<<<<< HEAD
-    for (int i = 0; i < 7; i++) {
-        if (diskinfo[i].type != DTYPE_NOTUSED) {
-            char fn[12] = "DISKx   HDS";
-            fn[4] = '0' + i;
-            init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, diskinfo[i].size);
-        }
-    }
-=======
     init_dir_entry(dirent++, "IMAGE      ", ATTR_DIR, 0x18, 7, 0);
->>>>>>> bd2cf8a... Add X68000Z/image directory for lazy initialization
 
     return 0;
 }
@@ -397,9 +389,10 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 struct diskinfo *di = &diskinfo[i];
                 if (di->type != DTYPE_NOTUSED) {
                     char fn[16];
-                    sprintf(fn, "%s%d HDS",
-                        diskinfo[i].type == DTYPE_REMOTEBOOT ? "RMTDRV" : "RMTHDS", i);
-                    init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, DISKSIZE(di));
+                    sprintf(fn, "%d%s HDS", i,
+                            diskinfo[i].type == DTYPE_REMOTEBOOT ? "REMOTE" : 
+                            (diskinfo[i].type == DTYPE_HDS ? "RMTHDS" : "RMTCOM"));
+                    init_dir_entry(dirent++, fn, 0, 0x18, 0x20000 + 0x20000 * i, diskinfo[i].size);
                 }
             }
             imagedir_init = true;
