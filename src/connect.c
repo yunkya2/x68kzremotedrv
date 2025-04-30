@@ -1,5 +1,5 @@
 /* 
- * Copyright (c) 2024 Yuichi Nakamura (@yunkya2)
+ * Copyright (c) 2024,2025 Yuichi Nakamura (@yunkya2)
  *
  * The MIT License (MIT)
  *
@@ -49,10 +49,8 @@ uint64_t boottime = 0;
 
 volatile int sysstatus = STAT_WIFI_DISCONNECTED;
 
-const char *rootpath[N_REMOTE];
-struct smb2_context *rootsmb2[N_REMOTE];
+const char *rootpath[8];
 
-struct hdsinfo hdsinfo[N_HDS];
 struct diskinfo diskinfo[7];
 
 //****************************************************************************
@@ -147,17 +145,14 @@ static int vd_mount(void)
             printf("%s is not directory.\n", config.remote[i]);
             continue;
         }
-        rootsmb2[i] = smb2;
-        rootpath[i] = shpath;
+        rootpath[i] = config.remote[i];
         printf("REMOTE%u: %s\n", i, config.remote[i]);
     }
 
     int id = remoteboot ? 1 : 0;
 
     /* Set up remote HDS */
-    for (int i = 0; i < N_HDS; i++, id++) {
-        hdsinfo[i].disk = NULL;
-
+    for (int i = 0; i < countof(config.hds); i++, id++) {
         struct smb2_context *smb2;
         const char *shpath;
         if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
@@ -172,11 +167,9 @@ static int vd_mount(void)
             printf("File %s open failure.\n", config.hds[i]);
             continue;
         }
-
         diskinfo[id].smb2 = smb2;
         diskinfo[id].size = st.smb2_size;
         printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
-        hdsinfo[i].disk = &diskinfo[id];
     }
 
     for (int i = 0; i < 7; i++) {

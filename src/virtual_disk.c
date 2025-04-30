@@ -49,16 +49,8 @@
 // Global variables
 //****************************************************************************
 
-<<<<<<< HEAD
-const char *rootpath[8];
 int debuglevel = 0;
 
-struct diskinfo diskinfo[7];
-
-=======
-int debuglevel = 0;
-
->>>>>>> a7fcbcd... Add connect.c for network connection
 //****************************************************************************
 // Static variables
 //****************************************************************************
@@ -195,61 +187,6 @@ static void vd_sync(void)
     }
 }
 
-<<<<<<< HEAD
-int vd_mount(void)
-{
-    uint32_t nvalue;
-    struct dir_entry *dirent;
-    int len;
-
-    /* Set up remote drive */
-    for (int i = 0; i < remoteunit; i++) {
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.remote[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_DIRECTORY) {
-            printf("%s is not directory.\n", config.remote[i]);
-            continue;
-        }
-        rootpath[i] = config.remote[i];
-        printf("REMOTE%u: %s\n", i, config.remote[i]);
-    }
-
-    int id = remoteboot ? 1 : 0;
-
-    /* Set up remote HDS */
-    for (int i = 0; i < countof(config.hds); i++, id++) {
-        struct smb2_context *smb2;
-        const char *shpath;
-        if ((smb2 = connect_smb2_path(config.hds[i], &shpath)) == NULL)
-            continue;
-
-        struct smb2_stat_64 st;
-        if (smb2_stat(smb2, shpath, &st) < 0 || st.smb2_type != SMB2_TYPE_FILE) {
-            printf("File %s not found.\n", config.hds[i]);
-            continue;
-        }
-        if ((diskinfo[id].sfh = smb2_open(smb2, shpath, O_RDWR)) == NULL) {
-            printf("File %s open failure.\n", config.hds[i]);
-            continue;
-        }
-        diskinfo[id].smb2 = smb2;
-        diskinfo[id].size = st.smb2_size;
-        printf("HDS%u: %s size=%lld\n", i, config.hds[i], st.smb2_size);
-    }
-
-    for (int i = 0; i < 7; i++) {
-        diskinfo[i].sects = (diskinfo[i].size + SECTOR_SIZE - 1) / SECTOR_SIZE;
-    }
-
-    sysstatus = STAT_CONFIGURED;
-}
-
-=======
->>>>>>> a7fcbcd... Add connect.c for network connection
 int vd_init(void)
 {
     uint32_t nvalue;
