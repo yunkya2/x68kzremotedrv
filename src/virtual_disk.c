@@ -1,7 +1,7 @@
 /* 
  * The MIT License (MIT)
  *
- * Copyright (c) 2023 Yuichi Nakamura
+ * Copyright (c) 2023,2024,2025 Yuichi Nakamura
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -53,22 +53,11 @@
 const char *rootpath[8];
 int debuglevel = 0;
 
+struct diskinfo diskinfo[7];
+
 //****************************************************************************
 // Static variables
 //****************************************************************************
-
-#define DTYPE_NOTUSED       0
-#define DTYPE_HDS           1
-#define DTYPE_REMOTEBOOT    2
-#define DTYPE_REMOTECOMM    3
-
-static struct diskinfo {
-    int type;
-    struct smb2fh *sfh;
-    struct smb2_context *smb2;
-    uint32_t size;
-    int sects;
-} diskinfo[7];
 
 static int remoteunit;
 static bool remoteboot;

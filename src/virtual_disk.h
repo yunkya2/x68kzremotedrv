@@ -48,4 +48,21 @@ int vd_mount(void);
 int vd_read_block(uint32_t lba, uint8_t *buf);
 int vd_write_block(uint32_t lba, uint8_t *buf);
 
+/* remote disk information */
+
+#define DTYPE_NOTUSED       0
+#define DTYPE_HDS           1
+#define DTYPE_REMOTEBOOT    2
+#define DTYPE_REMOTECOMM    3
+
+struct diskinfo {
+    int type;
+    struct smb2fh *sfh;
+    struct smb2_context *smb2;
+    uint32_t size;
+    int sects;
+};
+
+extern struct diskinfo diskinfo[7];
+
 #endif  /* _VIRTUAL_DISK_H */
