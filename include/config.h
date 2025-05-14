@@ -37,6 +37,4 @@
 
 /* Remote service config */
 
-#define CONFIG_DIRREVERSE
-
 #endif /* _CONFIG_H_ */
