@@ -335,11 +335,15 @@ void keepalive_task(void *params)
         }
         xSemaphoreGive(remote_sem);
         vTaskDelay(delay);
-#ifdef DEBUG
+
         extern char __HeapLimit;
         struct mallinfo mi = mallinfo();
         printf("arena=%d used=%d free=%d", mi.arena, mi.uordblks, mi.fordblks);
         printf(" heapfree=%d\n", &__HeapLimit - (char *)sbrk(0));
+
+        time_t tt = (time_t)((boottime + to_us_since_boot(get_absolute_time())) / 1000000);
+        struct tm *tm = localtime(&tt);
+        printf("%04d/%02d/%02d %02d:%02d:%02d\n", tm->tm_year + 1900, tm->tm_mon + 1, tm->tm_mday, tm->tm_hour, tm->tm_min, tm->tm_sec);
 
         static TaskStatus_t pxTaskStatusArray[8];
         unsigned long ulTotalRunTime;
@@ -353,6 +357,5 @@ void keepalive_task(void *params)
                    pxTaskStatusArray[x].uxCurrentPriority,
                    pxTaskStatusArray[x].usStackHighWaterMark);
         }
-#endif
     }
 }
