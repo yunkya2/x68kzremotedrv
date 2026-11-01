@@ -67,11 +67,16 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
   int wcnt = (wsize - 1) / (512 - 16);
   int rcnt = (rsize - 1) / (512 - 16);
 
+  /* 応答の読み出しを始めるセクタを先に決めて、ヘッダの reserved[] で Pico に知らせる */
+  int rsect = ((sect - 8) % 0x200000) + 0x200000;
+
   h = &vdbuf_write.header;
   h->signature = 0x5836385a;    /* "X68Z" */
   h->session = seqtim;
   h->seqno = seqno;
   h->maxpage = wcnt;
+  h->reserved[0] = 0x80 | ((rsect >> 11) & 0x1f);
+  h->reserved[1] = (rsect >> 3) & 0xff;
   for (int i = 0; i <= wcnt; i++) {
     h->page = i;
     int s = wsize > (512 - 16) ? 512 - 16 : wsize;
@@ -81,12 +86,12 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
     _iocs_s_writeext(0x20, 1, scsiid, 1, &vdbuf_write);
   }
 
-  sect = ((sect - 8) % 0x200000) + 0x200000;
+  sect = rsect;
   h = &vdbuf_read.header;
   for (int i = 0; i <= rcnt; i++) {
     while (1) {
       _iocs_s_readext(sect + (i & 7), 1, scsiid, 1, &vdbuf_read);
-      if (memcmp(&vdbuf_read, &vdbuf_write, 12) == 0)
+      if (memcmp(&vdbuf_read, &vdbuf_write, 12) == 0 && vdbuf_read.header.page == i)
         break;
       sect = ((sect - 0x10000) % 0x200000) + 0x200000;
     }

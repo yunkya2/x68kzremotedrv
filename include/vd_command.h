@@ -36,7 +36,11 @@ struct vdbuf_header {
     uint32_t seqno;             // sequence count
     uint8_t page;               // page number
     uint8_t maxpage;            // max page
-    uint8_t reserved[2];
+    uint8_t reserved[2];        // 書き込み (要求) のとき: 応答を読み始める LBA をドライバが知らせる
+                                //   reserved[0] bit7  : LBA 方式のフラグ (0 なら従来どおり読み出し回数で数える)
+                                //   reserved[0] bit6-5: 0
+                                //   reserved[0] bit4-0: 開始 LBA の bit15-11
+                                //   reserved[1]       : 開始 LBA の bit10-3
 };
 
 struct vdbuf {

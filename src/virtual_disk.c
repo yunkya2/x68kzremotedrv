@@ -287,6 +287,8 @@ uint8_t vdbuf_read[(512 - 16) * 8 * 4];
 uint8_t vdbuf_write[(512 - 16) * 8 * 4];
 int vdbuf_rpages;
 int vdbuf_rcnt;
+// 応答の読み出しを始めるセクタ (下位 16bit)。ドライバがヘッダの reserved[] で知らせてくる (-1: 知らせない古いドライバ)
+int vdbuf_rbase = -1;
 
 struct vdbuf_header vdbuf_header;
 
@@ -502,14 +504,35 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
                 }
                 return 0;
             } else if (lba >= (0x40000 / 512)) {
-                int page = vdbuf_rcnt + (lba % 8);
+                int page;
                 struct vdbuf *b = (struct vdbuf *)buf;
+                if (vdbuf_rbase >= 0) {
+                    // ページは LBA から決める (読み出しの回数で数えると、X68000 Z 側の先読みで余分に読まれたときにずれる)
+                    // ドライバは 8 ページごとに 8 セクタ下へ、読み直しのときは 0x10000 セクタ下へ移る
+                    // 下位 16bit の差を使うので、LBA の範囲の折り返しと -0x10000 の読み直しでページ番号は変わらない
+                    page = (((vdbuf_rbase - (lba & ~7)) & 0xffff) / 8) * 8 + (lba % 8);
+                } else {
+                    page = vdbuf_rcnt + (lba % 8);
+                    if ((lba % 8) == 7) {
+                        vdbuf_rcnt += 8;
+                    }
+                }
                 b->header = vdbuf_header;
                 b->header.maxpage = vdbuf_rpages;
-                b->header.page = page;
-                memcpy(b->buf, &vdbuf_read[page * (512 - 16)], sizeof(b->buf));
-                if ((lba % 8) == 7) {
-                    vdbuf_rcnt += 8;
+                if (vdbuf_rbase >= 0 &&
+                    (page > vdbuf_rpages || page >= (int)(sizeof(vdbuf_read) / (512 - 16)))) {
+                    // 先読みなどで範囲外のページが読まれた: ドライバが受け付けないようにする
+                    b->header.signature = 0;
+                    b->header.page = 0xff;
+                    memset(b->buf, 0, sizeof(b->buf));
+                } else {
+                    b->header.page = page;
+                    if (page < (int)(sizeof(vdbuf_read) / (512 - 16))) {
+                        memcpy(b->buf, &vdbuf_read[page * (512 - 16)], sizeof(b->buf));
+                    } else {
+                        // 従来方式で数えすぎた: バッファの外は読まない
+                        memset(b->buf, 0, sizeof(b->buf));
+                    }
                 }
                 return 0;
             }
@@ -585,6 +608,8 @@ int vd_write_block(uint32_t lba, uint8_t *buf)
                 xSemaphoreGive(remote_sem);
                 vdbuf_rpages = (rsize < 0) ? 0 : ((rsize - 1) / (512 - 16));
                 vdbuf_rcnt = 0;
+                vdbuf_rbase = (vdbuf_header.reserved[0] & 0x80) ?
+                              ((((vdbuf_header.reserved[0] & 0x1f) << 8) | vdbuf_header.reserved[1]) << 3) : -1;
                 DPRINTF3("vdbuf_rpages=%d\n", vdbuf_rpages);
             }
             return 0;
