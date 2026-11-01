@@ -374,7 +374,7 @@ int main()
     char buf[512];
     _iocs_s_readext(0, 1, 6, 1, buf);
     if (memcmp(buf, "X68SCSI1", 8) != 0 ||
-        memcmp(&buf[16], "X68000ZRemoteDrv", 16) != 0) {
+        memcmp(&buf[16], "X68000ZRemoteDr2", 16) != 0) {
        drawframe2(1, 28, 94, 4, 1, -1);
       _iocs_b_putmes(3, 3, 29, 89, "X68000 Z Remote Drive Service が見つかりません");
       _iocs_b_putmes(3, 3, 30, 89, "リモートドライブ ファームウェアを書き込んだ Raspberry Pi Pico W を接続してください");

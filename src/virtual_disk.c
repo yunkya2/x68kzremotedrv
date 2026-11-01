@@ -435,7 +435,7 @@ int vd_read_block(uint32_t lba, uint8_t *buf)
             if (lba == 0) {
                 // SCSI disk signature
                 memcpy(buf, "X68SCSI1", 8);
-                memcpy(&buf[16], "X68000ZRemoteDrv", 16);
+                memcpy(&buf[16], "X68000ZRemoteDr2", 16);
                 return 0;
             } else if (lba == 2) {
                 // boot loader
