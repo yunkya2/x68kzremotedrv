@@ -67,7 +67,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
   int wcnt = (wsize - 1) / (512 - 16);
   int rcnt = (rsize - 1) / (512 - 16);
 
-  /* 応答の読み出しを始めるセクタを先に決めて、ヘッダの reserved[] で Pico に知らせる */
+  /* 応答開始セクタを先に決めて、ヘッダで Pico に知らせる */
   int rsect = ((sect - 8) % 0x200000) + 0x200000;
 
   h = &vdbuf_write.header;
@@ -75,8 +75,7 @@ void com_cmdres(void *wbuf, size_t wsize, void *rbuf, size_t rsize)
   h->session = seqtim;
   h->seqno = seqno;
   h->maxpage = wcnt;
-  h->reserved[0] = 0x80 | ((rsect >> 11) & 0x1f);
-  h->reserved[1] = (rsect >> 3) & 0xff;
+  h->rbase8 = (rsect >> 3) & 0x1fff;
   for (int i = 0; i <= wcnt; i++) {
     h->page = i;
     int s = wsize > (512 - 16) ? 512 - 16 : wsize;
